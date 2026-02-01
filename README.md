@@ -678,13 +678,13 @@ A full-featured runtime with JSX rendering, an actor system, HTTP networking, an
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    KORE Interpreter Runtime                      │
+│                    KORE Interpreter Runtime                     |
 ├─────────────────────────────────────────────────────────────────┤
 │  Value System (15 types)  │  Environment (Scope Chain)          │
 │  ├── Int, Float, Bool     │  ├── Variable lookup O(1)           │
 │  ├── String, Array, Map   │  ├── Lexical scoping                │
 │  ├── Struct, Enum, Tuple  │  └── Closure capture                │
-│  ├── Function, Lambda     │                                      │
+│  ├── Function, Lambda     │                                     |
 │  ├── VNode (JSX)          │  Actor System (Erlang-style)        │
 │  ├── ActorRef, Future     │  ├── spawn/send primitives          │
 │  └── Poll (async)         │  └── Mailbox message queue          │
@@ -694,7 +694,7 @@ A full-featured runtime with JSX rendering, an actor system, HTTP networking, an
 │  ├── Math: sin, cos, sqrt │  ├── native_http_post               │
 │  ├── Collections: map,    │  ├── native_read_file               │
 │  │   filter, fold, zip    │  └── native_write_file              │
-│  └── JSON: parse, string  │                                      │
+│  └── JSON: parse, string  │                                     |
 └─────────────────────────────────────────────────────────────────┘
 ```
 
