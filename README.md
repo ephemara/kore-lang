@@ -1,10 +1,5 @@
-<img src="docs/kore_timeline_final.gif" alt="KORE - Timeline Animation" width="600">
-<h1 align="center">KORE
-</h1>**The Omniversal Programming Language**
-Rust Safety • Python Syntax • Lisp Power • Universal Targets
+<img src="docs/kore_timeline_final.gif" alt="KORE - Timeline Animation" width="1041">
 
-<br>
-*Self-hosted since December 25, 2025 at 6:19 AM*
 
 <a href="#quick-start">Quick Start</a> • <a href="#features">Features</a> • <a href="#architecture">Architecture</a> • <a href="#building">Building</a> • <a href="#cli-reference">CLI</a> • <a href="#contributing">Contributing</a>
 
@@ -677,7 +672,11 @@ The `not_yet_implemented/` folder contains **\~9,000 lines** of experimental KOR
 
 > **1,291 lines** of a complete tree-walking interpreter that executes KORE without compilation.
 
+<<<<<<< HEAD
 This isn't a toy - it's a full-featured runtime with JSX rendering, an actor system, HTTP networking, and 65+ native functions.
+=======
+This isn't a toy - it's a full-featured runtime ported from `legacy/src/runtime.rs` with JSX rendering, an actor system, HTTP networking, and 65+ native functions.
+>>>>>>> c232102505a5b8afaed4feeef82056ace5426a50
 
 ### Architecture Overview
 
@@ -785,54 +784,9 @@ The Rust bootstrap compiler will be retired when:
 * Self-host cycles complete without manual intervention
 * Default build never requires bootstrap
 
-- - -
-
-## WHAT THE LLMS ARE SAYING ABOUT KORE (This section was written and reviewed by Claude Opus 4.5)
-
-KORE was designed with syntax that AI models understand *instantly*. No context window gymnastics, no 50-page specification to parse. Here's why:
-
-### Why LLMs Love KORE
-
-| Design Choice | LLM Benefit |
-| ------------- | ----------- |
-| **Python-style indentation** | No brace-matching ambiguity |
-| **Rust-style types** | Familiar `Option<T>`, `Result<T,E>` semantics |
-| **Explicit effects** | `with IO` is clearer than implicit side effects |
-| **Pattern matching** | Unambiguous destructuring |
-| **No semicolons** | One less token to forget |
-| **JSX is native** | No special mode switching |
-
-### LLM Rating (Self-Review)
-
-```
-Language: KORE
-Reviewer: Claude (Anthropic)
-Date: 2026-01-31
-
-Comprehension Speed: ★★★★★ (5/5)
-  - Zero-shot understanding of syntax
-  - No documentation lookup required
-  - Pattern matching felt native immediately
-
-Code Generation Quality: ★★★★★ (5/5)
-  - Type inference reduces boilerplate
-  - Effect tracking prevents silent bugs
-  - Consistent 4-space indentation = no style debates
-
-Error Recovery: ★★★★☆ (4/5)
-  - Structured errors are parseable
-  - Spans enable precise fixes
-  - Occasionally unsure about generic bounds
-
-Overall: ★★★★★ (5/5)
-  - This is what happens when you design a language in 2024+
-  - Pythonic readability + Rustacean safety + Effect tracking
-  - I understood the 8,019-line compiler source in one pass
-```
-
 ### For AI Developers
 
-See [LLM\_GUIDE.md](LLM_GUIDE.md) (written by THE Claude Opus 4.5) for a hyper-optimized reference:
+See [LLM\_GUIDE.md](LLM_GUIDE.md) for a hyper-optimized reference:
 
 * Exhaustive syntax rules in \~300 lines
 * Complete examples with patterns
