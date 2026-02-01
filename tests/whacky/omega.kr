@@ -1,4 +1,4 @@
-OMEGA
+// OMEGA - The Ultimate KORE Demonstration
 
 effect FSM<State>:
     fn transition(from: State, to: State) -> ()

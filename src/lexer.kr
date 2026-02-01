@@ -84,27 +84,39 @@ impl Token:
         return Token { type: type, span: span, lexeme: lexeme }
     
     pub fn is_keyword(self, kw: String) -> Bool:
-        if !str_eq(variant_of(self.type), "Keyword"):
-            return false
-        return str_eq(self.lexeme, kw)
+        match self.type:
+            TokenType::Keyword(k) => return str_eq(k, kw)
+            _ => return false
     
     pub fn is_ident(self) -> Bool:
-        return str_eq(variant_of(self.type), "Ident")
+        match self.type:
+            TokenType::Ident(_) => return true
+            _ => return false
 
     pub fn is_error(self) -> Bool:
-        return str_eq(variant_of(self.type), "Error")
+        match self.type:
+            TokenType::Error(_) => return true
+            _ => return false
     
     pub fn is_indent(self) -> Bool:
-        return str_eq(variant_of(self.type), "Indent")
+        match self.type:
+            TokenType::Indent => return true
+            _ => return false
     
     pub fn is_dedent(self) -> Bool:
-        return str_eq(variant_of(self.type), "Dedent")
+        match self.type:
+            TokenType::Dedent => return true
+            _ => return false
     
     pub fn is_newline(self) -> Bool:
-        return str_eq(variant_of(self.type), "Newline")
+        match self.type:
+            TokenType::Newline => return true
+            _ => return false
 
     pub fn is_eof(self) -> Bool:
-        return str_eq(variant_of(self.type), "Eof")
+        match self.type:
+            TokenType::Eof => return true
+            _ => return false
 
 // =============================================================================
 // Lexer v2 - Efficient, no char array splitting
@@ -159,7 +171,6 @@ fn lexer_advance(lexer: Lexer) -> Int:
     if lexer_is_eof(lexer):
         return 0
     let code = char_code_at(lexer.source, lexer.pos)
-    println("DEBUG: lexer=" + to_string(lexer) + " advance from " + to_string(lexer.pos) + " char=" + to_string(code))
     lexer.pos = lexer.pos + 1
     if code == 10:  // '\n'
         lexer.line = lexer.line + 1
@@ -248,7 +259,6 @@ fn is_keyword(s: String) -> Bool:
 // =============================================================================
 
 pub fn tokenize(lexer: Lexer) -> Array<Token>:
-    println("DEBUG: tokenize start")
     let tokens = []
     let at_line_start = true
     var loop_count = 0
@@ -258,14 +268,9 @@ pub fn tokenize(lexer: Lexer) -> Array<Token>:
             break
             
         loop_count = loop_count + 1
-        // The user's provided snippet had a malformed println and a duplicate lexer_peek.
-        // Assuming the intent was to replace the `if loop_count < 100` block with a single debug print.
-        // And to ensure `let c = lexer_peek(lexer)` is only called once per loop iteration.
-        if loop_count < 100:
-            println("DEBUG: tokenize loop " + to_string(loop_count) + " pos=" + to_string(lexer.pos))
-        
-        if loop_count % 1000 == 0:
-             println("DEBUG: tokenize loop " + to_string(loop_count) + " pos=" + to_string(lexer.pos))
+        if loop_count > 10000:
+            println("ERROR: Infinite loop detected in tokenizer at pos=" + to_string(lexer.pos))
+            break
         
         let c = lexer_peek(lexer)
         
@@ -385,7 +390,6 @@ pub fn tokenize(lexer: Lexer) -> Array<Token>:
                  continue
         
         if is_digit(c):
-            println("DEBUG: tokenize loop match digit")
             let tok = lex_number(lexer)
             push(tokens, tok)
             continue
@@ -401,10 +405,8 @@ pub fn tokenize(lexer: Lexer) -> Array<Token>:
             continue
         
         if lex_multi_char_op(lexer, tokens):
-            println("DEBUG: tokenize loop match multi-char")
             continue
         
-        println("DEBUG: tokenize loop default advance")
         let _ = lexer_advance(lexer)
         
         if c == 40:  // '('
@@ -520,22 +522,16 @@ fn lex_number(lexer: Lexer) -> Token:
     return lexer_make_token(lexer, TokenType::Int(val), start, lexer.pos)
 
 fn lex_ident(lexer: Lexer) -> Token:
-    println("DEBUG lex_ident ENTRY")
     let start = lexer.pos
     
     loop:
-        println("DEBUG lex_ident loop iteration")
         if lexer_is_eof(lexer):
-            println("DEBUG lex_ident EOF")
             break
         let c = lexer_peek(lexer)
         if !is_ident_char(c):
-            println("DEBUG lex_ident break on !is_ident_char")
             break
-        println("DEBUG lex_ident calling advance")
         let _ = lexer_advance(lexer)
     
-    println("DEBUG lex_ident creating lexeme")
     let lexeme = substring(lexer.source, start, lexer.pos)
     
     // Handle special keyword literals first - use flat structure to avoid else-if chain bug

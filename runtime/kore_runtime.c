@@ -316,7 +316,6 @@ void kore_free(void* ptr) {
 char* kore_str_new(const char* str) {
     if (!str) return NULL;
     size_t len = strlen(str);
-    printf("DEBUG: [RUNTIME] kore_str_new: len=%zu str='%s'\n", len, str); fflush(stdout);
     
     char* result = _strdup(str);
     
@@ -443,22 +442,8 @@ int64_t kore_str_eq(int64_t a_val, int64_t b_val) {
     if (kore_is_string(a) && kore_is_string(b)) {
         const char* sa = kore_unbox_string(a);
         const char* sb = kore_unbox_string(b);
-        if (str_eq_count <= 100) {
-            printf("DEBUG str_eq[%d]: BOTH TAGGED - sa=%p (\"%s\"), sb=%p (\"%s\")\n",
-                   str_eq_count, (void*)sa, sa ? sa : "NULL",
-                   (void*)sb, sb ? sb : "NULL");
-        }
         if (!sa || !sb) return sa == sb ? KORE_TRUE : KORE_FALSE;
         return strcmp(sa, sb) == 0 ? KORE_TRUE : KORE_FALSE;
-    }
-    
-    // DEBUG: Print which check failed
-    if (str_eq_count <= 100) {
-        uint64_t tag_a = kore_get_tag(a);
-        uint64_t tag_b = kore_get_tag(b);
-        printf("DEBUG str_eq[%d]: is_string(a)=%d tag_a=%llu, is_string(b)=%d tag_b=%llu\n",
-               str_eq_count, kore_is_string(a), (unsigned long long)tag_a,
-               kore_is_string(b), (unsigned long long)tag_b);
     }
     
     // V1 COMPATIBILITY: Try to extract string pointers from V1-style boxing
@@ -487,12 +472,6 @@ int64_t kore_str_eq(int64_t a_val, int64_t b_val) {
         str_b = (const char*)b;
     }
     
-    // DEBUG: Print what we extracted
-    if (str_eq_count <= 100) {
-        printf("DEBUG str_eq[%d]: str_a=%p (\"%s\"), str_b=%p (\"%s\")\n",
-               str_eq_count, (void*)str_a, str_a ? str_a : "NULL",
-               (void*)str_b, str_b ? str_b : "NULL");
-    }
     
     // If we got valid-looking string pointers, compare them
     if (str_a && str_b) {
@@ -500,9 +479,6 @@ int64_t kore_str_eq(int64_t a_val, int64_t b_val) {
         // Just do strcmp - if they're garbage pointers, this will crash
         // which is better than silently returning wrong results
         int result = strcmp(str_a, str_b) == 0 ? 1 : 0;
-        if (str_eq_count <= 100) {
-            printf("DEBUG str_eq[%d]: result=%d\n", str_eq_count, result);
-        }
         return result;
     }
     

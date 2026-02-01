@@ -133,7 +133,7 @@ fn parser_is_eof(p: ParserV2) -> Bool:
     if p.pos >= array_len(p.tokens):
         return true
     let tok = p.tokens[p.pos]
-    return str_eq(variant_of(tok.type), "Eof")
+    return tok.is_eof()
 
 fn parser_peek(p: ParserV2) -> Token:
     if parser_is_eof(p):
@@ -155,7 +155,14 @@ fn parser_advance(p: ParserV2) -> Token:
 fn parser_check(p: ParserV2, variant: String) -> Bool:
     if parser_is_eof(p):
         return false
-    return str_eq(variant_of(parser_peek(p).type), variant)
+    let tok = parser_peek(p)
+    if str_eq(variant, "Ident"): return tok.is_ident()
+    if str_eq(variant, "Eof"): return tok.is_eof()
+    if str_eq(variant, "Newline"): return tok.is_newline()
+    if str_eq(variant, "Indent"): return tok.is_indent()
+    if str_eq(variant, "Dedent"): return tok.is_dedent()
+    if str_eq(variant, "Error"): return tok.is_error()
+    return str_eq(variant_of(tok.type), variant)
 
 fn parser_check_lexeme(p: ParserV2, lex: String) -> Bool:
     if parser_is_eof(p):
@@ -176,7 +183,7 @@ fn parser_match_lexeme(p: ParserV2, lex: String) -> Bool:
 
 fn parser_match_keyword(p: ParserV2, kw: String) -> Bool:
     let tok = parser_peek(p)
-    if str_eq(variant_of(tok.type), "Keyword") && str_eq(tok.lexeme, kw):
+    if tok.is_keyword(kw):
         let _ = parser_advance(p)
         return true
     return false
@@ -235,7 +242,7 @@ fn parser_expect(p: ParserV2, lex: String) -> Token:
 
 fn parser_expect_keyword(p: ParserV2, kw: String) -> Token:
     let tok = parser_peek(p)
-    if str_eq(variant_of(tok.type), "Keyword") && str_eq(tok.lexeme, kw):
+    if tok.is_keyword(kw):
         return parser_advance(p)
     
     // Report with nice diagnostic then panic
@@ -1572,4 +1579,4 @@ fn repeat_char_local(ch: String, n: Int) -> String:
 // Helper for keyword checking
 fn parser_check_keyword(p: ParserV2, kw: String) -> Bool:
     let tok = parser_peek(p)
-    return str_eq(variant_of(tok.type), "Keyword") && str_eq(tok.lexeme, kw)
+    return tok.is_keyword(kw)
