@@ -1,9 +1,5 @@
 <img src="docs/kore_timeline_final.gif" alt="KORE - Timeline Animation" width="1041">
-</h1>**The Omniversal Programming Language**
-Rust Safety • Python Syntax • Lisp Power • Universal Targets
 
-<br>
-*Self-hosted since December 25, 2025 at 6:19 AM*
 
 <a href="#quick-start">Quick Start</a> • <a href="#features">Features</a> • <a href="#architecture">Architecture</a> • <a href="#building">Building</a> • <a href="#cli-reference">CLI</a> • <a href="#contributing">Contributing</a>
 
