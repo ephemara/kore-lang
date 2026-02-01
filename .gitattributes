@@ -1,0 +1,2 @@
+# Treat .kr files as Rust for syntax highlighting and stats
+*.kr linguist-language=Rust
