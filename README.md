@@ -811,7 +811,7 @@ Overall: ★★★★★ (5/5)
 
 ### For AI Developers
 
-See [LLM\_GUIDE.md](LLM_GUIDE.md) (written by THE Claude Opus 4.5) for a hyper-optimized reference:
+See [LLM\_GUIDE.md](LLM_GUIDE.md) for a hyper-optimized reference:
 
 * Exhaustive syntax rules in \~300 lines
 * Complete examples with patterns
