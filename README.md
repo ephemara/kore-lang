@@ -1,4 +1,4 @@
-<img src="docs/kore_timeline_final.gif" alt="KORE - Timeline Animation" width="600">
+<img src="docs/kore_timeline_final.gif" alt="KORE - Timeline Animation" width="1041">
 <h1 align="center">KORE
 </h1>**The Omniversal Programming Language**
 Rust Safety • Python Syntax • Lisp Power • Universal Targets
