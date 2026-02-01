@@ -671,12 +671,7 @@ The `not_yet_implemented/` folder contains **\~9,000 lines** of experimental KOR
 ## The Interpreter Runtime (`runtime.kr`)
 
 > **1,291 lines** of a complete tree-walking interpreter that executes KORE without compilation.
-
-<<<<<<< HEAD
-This isn't a toy - it's a full-featured runtime with JSX rendering, an actor system, HTTP networking, and 65+ native functions.
-=======
-This isn't a toy - it's a full-featured runtime ported from `legacy/src/runtime.rs` with JSX rendering, an actor system, HTTP networking, and 65+ native functions.
->>>>>>> c232102505a5b8afaed4feeef82056ace5426a50
+A full-featured runtime with JSX rendering, an actor system, HTTP networking, and 65+ native functions.
 
 ### Architecture Overview
 
