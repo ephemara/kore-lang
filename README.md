@@ -20,6 +20,7 @@ This repository contains **two compiler implementations**:
 **Detailed comparison**: See [WHICH_VERSION.md](WHICH_VERSION.md) for a complete feature matrix and use case guide.
 
 - - -
+Kore has been a private repo for years, and you may be asking where did these 337~ files spawn from? My old repo had way too much personal info in the git commits so for the public release the only option was to start fresh and host it in a new repo.
 
 If you're curious about what this language is designed to power, head over to [Greeble.co](https://www.greeble.co/). You can find a sample of my in-progress 3D DCC (1/14 modules) and a preview of a new Unreal Engine 5 plugin featuring effectors, cloners, and MoGraph tools in the style of C4D.
 
