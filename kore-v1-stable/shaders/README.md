@@ -42,11 +42,11 @@ Full post-processing pipeline:
 
 ## Compilation
 
-These shaders target the legacy KORE compiler's SPIR-V backend:
+These shaders target the KORE V1 compiler's SPIR-V backend:
 
 ```bash
 # Compile to SPIR-V
-cd legacy/compiler
+cd kore-v1-stable
 cargo build --release
 ./target/release/kore ../shaders/pbr_material.kr --target spirv -o ../shaders/pbr_material.spv
 

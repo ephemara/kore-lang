@@ -10,6 +10,22 @@ Rust Safety • Python Syntax • Lisp Power • Universal Targets
 
 - - -
 
+## Repository Structure
+
+This repository contains **two compiler implementations**:
+
+| Version | Location | Status | Best For |
+|---------|----------|--------|----------|
+| **V2 Self-Hosting** | `/` (root) | Experimental | Next-gen compiler development, LLVM native |
+| **V1 Production** | `/kore-v1-stable/` | Production-Ready | WASM, SPIR-V shaders, Actor runtime, UE5 integration |
+
+**New users**: Start with **V1** (`/kore-v1-stable/`) for production work, especially for shaders and WASM.  
+**Contributors**: V2 (root) is where the self-hosting magic happens - help us make it production-ready!
+
+**Detailed comparison**: See [WHICH_VERSION.md](WHICH_VERSION.md) for a complete feature matrix and use case guide.
+
+- - -
+
 If you're curious about what this language is designed to power, head over to [Greeble.co](https://www.greeble.co/). You can find a sample of my in-progress 3D DCC (1/14 modules) and a preview of a new Unreal Engine 5 plugin featuring effectors, cloners, and MoGraph tools in the style of C4D.
 
 - - -
@@ -111,16 +127,16 @@ clang hello.ll build\kore_runtime.o -o hello.exe
 
 | Target | Status | Output |
 | ------ | ------ | ------ |
-| **LLVM IR** | ✅ Stable | Native executables via Clang |
-| **WASM** | 🔄 Legacy | WebAssembly modules |
-| **SPIR-V** | 🔄 Legacy | GPU shader bytecode |
-| **Rust** | 🔄 Bootstrap | Transpiled Rust source |
+| **LLVM IR** | Stable | Native executables via Clang |
+| **WASM** | V1 Stable | WebAssembly modules (see kore-v1-stable/) |
+| **SPIR-V** | V1 Stable | GPU shader bytecode (see kore-v1-stable/) |
+| **Rust** | Bootstrap | Transpiled Rust source |
 
 ### Unreal Engine 5 Integration
 
 KORE features a specialized `ue5-shader` pipeline that compiles KORE source directly into validated SPIR-V and transpiled HLSL/USF files, ready for seamless use in UE5 plugins.
 
-KORE was born from a love for Unreal Engine. it's the foundation that made this language possible. More info on it in the /legacy folder.
+KORE was born from a love for Unreal Engine - it's the foundation that made this language possible. The production-ready V1 compiler with full UE5 shader support is available in `/kore-v1-stable/`.
 
 ### Current Limitations
 
@@ -207,7 +223,7 @@ KORE uses a **three-stage bootstrap architecture**:
 │   ├── suggestions.kr      # Error recovery suggestions (388 lines)
 │   └── import_resolver.kr  # Module resolution (365 lines)
 │
-├── legacy/                 # Legacy compiler (stable, with WASM/SPIR-V, and Kore to RUST.)
+├── kore-v1-stable/         # V1 Production Compiler (WASM/SPIR-V/Rust/Actors)
 ├── docs/                   # Documentation
 ├── stdlib/                 # Standard library (KORE source)
 └── scripts/                # Development utilities
@@ -559,14 +575,14 @@ The C runtime (`runtime/kore_runtime.c`) provides:
 
 | Component | Status | Notes |
 | --------- | ------ | ----- |
-| Lexer | ✅ Stable | Full token coverage |
-| Parser (v2) | ✅ Stable | Generics support |
-| Type Checker | ✅ Stable | Effect inference |
-| LLVM Codegen | ✅ Working | NaN-boxing, most constructs |
-| Native Build | ✅ Working | Primary development path |
-| Bootstrap | ✅ Working | Fallback compiler |
-| Self-Host | 🔄 Experimental | Stage 2 validation |
-| IR Verification | 🔄 Partial | Known edge cases |
+| Lexer | Stable | Full token coverage |
+| Parser (v2) | Stable | Generics support |
+| Type Checker | Stable | Effect inference |
+| LLVM Codegen | Working | NaN-boxing, most constructs |
+| Native Build | Working | Primary development path |
+| Bootstrap | Working | Fallback compiler |
+| Self-Host | Experimental | Stage 2 validation |
+| IR Verification | Partial | Known edge cases |
 
 ### Known Gaps
 
@@ -661,7 +677,7 @@ The `not_yet_implemented/` folder contains **\~9,000 lines** of experimental KOR
 
 > **1,291 lines** of a complete tree-walking interpreter that executes KORE without compilation.
 
-This isn't a toy - it's a full-featured runtime ported from `legacy_prototype/src/runtime.rs` with JSX rendering, an actor system, HTTP networking, and 65+ native functions.
+This isn't a toy - it's a full-featured runtime with JSX rendering, an actor system, HTTP networking, and 65+ native functions.
 
 ### Architecture Overview
 

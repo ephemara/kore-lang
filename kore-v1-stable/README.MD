@@ -1,6 +1,6 @@
-# KORE Legacy Compiler
+# KORE V1 - Production Compiler
 
-> **Note**: Despite the name "legacy", this folder contains the **more stable and feature-complete** version of KORE while the self-hosting bootstrap is being finalized. This is actively used for shader development and the Rust transpiler.
+> **Production-Ready Release**: This is the stable, feature-complete V1 compiler with Actor runtime, UE5 shader pipeline, Python FFI, and multiple compilation targets. While the V2 self-hosting compiler (in the root directory) is under active development, V1 is battle-tested and ready for production use.
 
 ## Philosophy
 
@@ -22,8 +22,8 @@ This folder contains **two distinct compilers** at different stages of developme
 
 | Compiler | Location | LLVM Version | Backends | Status |
 |----------|----------|--------------|----------|--------|
-| **Main Compiler** | `./` (root) | inkwell 0.4 / LLVM 17 | WASM, LLVM, SPIR-V, Interpret | Stable |
-| **Bootstrap Compiler** | `./bootstrap/` | inkwell 0.7.1 / LLVM 21 | LLVM, **Rust** | Active Development |
+| **Main V1 Compiler** | `./` (root) | inkwell 0.4 / LLVM 17 | WASM, LLVM, SPIR-V, Interpret | Production |
+| **Bootstrap Compiler** | `./bootstrap/` | inkwell 0.7.1 / LLVM 21 | LLVM, **Rust** | Stable |
 
 The bootstrap compiler includes the **Rust transpiler** - KORE code can be compiled to valid Rust source.
 
@@ -31,10 +31,10 @@ The bootstrap compiler includes the **Rust transpiler** - KORE code can be compi
 
 ## Quick Start
 
-### Build the Main Compiler
+### Build the Main V1 Compiler
 
 ```bash
-cd legacy
+cd kore-v1-stable
 cargo build --release
 ```
 
@@ -43,7 +43,7 @@ cargo build --release
 ### Build the Bootstrap Compiler
 
 ```bash
-cd legacy/bootstrap
+cd kore-v1-stable/bootstrap
 cargo build --release
 ```
 
@@ -222,10 +222,10 @@ The generated Rust includes:
 ## Directory Structure
 
 ```
-legacy/
+kore-v1-stable/
 ├── Cargo.toml                  # Main compiler manifest (inkwell 0.4)
 ├── README.md                   # This file
-├── commands.md                 # CLI reference (from original docs)
+├── commands.md                 # CLI reference
 │
 ├── src/                        # Main compiler source (Rust)
 │   ├── lib.rs                  # Library entry, compile() function
@@ -553,17 +553,17 @@ actor ChatRoom:
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Lexer | Stable | Full token coverage |
-| Parser | Stable | 82KB of parsing logic |
-| Type Checker | Stable | Effect inference included |
-| Interpreter | Stable | Primary development target |
-| WASM Codegen | Stable | Full feature support |
-| LLVM Codegen | Working | Requires feature flag |
-| SPIR-V Codegen | Working | Shader pipeline functional |
-| **Rust Transpiler** | Working | Bootstrap compiler |
-| Self-hosted Compiler | In Progress | Project Ouroboros |
+| Lexer | Production | Full token coverage |
+| Parser | Production | 82KB of parsing logic |
+| Type Checker | Production | Effect inference included |
+| Interpreter | Production | Primary development target |
+| WASM Codegen | Production | Full feature support |
+| LLVM Codegen | Stable | Requires feature flag |
+| SPIR-V Codegen | Stable | Shader pipeline functional |
+| **Rust Transpiler** | Stable | Bootstrap compiler |
+| Self-hosted Compiler | See V2 | Project Ouroboros (root dir) |
 | LSP | Working | Basic features |
-| Actor System | Working | Channel-based |
+| Actor System | Production | Channel-based |
 | Python FFI | Working | Via pyo3 |
 | REPL | Planned | Framework exists |
 | Formatter | Planned | Framework exists |

@@ -1,30 +1,30 @@
-# KORE Legacy Commands Reference
+# KORE V1 Commands Reference
 
-> **Note**: This documents the legacy KORE compiler implementation (pre-2025). For the current self-hosted compiler, see the main [README.md](../README.md).
+> **Production Compiler**: This documents the KORE V1 production compiler. For the V2 self-hosting compiler (experimental), see the main [README.md](../README.md) in the root directory.
 
 ---
 
 ## Overview
 
-The **legacy** folder contains two major compiler implementations:
+The **kore-v1-stable** folder contains two production-ready compiler implementations:
 
-1. **Legacy Compiler** (`legacy/compiler/`) - Original Rust implementation with SPIR-V/WASM backends
-2. **Bootstrap Compiler** (`bootstrap/`) - Newer LLVM-based implementation with Rust transpilation
+1. **V1 Main Compiler** (`kore-v1-stable/`) - Production Rust implementation with SPIR-V/WASM backends
+2. **Bootstrap Compiler** (`bootstrap/`) - LLVM-based implementation with Rust transpilation
 
-Both are preserved for historical reference and as alternative backends for specialized use cases (shaders, WASM, etc.).
+Both are production-ready and actively maintained for their respective use cases.
 
 ---
 
-## 1. Legacy Compiler (SPIR-V & WASM)
+## 1. V1 Main Compiler (SPIR-V & WASM)
 
-**Location**: `legacy/compiler/`
+**Location**: `kore-v1-stable/`
 
-This was the original KORE compiler with multi-target support.
+This is the production V1 KORE compiler with multi-target support.
 
 ### Building
 
 ```bash
-cd legacy/compiler
+cd kore-v1-stable
 cargo build --release
 ```
 
@@ -142,7 +142,7 @@ Targets:
 
 ## 3. Shader Pipeline (KORE → SPIR-V → HLSL)
 
-Use the legacy compiler for shaders, then convert with Naga.
+Use the V1 compiler for shaders, then convert with Naga.
 
 ### Install Naga
 
@@ -154,7 +154,7 @@ cargo install naga-cli
 
 ```bash
 # Step 1: Compile KORE to SPIR-V
-./legacy/compiler/target/release/kore shader.kr --target spirv -o shader.spv
+./kore-v1-stable/target/release/kore shader.kr --target spirv -o shader.spv
 
 # Step 2: Convert SPIR-V to HLSL (for DirectX/UE5)
 naga shader.spv shader.hlsl
@@ -168,14 +168,14 @@ naga shader.spv shader.metal  # Metal (macOS/iOS)
 ### One-liner
 
 ```bash
-./legacy/compiler/target/release/kore shader.kr --target spirv -o shader.spv && naga shader.spv shader.hlsl
+./kore-v1-stable/target/release/kore shader.kr --target spirv -o shader.spv && naga shader.spv shader.hlsl
 ```
 
 ---
 
 ## 4. Unreal Engine 5 Shader Pipeline
 
-The legacy compiler has a dedicated `ue5-shader` target that automates the full pipeline from KORE source to UE5-ready `.usf` shader files.
+The V1 compiler has a dedicated `ue5-shader` target that automates the full pipeline from KORE source to UE5-ready `.usf` shader files.
 
 ### What It Does
 
@@ -259,7 +259,7 @@ EOF
 ```bash
 # Write code in examples/test.kr
 # Run directly without compilation
-./legacy/compiler/target/release/kore examples/test.kr --target run
+./kore-v1-stable/target/release/kore examples/test.kr --target run
 ```
 
 ### Workflow B: Generate Rust Library
@@ -280,7 +280,7 @@ cat output/my_module.rs
 ```bash
 # 1. Write shader in KORE
 # 2. Compile to SPIR-V
-./legacy/compiler/target/release/kore my_shader.kr --target spirv -o my_shader.spv
+./kore-v1-stable/target/release/kore my_shader.kr --target spirv -o my_shader.spv
 
 # 3. Validate with spirv-val (optional)
 spirv-val my_shader.spv
@@ -329,20 +329,21 @@ cargo build --release
 
 | Compiler | Use Case | Backends |
 |----------|----------|----------|
-| **Legacy** | GPU shaders, WASM apps | SPIR-V, WASM, Interpreter |
+| **V1 Main** | GPU shaders, WASM apps, Actors | SPIR-V, WASM, Interpreter |
 | **Bootstrap** | Native binaries, Rust codegen | LLVM IR, Rust transpiler |
 
-The **current self-hosted compiler** (main repo) replaces both with a single KORE-to-native pipeline. These legacy implementations remain for:
+The **V2 self-hosting compiler** (root directory) is the next-generation implementation. The V1 compilers remain as production-ready tools for:
 - SPIR-V shader generation
 - WASM compilation
-- Reference implementation for new backends
-- Historical documentation
+- Actor-based concurrency
+- Python FFI integration
+- Production-ready tooling
 
 ---
 
 ## 7. Migration Path
 
-To use the **current compiler** instead:
+To use the **V2 self-hosting compiler** (experimental):
 
 ```bash
 # See main README.md for build instructions
@@ -355,7 +356,7 @@ To use the **current compiler** instead:
 ./build/kore_native.exe examples/hello.kr
 ```
 
-The current compiler is **self-hosting** and actively maintained. Use legacy compilers only for specialized targets (SPIR-V, WASM).
+The V2 compiler is **self-hosting** and under active development. Use V1 compilers for production workloads, especially for SPIR-V shaders, WASM, and actor systems.
 
 ---
 

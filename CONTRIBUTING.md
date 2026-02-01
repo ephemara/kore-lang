@@ -78,7 +78,7 @@ kore-main/
 │   ├── integration/        # End-to-end tests
 │   └── examples/           # Demo programs (smoke tests)
 │
-├── legacy/                 # Legacy compiler (stable WASM/SPIR-V backends)
+├── kore-v1-stable/         # V1 Production Compiler (WASM/SPIR-V/Rust/Actors)
 ├── build/                  # Build artifacts (gitignored)
 └── build.ps1               # Main build script
 ```

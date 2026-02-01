@@ -1,17 +1,21 @@
-# Build artifacts
+# Build artifacts - keep the chaos (.ll, .exe, .o) but ignore noise
 /build/
 /target/
 *.obj
 *.pdb
+*.d
+*.rlib
+*.rmeta
+*.so
+*.dylib
+*.dll
 
-# Legacy build artifacts (large files)
-/legacy/target/
+# V1 build artifacts (large files)
+/kore-v1-stable/target/
 
 # Bootstrap build artifacts
 /bootstrap/target/
-
-# legacy build artifacts (from updated bootstrapper)
-/legacy/bootstrap/target/
+/kore-v1-stable/bootstrap/target/
 
 # IDE
 .vscode/
