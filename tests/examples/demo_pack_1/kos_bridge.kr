@@ -1,0 +1,15 @@
+fn main():
+    println(" connecting to KOS Engine...")
+    
+    # Simulate loading level config
+    # In reality this would come from http_get
+    let level_data = "{\"enemies\": [{\"x\": 10, \"y\": 20}, {\"x\": -5.5, \"y\": 15.0}], \"env\": \"desert\"}"
+    let config = json_parse(level_data)
+    
+    println(f" Loaded Level: {config.env}")
+    
+    # Iterate and Spawn
+    for pos in config.enemies:
+        spawn_cube(pos.x, pos.y)
+        
+    println(" All entities spawned.")

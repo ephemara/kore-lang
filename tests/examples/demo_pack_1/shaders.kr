@@ -1,0 +1,21 @@
+# Shader Test
+
+shader vertex MainVertex(pos: Vec4) -> Vec4:
+    uniform u_view: Mat4 @ 0
+    uniform u_proj: Mat4 @ 1
+    
+    return u_proj * u_view * pos
+
+shader fragment MainFragment(pos: Vec4) -> Vec4:
+    uniform u_texture: Sampler2D @ 0
+    
+    let color = Vec4(1.0, 0.0, 0.0, 1.0)
+    return color
+
+shader compute MainCompute() -> Void:
+    uniform u_buffer: StorageBuffer @ 0
+    
+    return
+
+fn main():
+    print("Shaders parsed successfully!")

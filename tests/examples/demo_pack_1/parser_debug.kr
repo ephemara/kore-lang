@@ -1,0 +1,35 @@
+// Debug test for parser
+
+use compiler/lexer
+
+fn main():
+    println("=== Parser Debug Test ===")
+    
+    let source = "fn main():
+    let x = 42"
+    
+    println("Source:")
+    println(source)
+    println("")
+    
+    // Tokenize
+    let lexer = Lexer::new(source)
+    let tokens = lexer.tokenize()
+    
+    println("Tokens: " + str(len(tokens)))
+    
+    // Print first few tokens with their kinds
+    let i = 0
+    for tok in tokens:
+        if i < 10:
+            println("Token " + str(i) + ": lexeme='" + tok.lexeme + "'")
+            
+            // Test is_keyword
+            if tok.is_keyword("fn"):
+                println("  -> IS fn keyword!")
+            if tok.is_keyword("let"):
+                println("  -> IS let keyword!")
+        i = i + 1
+    
+    println("")
+    println("Done!")

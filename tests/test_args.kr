@@ -1,0 +1,21 @@
+fn main():
+    let arr = args()
+    let len = array_len(arr)
+    println("Array len: " + to_string(len))
+    
+    let i = 0
+    while i < len:
+        let item = arr[i]
+        println("Arg " + to_string(i) + ": " + item)
+        i = i + 1
+    
+    println("Testing substring...")
+    if len > 1:
+        let arg = arr[1]
+        println("arg[1] = " + arg)
+        let first = substring(arg, 0, 1)
+        println("first char = " + first)
+        if str_eq(first, "-"):
+            println("Starts with dash")
+        else:
+            println("Does NOT start with dash")

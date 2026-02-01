@@ -1,0 +1,34 @@
+// Test 03: Conditionals (if/else/else if)
+fn main():
+    let score = 85
+    
+    if score >= 90:
+        println("Grade: A")
+    else if score >= 80:
+        println("Grade: B")
+    else if score >= 70:
+        println("Grade: C")
+    else:
+        println("Grade: F")
+    
+    // Nested conditionals
+    let x = 10
+    let y = 20
+    
+    if x > 0:
+        if y > 0:
+            println("Both positive")
+        else:
+            println("x positive, y not")
+    else:
+        println("x not positive")
+    
+    // Boolean logic
+    let a = true
+    let b = false
+    
+    if a && !b:
+        println("a is true and b is false")
+    
+    if a || b:
+        println("at least one is true")

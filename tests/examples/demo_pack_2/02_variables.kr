@@ -1,0 +1,17 @@
+// Test 02: Variables and arithmetic
+fn main():
+    let x = 10
+    let y = 20
+    let sum = x + y
+    let product = x * y
+    let diff = y - x
+    
+    println("x = " + str(x))
+    println("y = " + str(y))
+    println("sum = " + str(sum))
+    println("product = " + str(product))
+    println("diff = " + str(diff))
+    
+    // Compound expressions
+    let complex = (x + y) * 2 - 5
+    println("complex = " + str(complex))

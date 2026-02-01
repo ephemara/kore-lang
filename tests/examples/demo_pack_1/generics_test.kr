@@ -1,0 +1,62 @@
+// Comprehensive generics test for KORE
+
+// === IDENTITY FUNCTION ===
+fn identity<T>(x: T) -> T:
+    return x
+
+// === MAP-LIKE FUNCTION (higher-order with function type) ===
+fn apply<T>(f: fn(T) -> T, x: T) -> T:
+    return f(x)
+
+fn double(x: Int) -> Int:
+    return x * 2
+
+fn greet(s: String) -> String:
+    return "Hello, " + s + "!"
+
+// === GENERIC STRUCT ===
+struct Box<T>:
+    value: T
+
+struct Pair<A, B>:
+    first: A
+    second: B
+
+fn main():
+    println("=== KORE Generics Test ===")
+    
+    // Test 1: Identity with various types
+    println("\nTest 1: identity<T>")
+    let i = identity(42)
+    println(i)
+    
+    let s = identity("hello")
+    println(s)
+    
+    let f = identity(3.14)
+    println(f)
+    
+    let b = identity(true)
+    println(b)
+    
+    // Test 2: Higher-order generics with function types
+    println("\nTest 2: apply<T>(fn(T) -> T, T)")
+    let doubled = apply(double, 21)
+    println(doubled)
+    
+    let greeting = apply(greet, "world")
+    println(greeting)
+    
+    // Test 3: Generic structs
+    println("\nTest 3: Generic structs")
+    let int_box = Box { value: 42 }
+    println(int_box.value)
+    
+    let str_box = Box { value: "boxed string" }
+    println(str_box.value)
+    
+    let pair = Pair { first: 1, second: "one" }
+    println(pair.first)
+    println(pair.second)
+    
+    println("\n=== All tests passed! ===")

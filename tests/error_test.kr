@@ -1,0 +1,4 @@
+// Test file with intentional parser error
+fn main(:  // Missing closing paren
+    let x = 42
+    println("Hello")

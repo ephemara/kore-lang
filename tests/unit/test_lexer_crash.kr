@@ -1,0 +1,3 @@
+use lexer_debug
+fn main():
+    println("Test")

@@ -1,0 +1,63 @@
+// KORE Standard Library Test
+// Verifies that the Project Ouroboros stdlib is working
+
+fn main():
+    println("=== KORE Stdlib Test ===")
+    println("")
+    
+    // Test StringBuilder
+    test_string_builder()
+    
+    // Test Path manipulation
+    test_path()
+    
+    // Test ArgParser
+    test_args()
+    
+    println("")
+    println(" All stdlib tests passed!")
+
+fn test_string_builder():
+    println("Testing StringBuilder...")
+    
+    let sb = StringBuilder::new()
+    sb.push("Hello")
+    sb.push(", ")
+    sb.push("World!")
+    
+    let result = sb.build()
+    assert(result == "Hello, World!", "StringBuilder failed")
+    println("   StringBuilder works")
+
+fn test_path():
+    println("Testing Path...")
+    
+    let p = Path::new("src/main.kr")
+    
+    assert(p.extension() == "kr", "extension() failed")
+    assert(p.filename() == "main.kr", "filename() failed")
+    assert(p.stem() == "main", "stem() failed")
+    assert(p.parent() == "src", "parent() failed")
+    
+    let p2 = p.with_extension("ll")
+    assert(p2.to_string() == "src/main.ll", "with_extension() failed")
+    
+    let p3 = Path::new("src").join("codegen").join("llvm.kr")
+    assert(p3.to_string() == "src/codegen/llvm.kr", "join() failed")
+    
+    println("   Path works")
+
+fn test_args():
+    println("Testing ArgParser...")
+    
+    // Note: This test is basic since we can't inject args directly
+    // In a real test, we'd verify against actual CLI args
+    
+    let parser = ArgParser::new()
+    let positional = parser.positional()
+    
+    // Just verify it doesn't crash
+    println("   ArgParser initialized (args count: " + str(argc()) + ")")
+
+// Run it!
+main()

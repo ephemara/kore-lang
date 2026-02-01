@@ -1,0 +1,13 @@
+// Test method call generation
+
+struct Foo:
+    x: String
+
+impl Foo:
+    pub fn get_x(self) -> String:
+        return "test"
+
+fn main():
+    let f = Foo { x: "data" }
+    let result = f.get_x()
+    println(result)

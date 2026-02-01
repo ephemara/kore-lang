@@ -1,0 +1,7 @@
+fn main():
+    let s = "--help"
+    println(s)
+    if str_eq(s, "--help"):
+        println("Match!")
+    else:
+        println("No match")

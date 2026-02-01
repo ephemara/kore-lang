@@ -1,0 +1,21 @@
+# main.god - Tests importing from math module
+use math
+
+println!("=== Import Test ===")
+println!()
+
+# Use imported functions
+let result = add(5, 3)
+println!("add(5, 3) = ", result)
+
+let product = multiply(4, 7)
+println!("multiply(4, 7) = ", product)
+
+let squared = square(9)
+println!("square(9) = ", squared)
+
+let fact = factorial(6)
+println!("factorial(6) = ", fact)
+
+println!()
+println!(" Imports work!")

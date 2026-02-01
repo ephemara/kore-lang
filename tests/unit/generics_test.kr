@@ -1,0 +1,9 @@
+fn identity<T>(x: T) -> T:
+    return x
+
+fn main():
+    let a: Int = identity<Int>(10)
+    let b: String = identity<String>("hello")
+
+    println(str(a))
+    println(b)

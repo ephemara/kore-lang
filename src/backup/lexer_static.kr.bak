@@ -1,0 +1,336 @@
+
+// Static helpers for Lexer (workaround for broken methods)
+
+// =============================================================================
+
+fn lexer_is_eof(lexer: Lexer) -> Bool:
+    return lexer.pos >= array_len(lexer.chars)
+
+fn lexer_peek(lexer: Lexer) -> String:
+    if lexer_is_eof(lexer): return ""
+    return lexer.chars[lexer.pos]
+
+fn lexer_peek_n(lexer: Lexer, n: Int) -> String:
+    let idx = lexer.pos + n
+    if idx >= array_len(lexer.chars): return ""
+    return lexer.chars[idx]
+
+fn lexer_advance(lexer: Lexer) -> String:
+    if lexer_is_eof(lexer): return ""
+    let c = lexer.chars[lexer.pos]
+    lexer.pos = lexer.pos + 1
+    if str_eq(c, "\n"):
+        lexer.line = lexer.line + 1
+        lexer.column = 1
+    else:
+        lexer.column = lexer.column + 1
+    return c
+
+fn lexer_make_token(lexer: Lexer, type: TokenType, lexeme: String) -> Token:
+    let len = str_len(lexeme)
+    let end = lexer.pos
+    let start = end - len
+    if start < 0: start = 0
+    let span = Span::new(start, end)
+    return Token::new(type, span, lexeme)
+
+fn lex_multi_char_op(lexer: Lexer, tokens: Array<Token>) -> Bool:
+    let c = lexer_peek(lexer)
+    let c2 = lexer_peek_n(lexer, 1)
+    
+    if str_eq(c, "-") && str_eq(c2, ">"):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("Arrow"), "->"))
+        return true
+    if str_eq(c, "=") && str_eq(c2, ">"):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("FatArrow"), "=>"))
+        return true
+    if str_eq(c, "=") && str_eq(c2, "="):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("EqEq"), "=="))
+        return true
+    if str_eq(c, "!") && str_eq(c2, "="):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("NotEq"), "!="))
+        return true
+    if str_eq(c, "<") && str_eq(c2, "="):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("LtEq"), "<="))
+        return true
+    if str_eq(c, ">") && str_eq(c2, "="):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("GtEq"), ">="))
+        return true
+    if str_eq(c, "&") && str_eq(c2, "&"):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("And"), "&&"))
+        return true
+    if str_eq(c, "|") && str_eq(c2, "|"):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("Or"), "||"))
+        return true
+    if str_eq(c, ":") && str_eq(c2, ":"):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("ColonColon"), "::"))
+        return true
+    if str_eq(c, ".") && str_eq(c2, "."):
+        let _ = lexer_advance(lexer)
+        let _ = lexer_advance(lexer)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("DotDot"), ".."))
+        return true
+        
+    return false
+
+fn lex_single_char_op(lexer: Lexer, tokens: Array<Token>) -> Unit:
+    let c = lexer_peek(lexer)
+    let _ = lexer_advance(lexer)
+    
+    if str_eq(c, "+"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Plus"), "+"))
+    else if str_eq(c, "-"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Minus"), "-"))
+    else if str_eq(c, "*"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Star"), "*"))
+    else if str_eq(c, "/"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Slash"), "/"))
+    else if str_eq(c, "%"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Percent"), "%"))
+    else if str_eq(c, "="): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Eq"), "="))
+    else if str_eq(c, "!"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Not"), "!"))
+    else if str_eq(c, "<"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Lt"), "<"))
+    else if str_eq(c, ">"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Gt"), ">"))
+    else if str_eq(c, "&"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Ampersand"), "&"))
+    else if str_eq(c, "|"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Pipe"), "|"))
+    else if str_eq(c, "."): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Dot"), "."))
+    else if str_eq(c, ":"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Colon"), ":"))
+    else if str_eq(c, ","): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Comma"), ","))
+    else if str_eq(c, ";"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("Semicolon"), ";"))
+    else if str_eq(c, "("): push(tokens, lexer_make_token(lexer, kore_create_token_simple("LParen"), "("))
+    else if str_eq(c, ")"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("RParen"), ")"))
+    else if str_eq(c, "["): push(tokens, lexer_make_token(lexer, kore_create_token_simple("LBracket"), "["))
+    else if str_eq(c, "]"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("RBracket"), "]"))
+    else if str_eq(c, "{"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("LBrace"), "{"))
+    else if str_eq(c, "}"): push(tokens, lexer_make_token(lexer, kore_create_token_simple("RBrace"), "}"))
+    else:
+        // Only print if not EOF (peek returns empty on EOF)
+        if !str_eq(c, ""):
+            println("Lexer Error: Unknown char [" + c + "]")
+
+/// Complete static tokenizer with indentation tracking - handles all Kore tokens
+pub fn tokenize_static(lexer: Lexer) -> Array<Token>:
+    let tokens = []
+    let indent_stack = [0]  // Stack of indentation levels, starting at 0
+    let at_line_start = true  // Track if we're at the beginning of a line
+    
+    loop:
+        if lexer_is_eof(lexer): break
+        
+        let c = lexer_peek(lexer)
+        
+        // Handle line start - count indentation
+        if at_line_start:
+            // Skip blank lines and comment-only lines
+            if str_eq(c, "\n"):
+                let _ = lexer_advance(lexer)
+                push(tokens, lexer_make_token(lexer, kore_create_token_simple("Newline"), "\n"))
+                continue
+            
+            // Skip comments on blank lines
+            if str_eq(c, "/") && str_eq(lexer_peek_n(lexer, 1), "/"):
+                while !lexer_is_eof(lexer) && !str_eq(lexer_peek(lexer), "\n"):
+                    let _ = lexer_advance(lexer)
+                continue
+            if str_eq(c, "#"):
+                while !lexer_is_eof(lexer) && !str_eq(lexer_peek(lexer), "\n"):
+                    let _ = lexer_advance(lexer)
+                continue
+            
+            // Count spaces/tabs at line start
+            let indent = 0
+            while !lexer_is_eof(lexer):
+                let ch = lexer_peek(lexer)
+                if str_eq(ch, " "):
+                    indent = indent + 1
+                    let _ = lexer_advance(lexer)
+                else if str_eq(ch, "\t"):
+                    indent = indent + 4  // Tab = 4 spaces
+                    let _ = lexer_advance(lexer)
+                else:
+                    break
+            
+            // After counting spaces, check what's next
+            let next = lexer_peek(lexer)
+            
+            // If blank line (just spaces then newline/CR) - skip without changing indent state
+            // We stay at_line_start = true for the next line
+            // Handle both LF and CRLF line endings - consume the line ending!
+            if str_eq(next, "\r"):
+                let _ = lexer_advance(lexer)  // consume \r
+                if str_eq(lexer_peek(lexer), "\n"):
+                    let _ = lexer_advance(lexer)  // consume \n in CRLF
+                at_line_start = true
+                continue
+            if str_eq(next, "\n"):
+                let _ = lexer_advance(lexer)  // consume \n
+                at_line_start = true
+                continue
+            if str_eq(next, ""):
+                // EOF
+                continue
+            
+            // If comment-only line - skip the comment, stay at line start
+            // The NEXT line with actual code will determine indentation
+            if str_eq(next, "/") && str_eq(lexer_peek_n(lexer, 1), "/"):
+                while !lexer_is_eof(lexer) && !str_eq(lexer_peek(lexer), "\n"):
+                    let _ = lexer_advance(lexer)
+                at_line_start = true  // The newline handler will reset this
+                continue
+            if str_eq(next, "#"):
+                while !lexer_is_eof(lexer) && !str_eq(lexer_peek(lexer), "\n"):
+                    let _ = lexer_advance(lexer)
+                at_line_start = true
+                continue
+            
+            // We have actual code - NOW apply indentation logic
+            at_line_start = false
+            
+            // Compare indentation with stack
+            let current_indent = indent_stack[array_len(indent_stack) - 1]
+            
+            if indent > current_indent:
+                push(indent_stack, indent)
+                push(tokens, lexer_make_token(lexer, kore_create_token_simple("Indent"), ""))
+            else if indent < current_indent:
+                // Pop and emit Dedent for each level we're leaving
+                while array_len(indent_stack) > 1:
+                    let top = indent_stack[array_len(indent_stack) - 1]
+                    if top <= indent:
+                        break
+                    let _ = pop(indent_stack)
+                    push(tokens, lexer_make_token(lexer, kore_create_token_simple("Dedent"), ""))
+            
+            // Continue to tokenize the actual content
+            c = lexer_peek(lexer)
+        
+        // Skip spaces (not at line start)
+        if str_eq(c, " ") || str_eq(c, "\r") || str_eq(c, "\t"):
+            let _ = lexer_advance(lexer)
+            continue
+        
+        // Skip comments: // or #
+        if str_eq(c, "/") && str_eq(lexer_peek_n(lexer, 1), "/"):
+            while !lexer_is_eof(lexer) && !str_eq(lexer_peek(lexer), "\n"):
+                let _ = lexer_advance(lexer)
+            continue
+        if str_eq(c, "#"):
+            while !lexer_is_eof(lexer) && !str_eq(lexer_peek(lexer), "\n"):
+                let _ = lexer_advance(lexer)
+            continue
+            
+        // Newlines trigger indentation check on next iteration
+        if str_eq(c, "\n"):
+            let _ = lexer_advance(lexer)
+            push(tokens, lexer_make_token(lexer, kore_create_token_simple("Newline"), "\n"))
+            at_line_start = true
+            continue
+        
+        // Numbers
+        if is_digit(c):
+            let start = lexer.pos
+            while !lexer_is_eof(lexer) && is_digit(lexer_peek(lexer)):
+                let _ = lexer_advance(lexer)
+            // Check for float
+            if str_eq(lexer_peek(lexer), ".") && is_digit(lexer_peek_n(lexer, 1)):
+                let _ = lexer_advance(lexer)  // consume .
+                while !lexer_is_eof(lexer) && is_digit(lexer_peek(lexer)):
+                    let _ = lexer_advance(lexer)
+                let lexeme = substring(lexer.source, start, lexer.pos)
+                // Float not fully supported, passing 0
+                push(tokens, lexer_make_token(lexer, kore_create_token_payload("Float", 0), lexeme))
+            else:
+                let lexeme = substring(lexer.source, start, lexer.pos)
+                let val = to_int(lexeme)
+                push(tokens, lexer_make_token(lexer, kore_create_token_payload("Int", val), lexeme))
+            continue
+            
+        // Identifiers and keywords
+        if is_alpha(c) || str_eq(c, "_"):
+            let start = lexer.pos
+            while !lexer_is_eof(lexer) && is_ident_char(lexer_peek(lexer)):
+                let _ = lexer_advance(lexer)
+            let lexeme = substring(lexer.source, start, lexer.pos)
+            
+            // Check for keywords
+            if is_kore_keyword(lexeme):
+                if str_eq(lexeme, "true"):
+                    push(tokens, lexer_make_token(lexer, kore_create_token_payload("Bool", 1), lexeme))
+                else if str_eq(lexeme, "false"):
+                    push(tokens, lexer_make_token(lexer, kore_create_token_payload("Bool", 0), lexeme))
+                else:
+                    push(tokens, lexer_make_token(lexer, kore_create_token_payload("Keyword", lexeme), lexeme))
+            else:
+                push(tokens, lexer_make_token(lexer, kore_create_token_payload("Ident", lexeme), lexeme))
+            continue
+            
+        // Strings (double quotes)
+        if str_eq(c, "\""):
+            let _ = lexer_advance(lexer)  // consume opening "
+            let pieces = []
+            while !lexer_is_eof(lexer) && !str_eq(lexer_peek(lexer), "\""):
+                let ch = lexer_advance(lexer)
+                if str_eq(ch, "\\"):
+                    let next = lexer_advance(lexer)
+                    if str_eq(next, "n"): push(pieces, "\n")
+                    else if str_eq(next, "t"): push(pieces, "\t")
+                    else if str_eq(next, "\\"): push(pieces, "\\")
+                    else if str_eq(next, "\""): push(pieces, "\"")
+                    else: push(pieces, next)
+                else:
+                    push(pieces, ch)
+            let val = join(pieces, "")
+            if !lexer_is_eof(lexer):
+                let _ = lexer_advance(lexer)  // consume closing "
+            push(tokens, lexer_make_token(lexer, kore_create_token_payload("String", val), val))
+            continue
+        
+        // Strings (single quotes) 
+        if str_eq(c, "'"):
+            let _ = lexer_advance(lexer)
+            let pieces = []
+            while !lexer_is_eof(lexer) && !str_eq(lexer_peek(lexer), "'"):
+                let ch = lexer_advance(lexer)
+                if str_eq(ch, "\\"):
+                    let next = lexer_advance(lexer)
+                    if str_eq(next, "n"): push(pieces, "\n")
+                    else if str_eq(next, "t"): push(pieces, "\t")
+                    else if str_eq(next, "\\"): push(pieces, "\\")
+                    else if str_eq(next, "'"): push(pieces, "'")
+                    else: push(pieces, next)
+                else:
+                    push(pieces, ch)
+            let val = join(pieces, "")
+            if !lexer_is_eof(lexer):
+                let _ = lexer_advance(lexer)
+            push(tokens, lexer_make_token(lexer, kore_create_token_payload("String", val), val))
+            continue
+            
+        // Multi-character operators
+        if lex_multi_char_op(lexer, tokens):
+            continue
+            
+        // Single-character operators
+        lex_single_char_op(lexer, tokens)
+    
+    // Emit any remaining Dedents for un-closed blocks
+    while array_len(indent_stack) > 1:
+        let _ = pop(indent_stack)
+        push(tokens, lexer_make_token(lexer, kore_create_token_simple("Dedent"), ""))
+        
+    push(tokens, lexer_make_token(lexer, kore_create_token_simple("Eof"), ""))
+    // println("DEBUG: tokenize_static complete, " + str(array_len(tokens)) + " tokens")
+    return tokens

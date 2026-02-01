@@ -1,0 +1,441 @@
+// ============================================================================
+// KORE Bootstrap Compiler - Lexer
+// ============================================================================
+// Project Ouroboros - Phase 2
+//
+// This is the lexer for the self-hosted KORE compiler.
+// It tokenizes KORE source code into a stream of tokens.
+//
+// This module is written in KORE itself!
+// ============================================================================
+
+// use std/io  -- Built-in functions available
+// use std/fs
+// use std/collections
+
+// =============================================================================
+// Token Types
+// =============================================================================
+
+/// All possible token types in KORE
+enum TokenKind:
+    // Literals
+    Int(Int)
+    Float(Float)
+    String(String)
+    Bool(Bool)
+    
+    // Identifiers and Keywords
+    Ident(String)
+    Keyword(String)
+    
+    // Operators
+    Plus
+    Minus
+    Star
+    Slash
+    Percent
+    Eq
+    EqEq
+    NotEq
+    Lt
+    LtEq
+    Gt
+    GtEq
+    And
+    Or
+    Not
+    Arrow      // ->
+    FatArrow   // =>
+    Dot
+    DotDot     // ..
+    Colon
+    ColonColon // ::
+    Comma
+    Semicolon
+    Pipe       // |
+    Ampersand  // &
+    
+    // Brackets
+    LParen
+    RParen
+    LBracket
+    RBracket
+    LBrace
+    RBrace
+    LAngle     // <
+    RAngle     // >
+    
+    // Whitespace (significant in KORE!)
+    Newline
+    Indent
+    Dedent
+    
+    // Special
+    Eof
+    Error(String)
+
+// =============================================================================
+// Token
+// =============================================================================
+
+/// A token with its kind and source location
+struct Token:
+    kind: TokenKind
+    line: Int
+    column: Int
+    lexeme: String
+
+impl Token:
+    pub fn new(kind: TokenKind, line: Int, column: Int, lexeme: String) -> Token:
+        return Token { kind: kind, line: line, column: column, lexeme: lexeme }
+    
+    pub fn is_keyword(self, kw: String) -> Bool:
+        // Workaround: check lexeme directly since it matches keyword text
+        // Also check that it's actually a keyword token type using known keywords list
+        let keywords = [
+            "fn", "let", "var", "if", "else", "while", "for", "in",
+            "return", "match", "struct", "enum", "impl", "use", "pub",
+            "async", "await", "spawn", "actor", "on", "send",
+            "true", "false", "none", "self",
+            "test", "comptime", "with", "break", "continue", "loop"
+        ]
+        return self.lexeme == kw && contains(keywords, self.lexeme)
+    
+    pub fn is_ident(self) -> Bool:
+        // Check if it's NOT a keyword and has alphanumeric chars
+        let keywords = [
+            "fn", "let", "var", "if", "else", "while", "for", "in",
+            "return", "match", "struct", "enum", "impl", "use", "pub",
+            "async", "await", "spawn", "actor", "on", "send",
+            "true", "false", "none", "self",
+            "test", "comptime", "with", "break", "continue", "loop"
+        ]
+        if len(self.lexeme) == 0:
+            return false
+        // If it's not a keyword but starts with a letter, it's an ident
+        let c = ord(self.lexeme)
+        let is_alpha = (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || c == 95
+        return is_alpha && !contains(keywords, self.lexeme)
+
+    pub fn is_error(self) -> Bool:
+        // TODO: Fix error token detection
+        // For now, return false since we're debugging the parser control flow
+        // Error tokens should be rare and we'll see them via the lexeme anyway
+        return false
+
+// =============================================================================
+// Lexer
+// =============================================================================
+
+/// The KORE lexer - converts source text to tokens
+struct Lexer:
+    source: String
+    chars: Array<String>
+    pos: Int
+    line: Int
+    column: Int
+    indent_stack: Array<Int>
+
+impl Lexer:
+    /// Create a new lexer for the given source code
+    pub fn new(source: String) -> Lexer:
+        let chars = split(source, "")
+        return Lexer {
+            source: source,
+            chars: chars,
+            pos: 0,
+            line: 1,
+            column: 1,
+            indent_stack: [0]
+        }
+    
+    /// Check if we've reached end of input
+    fn is_eof(self) -> Bool:
+        return self.pos >= array_len(self.chars)
+    
+    /// Get current character without advancing
+    fn peek(self) -> String:
+        if self.is_eof():
+            return ""
+        return self.chars[self.pos]
+    
+    /// Get character at offset without advancing
+    fn peek_n(self, n: Int) -> String:
+        let idx = self.pos + n
+        if idx >= array_len(self.chars):
+            return ""
+        return self.chars[idx]
+    
+    /// Advance and return current character
+    fn advance(self) -> String:
+        if self.is_eof():
+            return ""
+        let c = self.chars[self.pos]
+        self.pos = self.pos + 1
+        if c == "\n":
+            self.line = self.line + 1
+            self.column = 1
+        else:
+            self.column = self.column + 1
+        return c
+    
+    /// Skip whitespace (not newlines - those are significant!)
+    fn skip_spaces(self) -> Unit:
+        while !self.is_eof():
+            let c = self.peek()
+            if c == " " || c == "\r":
+                self.advance()
+            else:
+                break
+    
+    /// Make a token at current position
+    fn make_token(self, kind: TokenKind, lexeme: String) -> Token:
+        return Token::new(kind, self.line, self.column, lexeme)
+    
+    /// Tokenize a number literal
+    fn lex_number(self) -> Token:
+        let start = self.pos
+        let start_col = self.column
+        
+        while !self.is_eof() && is_digit(self.peek()):
+            self.advance()
+        
+        // Check for float
+        if self.peek() == "." && is_digit(self.peek_n(1)):
+            self.advance() // consume '.'
+            while !self.is_eof() && is_digit(self.peek()):
+                self.advance()
+            let lexeme = substring_range(self.source, start, self.pos)
+            return Token::new(TokenKind::Float(to_float(lexeme)), self.line, start_col, lexeme)
+        
+        let lexeme = substring_range(self.source, start, self.pos)
+        return Token::new(TokenKind::Int(to_int(lexeme)), self.line, start_col, lexeme)
+    
+    /// Tokenize a string literal
+    fn lex_string(self) -> Token:
+        let start_col = self.column
+        let quote = self.advance() // consume opening quote
+        let value = ""
+        
+        while !self.is_eof() && self.peek() != quote:
+            let c = self.advance()
+            if c == "\\":
+                // Escape sequence
+                let next = self.advance()
+                if next == "n":
+                    value = value + "\n"
+                else if next == "t":
+                    value = value + "\t"
+                else if next == "\\":
+                    value = value + "\\"
+                else if next == "\"":
+                    value = value + "\""
+                else:
+                    value = value + next
+            else:
+                value = value + c
+        
+        self.advance() // consume closing quote
+        return Token::new(TokenKind::String(value), self.line, start_col, "\"" + value + "\"")
+    
+    /// Tokenize an identifier or keyword
+    fn lex_ident(self) -> Token:
+        let start = self.pos
+        let start_col = self.column
+        
+        while !self.is_eof() && is_ident_char(self.peek()):
+            self.advance()
+        
+        let lexeme = substring_range(self.source, start, self.pos)
+        
+        // Check for keywords
+        let keywords = [
+            "fn", "let", "var", "if", "else", "while", "for", "in",
+            "return", "match", "struct", "enum", "impl", "use", "pub",
+            "async", "await", "spawn", "actor", "on", "send",
+            "true", "false", "none", "self",
+            "test", "comptime", "with"
+        ]
+        
+        if contains(keywords, lexeme):
+            if lexeme == "true":
+                return Token::new(TokenKind::Bool(true), self.line, start_col, lexeme)
+            else if lexeme == "false":
+                return Token::new(TokenKind::Bool(false), self.line, start_col, lexeme)
+            return Token::new(TokenKind::Keyword(lexeme), self.line, start_col, lexeme)
+        
+        return Token::new(TokenKind::Ident(lexeme), self.line, start_col, lexeme)
+    
+    /// Get the next token
+    pub fn next_token(self) -> Token:
+        self.skip_spaces()
+        
+        if self.is_eof():
+            return self.make_token(TokenKind::Eof, "")
+        
+        let c = self.peek()
+        
+        // Single-line comment
+        if c == "#" || (c == "/" && self.peek_n(1) == "/"):
+            while !self.is_eof() && self.peek() != "\n":
+                self.advance()
+            return self.next_token()
+        
+        // Skip carriage return (Windows CRLF line endings)
+        if c == "\r":
+            self.advance()
+            return self.next_token()  // Skip it, get next real token
+        
+        // Newline (significant!)
+        if c == "\n":
+            self.advance()
+            return self.make_token(TokenKind::Newline, "\n")
+        
+        // Numbers
+        if is_digit(c):
+            return self.lex_number()
+        
+        // Strings
+        if c == "\"" || c == "'":
+            return self.lex_string()
+        
+        // Identifiers and keywords
+        if is_ident_start(c):
+            return self.lex_ident()
+        
+        // Operators and punctuation
+        self.advance()
+        
+        match c:
+            "+" => return self.make_token(TokenKind::Plus, "+")
+            "-" =>
+                if self.peek() == ">":
+                    self.advance()
+                    return self.make_token(TokenKind::Arrow, "->")
+                return self.make_token(TokenKind::Minus, "-")
+            "*" => return self.make_token(TokenKind::Star, "*")
+            "/" => return self.make_token(TokenKind::Slash, "/")
+            "%" => return self.make_token(TokenKind::Percent, "%")
+            "=" =>
+                if self.peek() == "=":
+                    self.advance()
+                    return self.make_token(TokenKind::EqEq, "==")
+                if self.peek() == ">":
+                    self.advance()
+                    return self.make_token(TokenKind::FatArrow, "=>")
+                return self.make_token(TokenKind::Eq, "=")
+            "!" =>
+                if self.peek() == "=":
+                    self.advance()
+                    return self.make_token(TokenKind::NotEq, "!=")
+                return self.make_token(TokenKind::Not, "!")
+            "<" =>
+                if self.peek() == "=":
+                    self.advance()
+                    return self.make_token(TokenKind::LtEq, "<=")
+                return self.make_token(TokenKind::Lt, "<")
+            ">" =>
+                if self.peek() == "=":
+                    self.advance()
+                    return self.make_token(TokenKind::GtEq, ">=")
+                return self.make_token(TokenKind::Gt, ">")
+            "&" =>
+                if self.peek() == "&":
+                    self.advance()
+                    return self.make_token(TokenKind::And, "&&")
+                return self.make_token(TokenKind::Ampersand, "&")
+            "|" =>
+                if self.peek() == "|":
+                    self.advance()
+                    return self.make_token(TokenKind::Or, "||")
+                return self.make_token(TokenKind::Pipe, "|")
+            "." =>
+                if self.peek() == ".":
+                    self.advance()
+                    return self.make_token(TokenKind::DotDot, "..")
+                return self.make_token(TokenKind::Dot, ".")
+            ":" =>
+                if self.peek() == ":":
+                    self.advance()
+                    return self.make_token(TokenKind::ColonColon, "::")
+                return self.make_token(TokenKind::Colon, ":")
+            "," => return self.make_token(TokenKind::Comma, ",")
+            ";" => return self.make_token(TokenKind::Semicolon, ";")
+            "(" => return self.make_token(TokenKind::LParen, "(")
+            ")" => return self.make_token(TokenKind::RParen, ")")
+            "[" => return self.make_token(TokenKind::LBracket, "[")
+            "]" => return self.make_token(TokenKind::RBracket, "]")
+            "{" => return self.make_token(TokenKind::LBrace, "{")
+            "}" => return self.make_token(TokenKind::RBrace, "}")
+            _ => return self.make_token(TokenKind::Error("Unknown character: " + c), c)
+    
+    /// Tokenize entire source into array of tokens
+    pub fn tokenize(self) -> Array<Token>:
+        let tokens = []
+        loop:
+            let tok = self.next_token()
+            push(tokens, tok)
+            // Check if EOF using pattern match to break
+            if self.is_eof():
+                break
+        return tokens
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+fn is_digit(c: String) -> Bool:
+    if len(c) == 0:
+        return false
+    let code = ord(c)
+    return code >= 48 && code <= 57  // '0' = 48, '9' = 57
+
+fn is_alpha(c: String) -> Bool:
+    if len(c) == 0:
+        return false
+    let code = ord(c)
+    // 'a' = 97, 'z' = 122, 'A' = 65, 'Z' = 90
+    return (code >= 97 && code <= 122) || (code >= 65 && code <= 90)
+
+fn is_ident_start(c: String) -> Bool:
+    return is_alpha(c) || c == "_"
+
+fn is_ident_char(c: String) -> Bool:
+    return is_alpha(c) || is_digit(c) || c == "_"
+
+fn substring_range(s: String, start: Int, end: Int) -> String:
+    let chars = split(s, "")
+    let result = ""
+    for i in range(start, end):
+        if i < len(chars):
+            result = result + chars[i]
+    return result
+
+// =============================================================================
+// Entry Point (for testing)
+// =============================================================================
+
+fn main():
+    println("=== KORE Bootstrap Lexer ===")
+    
+    let source = "fn main():
+    let x = 42
+    println(x)"
+    
+    println("Source:")
+    println(source)
+    println("")
+    println("Tokens:")
+    
+    let lexer = Lexer::new(source)
+    let tokens = lexer.tokenize()
+    
+    println("Token count: " + str(len(tokens)))
+    
+    for tok in tokens:
+        println("  [" + str(tok.line) + ":" + str(tok.column) + "] " + tok.lexeme)
+    
+    println("")
+    println(" Lexer complete!")
+

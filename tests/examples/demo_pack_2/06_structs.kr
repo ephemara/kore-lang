@@ -1,0 +1,39 @@
+// Test 06: Structs and field access
+struct Point:
+    x: Int
+    y: Int
+
+struct Rectangle:
+    top_left: Point
+    width: Int
+    height: Int
+
+fn distance_from_origin(p: Point) -> Int:
+    // Simplified - just return sum of absolute values
+    let dx = p.x
+    let dy = p.y
+    if dx < 0:
+        dx = 0 - dx
+    if dy < 0:
+        dy = 0 - dy
+    return dx + dy
+
+fn area(r: Rectangle) -> Int:
+    return r.width * r.height
+
+fn main():
+    let p1 = Point { x: 3, y: 4 }
+    println("Point: (" + str(p1.x) + ", " + str(p1.y) + ")")
+    println("Distance from origin: " + str(distance_from_origin(p1)))
+    
+    let origin = Point { x: 0, y: 0 }
+    let rect = Rectangle { 
+        top_left: origin, 
+        width: 10, 
+        height: 5 
+    }
+    println("Rectangle area: " + str(area(rect)))
+    
+    // Modify struct fields
+    p1.x = 100
+    println("Modified x: " + str(p1.x))

@@ -1,0 +1,7 @@
+// Minimal stdlib module test
+
+use std::option
+
+fn main():
+    println("Testing stdlib module loading")
+    println("If you see this, the module loaded!")

@@ -1,0 +1,238 @@
+// ============================================================================
+// KORE Diagnostic System - Error/Warning/Note handling
+// ============================================================================
+// Based on Bend diagnostics.rs and Rust emitter patterns.
+// Provides structured error handling with severity levels and notes.
+// ============================================================================
+
+use span
+
+// =============================================================================
+// Severity Levels
+// =============================================================================
+
+enum Severity:
+    Error      // Compilation/runtime error - stops execution
+    Warning    // Potential issue - continues compilation
+    Note       // Additional context for another diagnostic
+    Hint       // Suggestion for improvement
+
+fn severity_name(s: Severity) -> String:
+    match s:
+        Error => return "error"
+        Warning => return "warning"
+        Note => return "note"
+        Hint => return "hint"
+    return "unknown"
+
+fn severity_color(s: Severity) -> String:
+    match s:
+        Error => return "\x1b[1;31m"    // Bold Red
+        Warning => return "\x1b[1;33m"  // Bold Yellow
+        Note => return "\x1b[1;36m"     // Bold Cyan
+        Hint => return "\x1b[1;32m"     // Bold Green
+    return "\x1b[0m"
+
+// =============================================================================
+// Diagnostic - Single error/warning with optional notes
+// =============================================================================
+
+struct Diagnostic:
+    severity: Severity
+    message: String
+    span: Span
+    file: String
+    notes: Array  // <Diagnostic> - sub-diagnostics for context
+
+impl Diagnostic:
+    pub fn error(msg: String, span: Span, file: String) -> Diagnostic:
+        return Diagnostic {
+            severity: Severity::Error,
+            message: msg,
+            span: span,
+            file: file,
+            notes: []
+        }
+    
+    pub fn warning(msg: String, span: Span, file: String) -> Diagnostic:
+        return Diagnostic {
+            severity: Severity::Warning,
+            message: msg,
+            span: span,
+            file: file,
+            notes: []
+        }
+    
+    pub fn note(msg: String, span: Span, file: String) -> Diagnostic:
+        return Diagnostic {
+            severity: Severity::Note,
+            message: msg,
+            span: span,
+            file: file,
+            notes: []
+        }
+    
+    pub fn hint(msg: String, span: Span, file: String) -> Diagnostic:
+        return Diagnostic {
+            severity: Severity::Hint,
+            message: msg,
+            span: span,
+            file: file,
+            notes: []
+        }
+    
+    pub fn with_note(self, note: Diagnostic) -> Diagnostic:
+        push(self.notes, note)
+        return self
+    
+    pub fn add_note(self, msg: String, span: Span) -> Unit:
+        let note = Diagnostic::note(msg, span, self.file)
+        push(self.notes, note)
+
+// =============================================================================
+// DiagnosticBundle - Collection of diagnostics with rendering
+// =============================================================================
+
+struct DiagnosticBundle:
+    diagnostics: Array  // <Diagnostic>
+    source_map: Array   // [(file, content)] pairs - simple map
+    error_count: Int
+    warning_count: Int
+
+impl DiagnosticBundle:
+    pub fn new() -> DiagnosticBundle:
+        return DiagnosticBundle {
+            diagnostics: [],
+            source_map: [],
+            error_count: 0,
+            warning_count: 0
+        }
+    
+    pub fn add_source(self, file: String, content: String) -> Unit:
+        push(self.source_map, (file, content))
+    
+    pub fn get_source(self, file: String) -> String:
+        for entry in self.source_map:
+            if str_eq(entry.0, file):
+                return entry.1
+        return ""
+    
+    pub fn add(self, diag: Diagnostic) -> Unit:
+        match diag.severity:
+            Error => self.error_count = self.error_count + 1
+            Warning => self.warning_count = self.warning_count + 1
+            _ => ()  // Notes/hints don't count
+        push(self.diagnostics, diag)
+    
+    pub fn error(self, msg: String, span: Span, file: String) -> Unit:
+        self.add(Diagnostic::error(msg, span, file))
+    
+    pub fn warning(self, msg: String, span: Span, file: String) -> Unit:
+        self.add(Diagnostic::warning(msg, span, file))
+    
+    pub fn has_errors(self) -> Bool:
+        return self.error_count > 0
+    
+    pub fn render(self) -> Unit:
+        if array_len(self.diagnostics) == 0:
+            return
+        
+        println("")
+        for diag in self.diagnostics:
+            self.render_diagnostic(diag, 0)
+        
+        // Summary
+        let summary = ""
+        if self.error_count > 0:
+            summary = summary + "\x1b[1;31m" + str(self.error_count) + " error(s)\x1b[0m"
+        if self.warning_count > 0:
+            if str_len(summary) > 0:
+                summary = summary + " and "
+            summary = summary + "\x1b[1;33m" + str(self.warning_count) + " warning(s)\x1b[0m"
+        
+        if str_len(summary) > 0:
+            println(summary + " generated")
+    
+    fn render_diagnostic(self, diag: Diagnostic, indent: Int) -> Unit:
+        let source = self.get_source(diag.file)
+        let loc = diag.span.location(source)
+        
+        let color = severity_color(diag.severity)
+        let sev_name = severity_name(diag.severity)
+        
+        // Header: error: message
+        let prefix = repeat_char_local(" ", indent)
+        println(prefix + color + sev_name + "\x1b[0m: " + diag.message)
+        
+        // Location: --> file:line:column
+        if diag.span.is_defined():
+            println(prefix + "  \x1b[1;34m-->\x1b[0m " + diag.file + ":" + str(loc.line) + ":" + str(loc.column))
+            println(prefix + "   |")
+            println(prefix + " " + str(loc.line) + " | " + loc.source_line)
+            
+            // Caret line
+            let caret_pad = repeat_char_local(" ", loc.column - 1 + str_len(str(loc.line)) + 4)
+            let carets = "^"
+            if loc.length > 1:
+                carets = carets + repeat_char_local("~", loc.length - 1)
+            println(prefix + caret_pad + color + carets + "\x1b[0m")
+        
+        println("")
+        
+        // Render notes
+        for note in diag.notes:
+            self.render_diagnostic(note, indent + 2)
+
+// =============================================================================
+// StackFrame & StackTrace - Runtime debugging
+// =============================================================================
+
+struct StackFrame:
+    function_name: String
+    file: String
+    line: Int
+
+struct StackTrace:
+    frames: Array  // <StackFrame>
+
+impl StackTrace:
+    pub fn new() -> StackTrace:
+        return StackTrace { frames: [] }
+    
+    pub fn push_frame(self, func: String, file: String, line: Int) -> Unit:
+        push(self.frames, StackFrame {
+            function_name: func,
+            file: file,
+            line: line
+        })
+    
+    pub fn render(self) -> String:
+        let result = "Stack trace (most recent call last):\n"
+        let i = array_len(self.frames) - 1
+        while i >= 0:
+            let frame = self.frames[i]
+            result = result + "  at " + frame.function_name
+            result = result + " (" + frame.file + ":" + str(frame.line) + ")\n"
+            i = i - 1
+        return result
+
+// Global stack trace for current execution (set by runtime)
+// var _current_trace: StackTrace = StackTrace::new()
+
+fn trace_enter(func: String, file: String, line: Int) -> Unit:
+    // _current_trace.push_frame(func, file, line)
+    return
+
+fn trace_exit() -> Unit:
+    // if array_len(_current_trace.frames) > 0:
+    //    let _ = pop(_current_trace.frames)
+    return
+
+fn get_stack_trace() -> StackTrace:
+    return StackTrace::new() // _current_trace
+
+// Enhanced panic with stack trace
+fn panic_with_trace(msg: String) -> Unit:
+    println("\x1b[1;31mPANIC\x1b[0m: " + msg)
+    // println(_current_trace.render())
+    exit(1)

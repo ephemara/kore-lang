@@ -1,0 +1,40 @@
+// Test 11: Option and Result types
+fn find_index(arr: Array<Int>, target: Int) -> Option<Int>:
+    let i = 0
+    for item in arr:
+        if item == target:
+            return Option::Some(i)
+        i = i + 1
+    return Option::None
+
+fn safe_divide(a: Int, b: Int) -> Result<Int, String>:
+    if b == 0:
+        return Result::Err("Division by zero")
+    return Result::Ok(a / b)
+
+fn main():
+    let numbers = [10, 20, 30, 40, 50]
+    
+    // Option - found case
+    let found = find_index(numbers, 30)
+    match found:
+        Some(idx) => println("Found 30 at index: " + str(idx))
+        None => println("30 not found")
+    
+    // Option - not found case
+    let not_found = find_index(numbers, 999)
+    match not_found:
+        Some(idx) => println("Found 999 at index: " + str(idx))
+        None => println("999 not found")
+    
+    // Result - success case
+    let div_ok = safe_divide(10, 2)
+    match div_ok:
+        Ok(val) => println("10 / 2 = " + str(val))
+        Err(msg) => println("Error: " + msg)
+    
+    // Result - error case
+    let div_err = safe_divide(10, 0)
+    match div_err:
+        Ok(val) => println("10 / 0 = " + str(val))
+        Err(msg) => println("Error: " + msg)

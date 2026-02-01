@@ -1,0 +1,72 @@
+// ============================================================================
+// Bootstrap Test - Can we parse the compiler itself?
+// ============================================================================
+// This is the crucial test for Project Ouroboros.
+// If we can parse lexer.kr, parser.kr, and codegen_rust.kr,
+// we can generate a self-hosted compiler!
+
+use compiler/lexer
+use compiler/parser
+
+fn main():
+    println("=== Bootstrap Test ===")
+    println("")
+    
+    // Test 1: Read and parse lexer.kr
+    println("[1] Testing lexer.kr...")
+    let lexer_source = read_file("src/compiler/lexer.kr")
+    if len(lexer_source) == 0:
+        println("ERROR: Could not read lexer.kr")
+        return
+    println("    Read " + str(len(lexer_source)) + " bytes")
+    
+    let lexer1 = Lexer::new(lexer_source)
+    let tokens1 = lexer1.tokenize()
+    println("    Tokenized: " + str(len(tokens1)) + " tokens")
+    
+    let parser1 = Parser::new(tokens1)
+    let program1 = parser1.parse_program()
+    println("    Parsed: " + str(len(program1.items)) + " items")
+    println("     lexer.kr OK!")
+    println("")
+    
+    // Test 2: Read and parse parser.kr  
+    println("[2] Testing parser.kr...")
+    let parser_source = read_file("src/compiler/parser.kr")
+    if len(parser_source) == 0:
+        println("ERROR: Could not read parser.kr")
+        return
+    println("    Read " + str(len(parser_source)) + " bytes")
+    
+    let lexer2 = Lexer::new(parser_source)
+    let tokens2 = lexer2.tokenize()
+    println("    Tokenized: " + str(len(tokens2)) + " tokens")
+    
+    let parser2 = Parser::new(tokens2)
+    let program2 = parser2.parse_program()
+    println("    Parsed: " + str(len(program2.items)) + " items")
+    println("     parser.kr OK!")
+    println("")
+    
+    // Test 3: Read and parse codegen_rust.kr
+    println("[3] Testing codegen_rust.kr...")
+    let codegen_source = read_file("src/compiler/codegen_rust.kr")
+    if len(codegen_source) == 0:
+        println("ERROR: Could not read codegen_rust.kr")
+        return
+    println("    Read " + str(len(codegen_source)) + " bytes")
+    
+    let lexer3 = Lexer::new(codegen_source)
+    let tokens3 = lexer3.tokenize()
+    println("    Tokenized: " + str(len(tokens3)) + " tokens")
+    
+    let parser3 = Parser::new(tokens3)
+    let program3 = parser3.parse_program()
+    println("    Parsed: " + str(len(program3.items)) + " items")
+    println("     codegen_rust.kr OK!")
+    println("")
+    
+    println("=================================")
+    println(" BOOTSTRAP TEST PASSED! ")
+    println("The snake can now eat its tail!")
+    println("=================================")

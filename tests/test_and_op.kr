@@ -1,0 +1,25 @@
+fn main():
+    let a = "hello"
+    let b = "world"
+    
+    println("Testing str_eq results:")
+    
+    let eq1 = str_eq(a, "hello")
+    println("eq1 (should be 1): ")
+    println(to_string(eq1))
+    
+    let eq2 = str_eq(a, "world")
+    println("eq2 (should be 0): ")
+    println(to_string(eq2))
+    
+    println("Testing && operator:")
+    if str_eq(a, "hello") && !str_eq(a, "world"):
+        println("AND operator works!")
+    else:
+        println("AND operator BROKEN")
+    
+    println("Testing ! operator:")
+    if !str_eq(a, "world"):
+        println("NOT operator works!")
+    else:
+        println("NOT operator BROKEN")

@@ -1,0 +1,7 @@
+fn main():
+    println("Hello from V1!")
+    let test = "hello"
+    if str_eq(test, "hello"):
+        println("String equality works!")
+    else:
+        println("String equality BROKEN")

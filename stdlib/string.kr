@@ -1,0 +1,66 @@
+# string.god - String utilities
+
+pub fn capitalize(s):
+    if len(s) == 0:
+        return s
+    
+    # Assume split("") gives chars if supported, or we rely on built-in if available
+    # Since we don't have explicit char access in syntax examples, we'll try to use available tools.
+    # If to_upper is available (it is in stdlib), we can use it.
+    
+    # Strategy: split first char, upper it, join with rest.
+    # BUT we don't have substring/slice in stdlib yet.
+    # If s[i] works, we can do it.
+    
+    # Fallback if slice not available:
+    # return to_upper(s) # Incorrect but safe fallback
+    
+    # Better attempt:
+    let first = to_upper(substring(s, 0, 1))
+    let rest = substring(s, 1, len(s))
+    return first + rest
+
+# Helper for substring if not built-in (likely needed)
+# This assumes we can access chars via index or iteration
+fn substring(s, start, length):
+    # If native slice exists, use it. Otherwise construct.
+    let res = ""
+    let i = 0
+    # Assuming string is iterable or indexable
+    # If indexable:
+    # for j in range(start, start + length):
+    #     res = res + s[j]
+    
+    # If not indexable, we are stuck without native support.
+    # Let's assume we can split by "" to get chars
+    # NOTE: 'split' in stdlib.rs takes a separator. split(s, "") might work.
+    let chars = split(s, "")
+    for j in range(start, min(start + length, len(chars))):
+        res = res + chars[j]
+    return res
+
+fn min(a, b):
+    if a < b: return a else: return b
+
+pub fn reverse(s):
+    let chars = split(s, "")
+    let res = ""
+    # reverse iterate
+    # range(start, end) goes up. 
+    # range(0, len) then index
+    let n = len(chars)
+    for i in range(0, n):
+        res = res + chars[n - 1 - i]
+    return res
+
+pub fn pad_left(s, n, char):
+    let res = s
+    while len(res) < n:
+        res = char + res
+    return res
+
+pub fn pad_right(s, n, char):
+    let res = s
+    while len(res) < n:
+        res = res + char
+    return res

@@ -1,0 +1,387 @@
+// ============================================================================
+// KORE Error Recovery & Smart Suggestions
+// ============================================================================
+// Provides intelligent error recovery and helpful suggestions.
+// Includes:
+// - "Did you mean?" suggestions
+// - Common typo detection
+// - Missing import suggestions
+// - Unused variable warnings
+// - Style recommendations
+// ============================================================================
+
+use std/collections
+
+// =============================================================================
+// Error Suggestion
+// =============================================================================
+
+struct Suggestion:
+    message: String         // What to suggest
+    confidence: Float       // 0.0 - 1.0 confidence score
+    fix: Option<Fix>        // Optional auto-fix
+
+struct Fix:
+    span: Span              // Where to apply fix
+    replacement: String     // What to replace with
+    description: String     // Human-readable description
+
+// =============================================================================
+// Suggestion Engine
+// =============================================================================
+
+struct SuggestionEngine:
+    known_types: Array<String>      // All known type names
+    known_functions: Array<String>  // All known function names
+    known_variables: Array<String>  // Variables in scope
+    imports: Array<String>          // Available imports
+
+impl SuggestionEngine:
+    pub fn new() -> SuggestionEngine:
+        return SuggestionEngine {
+            known_types: [],
+            known_functions: [],
+            known_variables: [],
+            imports: []
+        }
+    
+    /// Add known identifiers for better suggestions
+    pub fn add_type(self, name: String) -> Unit:
+        push(self.known_types, name)
+    
+    pub fn add_function(self, name: String) -> Unit:
+        push(self.known_functions, name)
+    
+    pub fn add_variable(self, name: String) -> Unit:
+        push(self.known_variables, name)
+    
+    pub fn add_import(self, path: String) -> Unit:
+        push(self.imports, path)
+    
+    // =========================================================================
+    // Suggestion Methods
+    // =========================================================================
+    
+    /// Suggest correction for unknown identifier
+    pub fn suggest_identifier(self, unknown: String, expected_kind: String) -> Array<Suggestion>:
+        var suggestions: Array<Suggestion> = []
+        
+        // Collect candidates based on expected kind
+        var candidates: Array<String> = []
+        match expected_kind:
+            "type" => candidates = self.known_types
+            "function" => candidates = self.known_functions
+            "variable" => candidates = self.known_variables
+            _ =>
+                // Check all kinds
+                for t in self.known_types:
+                    push(candidates, t)
+                for f in self.known_functions:
+                    push(candidates, f)
+                for v in self.known_variables:
+                    push(candidates, v)
+        
+        // Find similar names
+        for candidate in candidates:
+            let distance = levenshtein(unknown, candidate)
+            let max_len = max(len(unknown), len(candidate))
+            let similarity = 1.0 - (float(distance) / float(max_len))
+            
+            if similarity >= 0.6:
+                push(suggestions, Suggestion {
+                    message: "Did you mean '" + candidate + "'?",
+                    confidence: similarity,
+                    fix: Some(Fix {
+                        span: Span::empty(),  // Would need actual span
+                        replacement: candidate,
+                        description: "Replace '" + unknown + "' with '" + candidate + "'"
+                    })
+                })
+        
+        // Sort by confidence
+        suggestions = sort_by_confidence(suggestions)
+        
+        return suggestions
+    
+    /// Suggest import for unknown type
+    pub fn suggest_import(self, unknown_type: String) -> Array<Suggestion>:
+        var suggestions: Array<Suggestion> = []
+        
+        // Check if the type is in a known import
+        for import_path in self.imports:
+            let parts = split(import_path, "/")
+            let module_name = parts[len(parts) - 1]
+            
+            // Common patterns: type name matches module name or is exported
+            if to_lower(module_name) == to_lower(unknown_type):
+                push(suggestions, Suggestion {
+                    message: "Add 'use " + import_path + "'",
+                    confidence: 0.9,
+                    fix: Some(Fix {
+                        span: Span::empty(),
+                        replacement: "use " + import_path + "\n",
+                        description: "Add import for " + unknown_type
+                    })
+                })
+        
+        return suggestions
+    
+    /// Suggest fixes for common mistakes
+    pub fn suggest_common_fixes(self, error_msg: String, context: String) -> Array<Suggestion>:
+        var suggestions: Array<Suggestion> = []
+        
+        // Missing colon after function/if/while
+        if contains(error_msg, "expected ':'"):
+            push(suggestions, Suggestion {
+                message: "Add ':' after the condition or signature",
+                confidence: 0.95,
+                fix: None  // Context-dependent
+            })
+        
+        // Missing return type
+        if contains(error_msg, "cannot infer return type"):
+            push(suggestions, Suggestion {
+                message: "Add explicit return type annotation: '-> ReturnType'",
+                confidence: 0.85,
+                fix: None
+            })
+        
+        // Using = instead of ==
+        if contains(error_msg, "assignment in condition"):
+            push(suggestions, Suggestion {
+                message: "Use '==' for comparison, not '=' for assignment",
+                confidence: 0.98,
+                fix: Some(Fix {
+                    span: Span::empty(),
+                    replacement: "==",
+                    description: "Replace '=' with '=='"
+                })
+            })
+        
+        // Missing 'self' in method
+        if contains(error_msg, "no method named") and contains(context, "impl"):
+            push(suggestions, Suggestion {
+                message: "Did you forget 'self' as the first parameter?",
+                confidence: 0.7,
+                fix: None
+            })
+        
+        // Mutable borrow on immutable
+        if contains(error_msg, "cannot borrow") and contains(error_msg, "mutable"):
+            push(suggestions, Suggestion {
+                message: "Change 'let' to 'var' to make the variable mutable",
+                confidence: 0.9,
+                fix: Some(Fix {
+                    span: Span::empty(),
+                    replacement: "var",
+                    description: "Change 'let' to 'var'"
+                })
+            })
+        
+        // Missing semicolon (if applicable)
+        if contains(error_msg, "unexpected token"):
+            push(suggestions, Suggestion {
+                message: "Kore uses indentation, not semicolons. Check your indentation.",
+                confidence: 0.6,
+                fix: None
+            })
+        
+        // Wrong number of arguments
+        if contains(error_msg, "expected") and contains(error_msg, "arguments"):
+            push(suggestions, Suggestion {
+                message: "Check the function signature for the correct number of arguments",
+                confidence: 0.8,
+                fix: None
+            })
+        
+        return suggestions
+    
+    /// Suggest based on pattern matching
+    pub fn suggest_match_patterns(self, enum_name: String, existing_patterns: Array<String>) -> Array<Suggestion>:
+        var suggestions: Array<Suggestion> = []
+        
+        // Would need to look up enum definition and find missing variants
+        // For now, provide generic advice
+        
+        push(suggestions, Suggestion {
+            message: "Add a wildcard pattern '_' to handle remaining cases",
+            confidence: 0.7,
+            fix: Some(Fix {
+                span: Span::empty(),
+                replacement: "_ => ...",
+                description: "Add wildcard pattern"
+            })
+        })
+        
+        return suggestions
+
+// =============================================================================
+// Levenshtein Distance (for typo detection)
+// =============================================================================
+
+fn levenshtein(a: String, b: String) -> Int:
+    let m = len(a)
+    let n = len(b)
+    
+    if m == 0:
+        return n
+    if n == 0:
+        return m
+    
+    // Create distance matrix
+    var prev: Array<Int> = []
+    var curr: Array<Int> = []
+    
+    for j in range(0, n + 1):
+        push(prev, j)
+        push(curr, 0)
+    
+    for i in range(1, m + 1):
+        curr[0] = i
+        
+        for j in range(1, n + 1):
+            let cost = if char_at(a, i - 1) == char_at(b, j - 1): 0 else: 1
+            
+            let delete = prev[j] + 1
+            let insert = curr[j - 1] + 1
+            let substitute = prev[j - 1] + cost
+            
+            curr[j] = min(min(delete, insert), substitute)
+        
+        // Swap rows
+        let tmp = prev
+        prev = curr
+        curr = tmp
+    
+    return prev[n]
+
+fn sort_by_confidence(suggestions: Array<Suggestion>) -> Array<Suggestion>:
+    // Simple bubble sort by confidence (descending)
+    var sorted = suggestions
+    let n = len(sorted)
+    
+    for i in range(0, n):
+        for j in range(0, n - i - 1):
+            if sorted[j].confidence < sorted[j + 1].confidence:
+                let tmp = sorted[j]
+                sorted[j] = sorted[j + 1]
+                sorted[j + 1] = tmp
+    
+    return sorted
+
+// =============================================================================
+// Warning Generator
+// =============================================================================
+
+struct Warning:
+    message: String
+    span: Span
+    code: String            // Warning code (e.g., "W001")
+    severity: WarningSeverity
+
+enum WarningSeverity:
+    Hint
+    Warning
+    Error
+
+struct WarningCollector:
+    warnings: Array<Warning>
+    suppress: Set<String>   // Suppressed warning codes
+
+impl WarningCollector:
+    pub fn new() -> WarningCollector:
+        return WarningCollector {
+            warnings: [],
+            suppress: Set::new()
+        }
+    
+    pub fn add(self, warning: Warning) -> Unit:
+        // Check if suppressed
+        if set_contains(self.suppress, warning.code):
+            return
+        push(self.warnings, warning)
+    
+    pub fn suppress_code(self, code: String) -> Unit:
+        set_insert(self.suppress, code)
+    
+    pub fn unused_variable(self, name: String, span: Span) -> Unit:
+        self.add(Warning {
+            message: "Variable '" + name + "' is declared but never used",
+            span: span,
+            code: "W001",
+            severity: WarningSeverity::Warning
+        })
+    
+    pub fn unused_import(self, path: String, span: Span) -> Unit:
+        self.add(Warning {
+            message: "Import '" + path + "' is never used",
+            span: span,
+            code: "W002",
+            severity: WarningSeverity::Warning
+        })
+    
+    pub fn dead_code(self, what: String, span: Span) -> Unit:
+        self.add(Warning {
+            message: "Unreachable code: " + what,
+            span: span,
+            code: "W003",
+            severity: WarningSeverity::Warning
+        })
+    
+    pub fn shadowed_variable(self, name: String, span: Span) -> Unit:
+        self.add(Warning {
+            message: "Variable '" + name + "' shadows a previous binding",
+            span: span,
+            code: "W004",
+            severity: WarningSeverity::Hint
+        })
+    
+    pub fn mutable_never_mutated(self, name: String, span: Span) -> Unit:
+        self.add(Warning {
+            message: "Variable '" + name + "' is declared mutable but never mutated",
+            span: span,
+            code: "W005",
+            severity: WarningSeverity::Hint
+        })
+    
+    pub fn missing_return(self, fn_name: String, span: Span) -> Unit:
+        self.add(Warning {
+            message: "Function '" + fn_name + "' is missing explicit return in some branches",
+            span: span,
+            code: "W006",
+            severity: WarningSeverity::Warning
+        })
+    
+    pub fn format_all(self) -> String:
+        var output = ""
+        for warning in self.warnings:
+            let severity_str = match warning.severity:
+                WarningSeverity::Hint => "hint"
+                WarningSeverity::Warning => "warning"
+                WarningSeverity::Error => "error"
+            
+            output = output + severity_str + "[" + warning.code + "]: " + warning.message + "\n"
+        return output
+
+// =============================================================================
+// Utility
+// =============================================================================
+
+extern fn char_at(s: String, i: Int) -> String
+extern fn to_lower(s: String) -> String
+
+struct Set<T>:
+    items: Array<T>
+
+fn Set::new<T>() -> Set<T>:
+    return Set { items: [] }
+
+fn set_contains<T>(s: Set<T>, item: T) -> Bool:
+    for i in s.items:
+        if i == item:
+            return true
+    return false
+
+fn set_insert<T>(s: Set<T>, item: T) -> Unit:
+    if !set_contains(s, item):
+        push(s.items, item)

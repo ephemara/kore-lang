@@ -1,0 +1,20 @@
+fn main():
+    println("Testing continue in while loop")
+    let i = 0
+    while i < 10:
+        i = i + 1
+        if i % 2 == 0:
+            continue
+        print("Odd: ")
+        println(str(i))
+    
+    println("Testing continue in loop")
+    let j = 0
+    loop:
+        j = j + 1
+        if j > 5:
+            break
+        if j == 3:
+            continue
+        print("J: ")
+        println(str(j))

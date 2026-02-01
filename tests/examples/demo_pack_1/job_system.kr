@@ -1,0 +1,20 @@
+struct Job:
+    id: Int
+    data: String
+
+actor Worker:
+    state name: String
+
+    on ProcessJob(job: Job):
+        print(self.name + " processing Job " + to_string(job.id) + ": " + job.data)
+        sleep(0.1)
+
+fn main() with IO:
+    let w1 = spawn Worker(name="Worker-1")
+    let w2 = spawn Worker(name="Worker-2")
+
+    send w1.ProcessJob(job=Job { id: 1, data: "Process Data" })
+    send w2.ProcessJob(job=Job { id: 2, data: "Calculate Physics" })
+    send w1.ProcessJob(job=Job { id: 3, data: "Render Frame" })
+
+    sleep(1.0)

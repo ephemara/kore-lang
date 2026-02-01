@@ -1,0 +1,63 @@
+# guess.god - Guess the Number Game
+
+# Simple LCG Random Number Generator
+struct RNG:
+    state: Int
+
+impl RNG:
+    fn new(seed: Int) -> RNG:
+        return RNG { state: seed }
+    
+    fn next(self) -> Int:
+        # LCG parameters: a=1664525, c=1013904223, m=2^32
+        # We'll use smaller ones to fit safe integers if needed, but let's try standard
+        # Note: overflow behavior depends on Int size. Assuming 64-bit signed.
+        let a = 1103515245
+        let c = 12345
+        let m = 2147483648 # 2^31
+        
+        self.state = (a * self.state + c)
+        # Modulo manually if % operator not guaranteed or for negative handling
+        # self.state % m
+        # But let's assume % works
+        
+        # Taking abs to ensure positive
+        let val = self.state
+        if val < 0: val = -val
+        return val % 100 # 0-99
+
+fn main() with IO:
+    print("=== Guess the Number ===")
+    print("I'm thinking of a number between 0 and 99.")
+    
+    # Seed with time (converted to int)
+    let seed = to_int(now() * 1000.0)
+    let rng = RNG.new(seed)
+    let secret = rng.next()
+    
+    let attempts = 0
+    let guessed = false
+    
+    # Game loop
+    # We use 'while' but if 'while' is not in syntax (only 'for' saw in examples?), we can use 'loop' or recursion.
+    # examples/math.god used 'for'. examples/hello.god used 'match'.
+    # I'll assume 'while' exists or simulate with recursion.
+    # Let's try recursion for the game loop to be safe and functional-style.
+    
+    game_loop(secret, 0)
+
+fn game_loop(secret, attempts) with IO:
+    print("Enter your guess: ")
+    let line = read_line()
+    let guess = to_int(trim(line))
+    
+    if guess == secret:
+        print("Correct! You won in " + to_string(attempts + 1) + " attempts.")
+    else:
+        if guess < secret:
+            print("Too low!")
+        else:
+            print("Too high!")
+        
+        # Recurse
+        game_loop(secret, attempts + 1)

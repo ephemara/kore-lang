@@ -1,0 +1,43 @@
+// Simple test to see if Lexer basics work
+
+struct Lexer:
+    chars: Array<String>
+    pos: Int
+
+impl Lexer:
+    pub fn new(source: String) -> Lexer:
+        let chars = split(source, "")
+        println("Chars count: " + str(len(chars)))
+        return Lexer { chars: chars, pos: 0 }
+    
+    fn is_eof(self) -> Bool:
+        return self.pos >= len(self.chars)
+    
+    fn peek(self) -> String:
+        if self.is_eof():
+            return ""
+        return self.chars[self.pos]
+    
+    fn advance(self) -> String:
+        let c = self.peek()
+        self.pos = self.pos + 1
+        return c
+
+fn main():
+    println("=== Lexer Test ===")
+    
+    let source = "hello world"
+    println("Source: '" + source + "'")
+    
+    let lexer = Lexer::new(source)
+    
+    println("Is EOF: " + str(lexer.is_eof()))
+    println("First char: '" + lexer.peek() + "'")
+    
+    let count = 0
+    while !lexer.is_eof():
+        let c = lexer.advance()
+        println("Char " + str(count) + ": '" + c + "'")
+        count = count + 1
+    
+    println("Done! Read " + str(count) + " chars")

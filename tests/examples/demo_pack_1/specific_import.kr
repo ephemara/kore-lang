@@ -1,0 +1,14 @@
+# Test importing all from math module
+use math
+
+println!("=== Specific Import Test ===")
+println!()
+
+let s = square(5)
+println!("square(5) = ", s)
+
+let f = factorial(7)
+println!("factorial(7) = ", f)
+
+println!()
+println!(" Specific imports work!")

@@ -1,0 +1,53 @@
+# collections.god - Array helpers
+
+pub fn contains(arr, item):
+    for x in arr:
+        if x == item:
+            return true
+    return false
+
+pub fn find(arr, pred):
+    for x in arr:
+        if pred(x):
+            return x
+    return none
+
+pub fn any(arr, pred):
+    for x in arr:
+        if pred(x):
+            return true
+    return false
+
+pub fn all(arr, pred):
+    for x in arr:
+        if !pred(x):
+            return false
+    return true
+
+pub fn reverse_array(arr):
+    let res = []
+    let n = len(arr)
+    for i in range(0, n):
+        push(res, arr[n - 1 - i])
+    return res
+
+# Wrapper for built-in map if needed, or pure implementation
+pub fn map(arr, f):
+    let res = []
+    for x in arr:
+        push(res, f(x))
+    return res
+
+# Wrapper for built-in filter
+pub fn filter(arr, pred):
+    let res = []
+    for x in arr:
+        if pred(x):
+            push(res, x)
+    return res
+
+pub fn reduce(arr, f, init):
+    let acc = init
+    for x in arr:
+        acc = f(acc, x)
+    return acc

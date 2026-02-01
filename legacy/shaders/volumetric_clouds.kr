@@ -1,0 +1,183 @@
+// ============================================================================
+// KORE Shader Examples - Volumetric Raymarching
+// ============================================================================
+// A complete volumetric cloud/fog raymarcher with noise-based density,
+// light scattering, and atmospheric perspective.
+// ============================================================================
+
+// Noise functions for cloud generation
+fn hash(p: Vec3) -> Float:
+    let h = dot(p, vec3(127.1, 311.7, 74.7))
+    return fract(sin(h) * 43758.5453123)
+
+fn noise_3d(p: Vec3) -> Float:
+    let i = floor(p)
+    let f = fract(p)
+    
+    // Cubic interpolation
+    let u = f * f * (vec3(3.0) - 2.0 * f)
+    
+    // Sample 8 corners of cube
+    let n000 = hash(i + vec3(0.0, 0.0, 0.0))
+    let n100 = hash(i + vec3(1.0, 0.0, 0.0))
+    let n010 = hash(i + vec3(0.0, 1.0, 0.0))
+    let n110 = hash(i + vec3(1.0, 1.0, 0.0))
+    let n001 = hash(i + vec3(0.0, 0.0, 1.0))
+    let n101 = hash(i + vec3(1.0, 0.0, 1.0))
+    let n011 = hash(i + vec3(0.0, 1.0, 1.0))
+    let n111 = hash(i + vec3(1.0, 1.0, 1.0))
+    
+    // Trilinear interpolation
+    let nx00 = mix(n000, n100, u.x)
+    let nx10 = mix(n010, n110, u.x)
+    let nx01 = mix(n001, n101, u.x)
+    let nx11 = mix(n011, n111, u.x)
+    
+    let nxy0 = mix(nx00, nx10, u.y)
+    let nxy1 = mix(nx01, nx11, u.y)
+    
+    return mix(nxy0, nxy1, u.z)
+
+// Fractal Brownian Motion for cloud detail
+fn fbm(p: Vec3, octaves: Int) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = 1.0
+    var total_amplitude = 0.0
+    
+    for i in range(0, octaves):
+        value = value + amplitude * noise_3d(p * frequency)
+        total_amplitude = total_amplitude + amplitude
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+    
+    return value / total_amplitude
+
+// Cloud density function
+fn cloud_density(pos: Vec3, time: Float) -> Float:
+    // Height-based density falloff
+    let height_factor = 1.0 - smoothstep(0.0, 1.0, (pos.y - 1000.0) / 2000.0)
+    
+    // Animated noise
+    let animated_pos = pos + vec3(time * 10.0, 0.0, time * 5.0)
+    
+    // Multi-octave noise for cloud shape
+    let base_density = fbm(animated_pos * 0.001, 4)
+    let detail = fbm(animated_pos * 0.005, 6) * 0.5
+    
+    // Combine and threshold
+    let density = (base_density + detail - 0.4) * height_factor
+    return max(density, 0.0)
+
+// Henyey-Greenstein phase function for light scattering
+fn henyey_greenstein(cos_theta: Float, g: Float) -> Float:
+    let g2 = g * g
+    let denom = 1.0 + g2 - 2.0 * g * cos_theta
+    return (1.0 - g2) / (4.0 * 3.14159265 * pow(denom, 1.5))
+
+// Beer-Lambert transmittance
+fn beer_lambert(density: Float, distance: Float) -> Float:
+    return exp(-density * distance)
+
+// Multi-scattering approximation (Schneider 2015)
+fn powder_effect(density: Float, cos_theta: Float) -> Float:
+    let powder = 1.0 - exp(-density * 2.0)
+    return mix(1.0, powder, smoothstep(0.5, -0.5, cos_theta))
+
+// Light marching towards sun
+fn light_march(pos: Vec3, sun_dir: Vec3, time: Float) -> Float:
+    let light_steps = 6
+    let light_step_size = 50.0
+    
+    var total_density = 0.0
+    var march_pos = pos
+    
+    for i in range(0, light_steps):
+        march_pos = march_pos + sun_dir * light_step_size
+        total_density = total_density + cloud_density(march_pos, time)
+    
+    return exp(-total_density * light_step_size * 0.1)
+
+// Main volumetric raymarch shader
+shader fragment VolumetricClouds(
+    frag_pos: Vec3,
+    screen_uv: Vec2
+) -> Vec4:
+    // Uniforms
+    uniform camera_pos: Vec3 @0
+    uniform camera_dir: Vec3 @1
+    uniform camera_up: Vec3 @2
+    uniform camera_right: Vec3 @3
+    uniform sun_dir: Vec3 @4
+    uniform sun_color: Vec3 @5
+    uniform time: Float @6
+    uniform cloud_base: Float @7      // Bottom of cloud layer
+    uniform cloud_top: Float @8       // Top of cloud layer
+    
+    // Reconstruct ray direction from screen UV
+    let aspect = 16.0 / 9.0
+    let fov = 1.0
+    let ray_dir = normalize(
+        camera_dir + 
+        (screen_uv.x - 0.5) * aspect * fov * camera_right +
+        (screen_uv.y - 0.5) * fov * camera_up
+    )
+    
+    // Ray-box intersection for cloud layer
+    let t_bottom = (cloud_base - camera_pos.y) / ray_dir.y
+    let t_top = (cloud_top - camera_pos.y) / ray_dir.y
+    
+    let t_near = max(min(t_bottom, t_top), 0.0)
+    let t_far = max(t_bottom, t_top)
+    
+    if t_far < 0.0:
+        // Ray doesn't hit cloud layer
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Raymarch settings
+    let max_steps = 64
+    let step_size = (t_far - t_near) / float(max_steps)
+    
+    // Initialize accumulators
+    var transmittance = 1.0
+    var light_energy = vec3(0.0)
+    var march_pos = camera_pos + ray_dir * t_near
+    
+    // Phase function parameters
+    let cos_angle = dot(ray_dir, sun_dir)
+    let phase_forward = henyey_greenstein(cos_angle, 0.6)
+    let phase_backward = henyey_greenstein(cos_angle, -0.3)
+    let phase = mix(phase_backward, phase_forward, 0.7)
+    
+    // Ambient sky color
+    let ambient = vec3(0.4, 0.5, 0.7) * 0.2
+    
+    for step in range(0, max_steps):
+        // Sample density
+        let density = cloud_density(march_pos, time)
+        
+        if density > 0.001:
+            // Light contribution at this point
+            let light_transmittance = light_march(march_pos, sun_dir, time)
+            let powder = powder_effect(density, cos_angle)
+            
+            // Scattering
+            let scatter = sun_color * light_transmittance * phase * powder
+            let ambient_scatter = ambient * (1.0 - light_transmittance * 0.5)
+            
+            // Accumulate light
+            let sample_transmittance = beer_lambert(density, step_size)
+            let integration = (1.0 - sample_transmittance) / max(density, 0.0001)
+            
+            light_energy = light_energy + transmittance * (scatter + ambient_scatter) * integration * density
+            transmittance = transmittance * sample_transmittance
+            
+            // Early exit if opaque
+            if transmittance < 0.01:
+                break
+        
+        march_pos = march_pos + ray_dir * step_size
+    
+    // Final composite
+    let alpha = 1.0 - transmittance
+    return vec4(light_energy, alpha)

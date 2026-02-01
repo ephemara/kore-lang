@@ -1,0 +1,1647 @@
+// ============================================================================
+// KORE Type System - Full Implementation
+// ============================================================================
+// Ported from legacy_prototype/src/types.rs
+// Provides type checking, type inference, and type environment management.
+//
+// This module transforms an untyped AST (Program) into a typed AST (TypedProgram)
+// where every expression and statement has a resolved type.
+//
+// Enhanced with patterns from Naga's type.rs for structured validation.
+// ============================================================================
+
+use stdlib
+use span
+use diagnostic
+
+// =============================================================================
+// Type Flags - Properties of types (from Naga's TypeFlags pattern)
+// =============================================================================
+// These flags categorize types for validation purposes
+
+enum TypeFlag:
+    Data            // Can be used for variables and struct fields
+    Sized           // Has known size at compile time  
+    Copy            // Can be copied (not moved)
+    Argument        // Can be passed as function argument
+    Constructible   // Can construct with struct literal {}
+    Comparable      // Can use == and != operators
+    Ordered         // Can use <, >, <=, >= operators
+    Numeric         // Supports arithmetic operators
+
+struct TypeFlags:
+    flags: Array<TypeFlag>
+
+impl TypeFlags:
+    pub fn new() -> TypeFlags:
+        return TypeFlags { flags: [] }
+    
+    pub fn all() -> TypeFlags:
+        return TypeFlags { 
+            flags: [
+                TypeFlag::Data, 
+                TypeFlag::Sized, 
+                TypeFlag::Copy, 
+                TypeFlag::Argument,
+                TypeFlag::Constructible,
+                TypeFlag::Comparable
+            ]
+        }
+    
+    pub fn add(self, flag: TypeFlag) -> TypeFlags:
+        push(self.flags, flag)
+        return self
+    
+    pub fn has(self, flag: TypeFlag) -> Bool:
+        let flag_name = variant_of(flag)
+        for f in self.flags:
+            if str_eq(variant_of(f), flag_name):
+                return true
+        return false
+
+// =============================================================================
+// Type Error - Structured error types (from Naga's TypeError pattern)
+// =============================================================================
+// Each variant captures specific context for better error messages
+
+enum TypeError:
+    // Type mismatch errors
+    TypeMismatch(Span, String, String)           // span, expected, got
+    IncompatibleTypes(Span, String, String)      // span, left, right (for binary ops)
+    
+    // Identifier errors
+    UndefinedVariable(Span, String)              // span, name
+    UndefinedType(Span, String)                  // span, name
+    UndefinedField(Span, String, String)         // span, type_name, field_name
+    UndefinedMethod(Span, String, String)        // span, type_name, method_name
+    
+    // Function errors
+    ArgumentCountMismatch(Span, Int, Int)        // span, expected, got
+    ArgumentTypeMismatch(Span, Int, String, String) // span, arg_index, expected, got
+    NotCallable(Span, String)                    // span, type_name
+    
+    // Operator errors
+    InvalidOperator(Span, String, String)        // span, operator, type_name
+    InvalidUnaryOperator(Span, String, String)   // span, operator, type_name
+    
+    // Structure errors
+    DuplicateField(Span, String)                 // span, field_name
+    MissingField(Span, String, String)           // span, struct_name, field_name
+    ExtraField(Span, String, String)             // span, struct_name, field_name
+    
+    // Match errors
+    NonExhaustiveMatch(Span)                     // span
+    UnreachablePattern(Span)                     // span
+    
+    // Mutability errors
+    AssignToImmutable(Span, String)              // span, variable_name
+    BorrowMutOfImmutable(Span, String)           // span, variable_name
+    
+    // Other
+    InvalidReturn(Span, String, String)          // span, expected, got
+    InvalidCondition(Span, String)               // span, got (expected Bool)
+    SelfOutsideImpl(Span)                        // span
+    
+    // Generic fallback
+    Other(Span, String)                          // span, message
+
+impl TypeError:
+    pub fn span(self) -> Span:
+        match self:
+            TypeMismatch(s, _, _) => return s
+            IncompatibleTypes(s, _, _) => return s
+            UndefinedVariable(s, _) => return s
+            UndefinedType(s, _) => return s
+            UndefinedField(s, _, _) => return s
+            UndefinedMethod(s, _, _) => return s
+            ArgumentCountMismatch(s, _, _) => return s
+            ArgumentTypeMismatch(s, _, _, _) => return s
+            NotCallable(s, _) => return s
+            InvalidOperator(s, _, _) => return s
+            InvalidUnaryOperator(s, _, _) => return s
+            DuplicateField(s, _) => return s
+            MissingField(s, _, _) => return s
+            ExtraField(s, _, _) => return s
+            NonExhaustiveMatch(s) => return s
+            UnreachablePattern(s) => return s
+            AssignToImmutable(s, _) => return s
+            BorrowMutOfImmutable(s, _) => return s
+            InvalidReturn(s, _, _) => return s
+            InvalidCondition(s, _) => return s
+            SelfOutsideImpl(s) => return s
+            Other(s, _) => return s
+        return Span::empty()
+    
+    pub fn message(self) -> String:
+        match self:
+            TypeMismatch(_, expected, got) => 
+                return "type mismatch: expected `" + expected + "`, found `" + got + "`"
+            IncompatibleTypes(_, left, right) => 
+                return "incompatible types: `" + left + "` and `" + right + "`"
+            UndefinedVariable(_, name) => 
+                return "undefined variable: `" + name + "`"
+            UndefinedType(_, name) => 
+                return "undefined type: `" + name + "`"
+            UndefinedField(_, type_name, field) => 
+                return "type `" + type_name + "` has no field `" + field + "`"
+            UndefinedMethod(_, type_name, method) => 
+                return "type `" + type_name + "` has no method `" + method + "`"
+            ArgumentCountMismatch(_, expected, got) => 
+                return "expected " + str(expected) + " arguments, found " + str(got)
+            ArgumentTypeMismatch(_, idx, expected, got) => 
+                return "argument " + str(idx) + ": expected `" + expected + "`, found `" + got + "`"
+            NotCallable(_, ty) => 
+                return "type `" + ty + "` is not callable"
+            InvalidOperator(_, op, ty) => 
+                return "operator `" + op + "` cannot be applied to type `" + ty + "`"
+            InvalidUnaryOperator(_, op, ty) => 
+                return "unary operator `" + op + "` cannot be applied to type `" + ty + "`"
+            DuplicateField(_, name) => 
+                return "duplicate field: `" + name + "`"
+            MissingField(_, struct_name, field) => 
+                return "missing field `" + field + "` in initializer of `" + struct_name + "`"
+            ExtraField(_, struct_name, field) => 
+                return "unknown field `" + field + "` in initializer of `" + struct_name + "`"
+            NonExhaustiveMatch(_) => 
+                return "non-exhaustive match: not all patterns covered"
+            UnreachablePattern(_) => 
+                return "unreachable pattern"
+            AssignToImmutable(_, name) => 
+                return "cannot assign to immutable variable `" + name + "`"
+            BorrowMutOfImmutable(_, name) => 
+                return "cannot borrow `" + name + "` as mutable, it is not declared with `var`"
+            InvalidReturn(_, expected, got) => 
+                return "invalid return type: expected `" + expected + "`, found `" + got + "`"
+            InvalidCondition(_, got) => 
+                return "condition must be `Bool`, found `" + got + "`"
+            SelfOutsideImpl(_) => 
+                return "`Self` is only valid inside an `impl` block"
+            Other(_, msg) => 
+                return msg
+        return "unknown type error"
+    
+    /// Convert TypeError to Diagnostic for rich error output
+    pub fn to_diagnostic(self, file: String) -> Diagnostic:
+        return Diagnostic::error(self.message(), self.span(), file)
+
+// =============================================================================
+// Type Info - Type metadata for validation (from Naga's TypeInfo pattern)
+// =============================================================================
+
+struct TypeInfo:
+    ty: ResolvedType
+    flags: TypeFlags
+
+impl TypeInfo:
+    pub fn new(ty: ResolvedType) -> TypeInfo:
+        return TypeInfo { ty: ty, flags: TypeFlags::new() }
+    
+    pub fn with_flags(ty: ResolvedType, flags: TypeFlags) -> TypeInfo:
+        return TypeInfo { ty: ty, flags: flags }
+    
+    pub fn is_data(self) -> Bool:
+        return self.flags.has(TypeFlag::Data)
+    
+    pub fn is_sized(self) -> Bool:
+        return self.flags.has(TypeFlag::Sized)
+    
+    pub fn is_copy(self) -> Bool:
+        return self.flags.has(TypeFlag::Copy)
+    
+    pub fn is_numeric(self) -> Bool:
+        return self.flags.has(TypeFlag::Numeric)
+
+// =============================================================================
+// Integer and Float Size Enums
+// =============================================================================
+
+enum IntSize:
+    I8
+    I16
+    I32
+    I64
+    I128
+    Isize
+    U8
+    U16
+    U32
+    U64
+    U128
+    Usize
+
+enum FloatSize:
+    F32
+    F64
+
+// =============================================================================
+// Resolved Type - The core type representation after inference
+// =============================================================================
+
+// Note: Recursive types must be boxed. We use Array<ResolvedType> of length 1 as a box.
+enum ResolvedType:
+    Unit
+    Bool
+    Int(IntSize)
+    Float(FloatSize)
+    String
+    Char
+    Array(Array<ResolvedType>, Int)   // Element type (boxed), size
+    Slice(Array<ResolvedType>)        // Element type (boxed)
+    Tuple(Array<ResolvedType>)        // Element types (by value in array)
+    Option(Array<ResolvedType>)       // Inner type (boxed)
+    Result(Array<ResolvedType>, Array<ResolvedType>) // Ok (boxed), Err (boxed)
+    Ref(Bool, Array<ResolvedType>)    // mutable, inner (boxed)
+    Function(Array<ResolvedType>, Array<ResolvedType>)  // params (by value), return (boxed)
+    Struct(String, Map<String, Array<ResolvedType>>)  // name, fields (boxed types)
+    Enum(String, Array<Variant>)      // name, variants
+    Map(Array<ResolvedType>, Array<ResolvedType>)  // key (boxed), value (boxed)
+    Generic(String)
+    Never
+    Unknown
+
+// =============================================================================
+// Typed AST Nodes - AST with resolved types attached
+// =============================================================================
+
+struct TypedProgram:
+    items: Array<TypedItem>
+
+enum TypedItem:
+    Function(String, Array<TypedParam>, Array<ResolvedType>, Array<TypedStmt>, Bool, Bool)
+    Struct(String, Array<TypedField>, Bool, Span)
+    Enum(String, Array<TypedVariant>)
+    Impl(String, Array<TypedFunction>)
+    Use(String)
+    ExternFn(String, Array<Param>, Array<ResolvedType>)
+
+struct TypedFunction:
+    name: String
+    params: Array<TypedParam>
+    return_type: Array<ResolvedType> // Boxed
+    body: Array<TypedStmt>
+    is_pub: Bool
+    is_async: Bool
+
+struct TypedParam:
+    name: String
+    ty: Array<ResolvedType> // Boxed
+
+struct TypedStruct:
+    name: String
+    fields: Array<TypedField>
+    is_pub: Bool
+    span: Span
+
+struct TypedField:
+    name: String
+    ty: Array<ResolvedType> // Boxed
+
+struct TypedEnum:
+    name: String
+    variants: Array<TypedVariant>
+
+struct TypedVariant:
+    name: String
+    fields: Array<Array<ResolvedType>> // Fields are boxed types
+
+struct TypedImpl:
+    target: String
+    methods: Array<TypedFunction>
+
+// =============================================================================
+// Typed Statements
+// =============================================================================
+
+enum TypedStmt:
+    Let(String, Array<ResolvedType>, TypedExpr) // Type is boxed
+    Var(String, Array<ResolvedType>, TypedExpr) // Type is boxed
+    Assign(TypedExpr, TypedExpr)
+    Return(Option<TypedExpr>)
+    If(TypedExpr, Array<TypedStmt>, Option<Array<TypedStmt>>)
+    While(TypedExpr, Array<TypedStmt>)
+    For(String, TypedExpr, Array<TypedStmt>)
+    Match(TypedExpr, Array<TypedMatchArm>)
+    Expr(TypedExpr)
+    Break
+    Continue
+
+struct TypedMatchArm:
+    pattern: Pattern
+    body: Array<TypedStmt>
+
+// =============================================================================
+// Typed Expressions
+// =============================================================================
+
+struct TypedExpr:
+    expr: TypedExprKind
+    ty: Array<ResolvedType> // Boxed
+
+enum TypedExprKind:
+    Int(Int)
+    Float(Float)
+    Bool(Bool)
+    String(String)
+    Ident(String)
+    Binary(Array<TypedExpr>, String, Array<TypedExpr>) // Boxed exprs using Array
+    Unary(String, Array<TypedExpr>) // Boxed expr
+    Call(Array<TypedExpr>, Array<Array<ResolvedType>>, Array<TypedExpr>) // Boxed callee, resolved type args, args
+    MethodCall(Array<TypedExpr>, String, Array<Array<ResolvedType>>, Array<TypedExpr>) // Boxed receiver, method, resolved type args, args
+    Field(Array<TypedExpr>, String) // Boxed object
+    Index(Array<TypedExpr>, Array<TypedExpr>) // Boxed array, boxed index
+    Array(Array<TypedExpr>)
+    Struct(String, Array<TypedFieldInit>)
+    EnumVariant(String, String, Array<TypedExpr>)
+    If(Array<TypedExpr>, Array<TypedStmt>, Option<Array<TypedStmt>>) // Boxed condition
+    None
+
+struct TypedFieldInit:
+    name: String
+    value: TypedExpr
+
+// =============================================================================
+// Type Environment - Scoped type tracking
+// =============================================================================
+
+struct TypeEnv:
+    // Stack of scopes, each scope maps variable name -> boxed type
+    scopes: Array<Map<String, Array<ResolvedType>>>
+    // Global type definitions (struct names, enum names) -> boxed type
+    types: Map<String, Array<ResolvedType>>
+    // Struct field types: struct_name -> (field_name -> boxed type)
+    struct_fields: Map<String, Map<String, Array<ResolvedType>>>
+    // Enum variant types: enum_name -> (variant_name -> payload boxed types)
+    enum_variants: Map<String, Map<String, Array<Array<ResolvedType>>>>
+    // Method signatures: (type_name, method_name) -> return boxed type
+    method_returns: Map<String, Array<ResolvedType>>
+    // Current impl target (for resolving self)
+    current_impl: Option<String>
+    // FLAT SCOPE APPROACH: Single map with "depth:name" keys to work around bootstrap issues
+    variables: Map<String, Array<ResolvedType>>
+    scope_depth: Int
+    // Stack of scopes for generic type parameters (e.g., T, U)
+    generic_scopes: Array<Map<String, Array<ResolvedType>>>
+
+impl TypeEnv:
+    pub fn new() -> TypeEnv:
+        let env = TypeEnv {
+            scopes: [],  // Keep for compatibility but don't use
+            types: Map::new(),
+            struct_fields: Map::new(),
+            enum_variants: Map::new(),
+            method_returns: Map::new(),
+            current_impl: Option::None,
+            variables: Map::new(),
+            scope_depth: 0,
+            generic_scopes: []
+        }
+        
+        // Initialize with built-in types
+        map_set(env.types, "Int", [ResolvedType::Int(IntSize::I64)])
+        map_set(env.types, "Float", [ResolvedType::Float(FloatSize::F64)])
+        map_set(env.types, "Bool", [ResolvedType::Bool])
+        map_set(env.types, "String", [ResolvedType::String])
+        map_set(env.types, "Unit", [ResolvedType::Unit])
+        
+        return env
+    
+    /// Push a new scope (entering a block/function)
+    pub fn push_scope(self) -> TypeEnv:
+        self.scope_depth = self.scope_depth + 1
+        return self
+    
+    /// Pop the current scope (leaving a block/function)
+    pub fn pop_scope(self) -> TypeEnv:
+        // Note: We don't clean up old keys - they just won't be found
+        // This is fine for type checking purposes
+        if self.scope_depth > 0:
+            self.scope_depth = self.scope_depth - 1
+        return self
+    
+    /// Push a new generic scope
+    pub fn push_generic_scope(self) -> TypeEnv:
+        push(self.generic_scopes, Map::new())
+        return self
+
+    /// Pop the current generic scope
+    pub fn pop_generic_scope(self) -> TypeEnv:
+        let _ = pop(self.generic_scopes)
+        return self
+
+    /// Define a generic type in the current generic scope
+    pub fn define_generic(self, name: String, ty: Array<ResolvedType>) -> TypeEnv:
+        if array_len(self.generic_scopes) > 0:
+            let current_scope = self.generic_scopes[array_len(self.generic_scopes) - 1]
+            map_set(current_scope, name, ty)
+        return self
+
+    /// Look up a generic type in all generic scopes
+    pub fn lookup_generic(self, name: String) -> Option<Array<ResolvedType>>:
+        let i = array_len(self.generic_scopes) - 1
+        while i >= 0:
+            let scope = self.generic_scopes[i]
+            if contains_key(scope, name):
+                return Some(map_get(scope, name))
+            i = i - 1
+        return Option::None
+    
+    /// Make a scoped key: "depth:name"
+    fn make_key(self, name: String, depth: Int) -> String:
+        return str(depth) + ":" + name
+    
+    /// Define a variable in the current scope
+    pub fn define(self, name: String, ty: Array<ResolvedType>) -> TypeEnv:
+        // Use flat map with depth-prefixed key
+        let key = self.make_key(name, self.scope_depth)
+        map_set(self.variables, key, ty)
+        return self
+    
+    /// Look up a variable in all scopes (innermost first)
+    pub fn lookup(self, name: String) -> Array<ResolvedType>:
+        // Search from current depth down to 0
+        let depth = self.scope_depth
+        while depth >= 0:
+            let key = self.make_key(name, depth)
+            if contains_key(self.variables, key):
+                let result = map_get(self.variables, key)
+                // Only check for 0/null, skip Option::None allocation
+                if result != 0:
+                    return result
+            depth = depth - 1
+        
+        // Return Unknown
+        return [ResolvedType::Unknown]
+    
+    /// Look up a type definition
+    pub fn lookup_type(self, name: String) -> Array<ResolvedType>:
+        if contains_key(self.types, name):
+            let result = map_get(self.types, name)
+            // Only check for 0/null, skip Option::None allocation
+            if result != 0:
+                return result
+        // Return a fresh array with Unknown to ensure non-null
+        let unknown_arr = []
+        push(unknown_arr, ResolvedType::Unknown)
+        return unknown_arr
+    
+    /// Register a struct definition
+    pub fn register_struct(self, name: String, fields: Map<String, Array<ResolvedType>>) -> TypeEnv:
+        map_set(self.struct_fields, name, fields)
+        map_set(self.types, name, [ResolvedType::Struct(name, fields)])
+        return self
+    
+    /// Register an enum definition
+    pub fn register_enum(self, name: String, variants: Map<String, Array<Array<ResolvedType>>>) -> TypeEnv:
+        map_set(self.enum_variants, name, variants)
+        // Store as Enum type with empty variant list for now
+        map_set(self.types, name, [ResolvedType::Enum(name, [])])
+        return self
+    
+    /// Register a method return type
+    pub fn register_method(self, type_name: String, method_name: String, return_type: Array<ResolvedType>) -> TypeEnv:
+        let key = type_name + "_" + method_name
+        map_set(self.method_returns, key, return_type)
+        return self
+    
+    /// Look up a method return type
+    pub fn lookup_method(self, type_name: String, method_name: String) -> Option<Array<ResolvedType>>:
+        let key = type_name + "_" + method_name
+        if contains_key(self.method_returns, key):
+            return Some(map_get(self.method_returns, key))
+        return Option::None
+    
+    /// Look up a struct field type
+    pub fn lookup_field(self, struct_name: String, field_name: String) -> Option<Array<ResolvedType>>:
+        if contains_key(self.struct_fields, struct_name):
+            let fields = map_get(self.struct_fields, struct_name)
+            if contains_key(fields, field_name):
+                return Some(map_get(fields, field_name))
+        return Option::None
+    
+    /// Set current impl target
+    pub fn set_impl_target(self, target: String) -> TypeEnv:
+        self.current_impl = Some(target)
+        return self
+    
+    /// Clear current impl target
+    pub fn clear_impl_target(self) -> TypeEnv:
+        self.current_impl = Option::None
+        return self
+
+// =============================================================================
+// Type Checker - Main entry point
+// =============================================================================
+
+struct TypeChecker:
+    env: TypeEnv
+    errors: Array<String>           // Legacy string errors
+    type_errors: Array<TypeError>   // Structured type errors
+    current_self: Array<ResolvedType>
+    current_file: String            // For error locations
+    stdlib: StdLib                  // Cached stdlib instance
+
+struct ResolveResult:
+    checker: TypeChecker
+    ty: Array<ResolvedType>
+
+struct CheckResult_TypedItem:
+    checker: TypeChecker
+    item: TypedItem
+
+struct CheckResult_TypedItems:
+    checker: TypeChecker
+    items: Array<TypedItem>
+
+struct CheckResult_TypedFunction:
+    checker: TypeChecker
+    funcs: Array<TypedFunction>
+
+struct CheckResult_TypedStruct:
+    checker: TypeChecker
+    structs: Array<TypedStruct>
+
+struct CheckResult_TypedEnum:
+    checker: TypeChecker
+    enums: Array<TypedEnum>
+
+struct CheckResult_TypedImpl:
+    checker: TypeChecker
+    impls: Array<TypedImpl>
+
+struct CheckResult_TypedStmt:
+    checker: TypeChecker
+    stmt: TypedStmt
+
+struct CheckResult_TypedStmts:
+    checker: TypeChecker
+    stmts: Array<TypedStmt>
+
+struct CheckResult_TypedExpr:
+    checker: TypeChecker
+    expr: TypedExpr
+
+impl TypeChecker:
+    pub fn new() -> TypeChecker:
+        return TypeChecker {
+            env: TypeEnv::new(),
+            errors: [],
+            type_errors: [],
+            current_self: [ResolvedType::Unknown],
+            current_file: "",
+            stdlib: StdLib::new()   // Initialize stdlib once
+        }
+    
+    /// Set current file being checked (for error spans)
+    pub fn set_file(self, file: String) -> Unit:
+        self.current_file = file
+    
+    /// Main entry point: check an entire program
+    /// FIX: Accept Array<Item> and return Array<TypedItem> directly
+    /// to bypass ALL struct passing/return bugs in bootstrap compiler
+    pub fn check_program(self, items: Array<Item>) -> CheckResult_TypedItems:
+        let typed_items = []
+        
+        // First pass: register all type definitions
+        for item in items:
+            self = self.register_item(item)
+        
+        // Second pass: type check all items
+        for item in items:
+            let res = self.check_item(item)
+            self = res.checker
+            push(typed_items, res.item)
+        
+        return CheckResult_TypedItems { checker: self, items: typed_items }
+    
+    /// Register type definitions (first pass)
+    fn register_item(self, item: Item) -> TypeChecker:
+        let v = variant_of(item)
+        
+        if v == "Struct":
+            let def = variant_field(item, 0)
+            let field_types = Map::new()
+            for field in def.fields:
+                let res_ty = self.resolve_type([field.ty])
+                self = res_ty.checker
+                map_set(field_types, field.name, res_ty.ty)
+            self.env = self.env.register_struct(def.name, field_types)
+            return self
+            
+        if v == "Enum":
+            let def = variant_field(item, 0)
+            let variants = Map::new()
+            for variant in def.variants:
+                let payload_types = []
+                // TODO: parse variant payload types properly
+                map_set(variants, variant.name, payload_types)
+            self.env = self.env.register_enum(def.name, variants)
+            return self
+
+        if v == "Function":
+            let def = variant_field(item, 0)
+            let param_types = []
+            for p in def.params:
+                let res_ty = self.resolve_type(p.ty)
+                self = res_ty.checker
+                push(param_types, res_ty.ty[0])
+            
+            let res_ret = self.resolve_return_type(def.return_type)
+            self = res_ret.checker
+            let func_ty = [ResolvedType::Function(param_types, res_ret.ty)]
+            self.env = self.env.define(def.name, func_ty)
+            return self
+
+        if v == "ExternFn":
+            let def = variant_field(item, 0)
+            let param_types = []
+            for p in def.params:
+                let res_ty = self.resolve_type(p.ty)
+                self = res_ty.checker
+                push(param_types, res_ty.ty[0])
+            
+            let res_ret = self.resolve_return_type(def.return_type)
+            self = res_ret.checker
+            let func_ty = [ResolvedType::Function(param_types, res_ret.ty)]
+            self.env = self.env.define(def.name, func_ty)
+            return self
+            
+        if v == "Impl":
+            let def = variant_field(item, 0)
+            for method_box in def.methods:
+                let method = method_box[0]
+                self = self.register_item(Item::Function(method))
+            return self
+
+        // Ignore others (Use, etc.)
+        return self
+    
+    /// Type check an item (second pass)
+    fn check_item(self, item: Item) -> CheckResult_TypedItem:
+        let v = variant_of(item)
+        
+        if str_eq(v, "Function"):
+            let def = variant_field(item, 0)
+            let res = self.check_function(def.name, def.generics, def.params, def.return_type, def.body, def.is_pub, def.is_async)
+            self = res.checker
+            let f = res.funcs[0]
+            println("DEBUG check_item: Function " + f.name + " body len = " + str(array_len(f.body)))
+            return CheckResult_TypedItem { checker: self, item: TypedItem::Function(f.name, f.params, f.return_type, f.body, f.is_pub, f.is_async) }
+        
+        if str_eq(v, "Struct"):
+            let def = variant_field(item, 0)
+            let res = self.check_struct(def.name, def.fields, def.is_pub, def.span)
+            self = res.checker
+            let s = res.structs[0]
+            return CheckResult_TypedItem { checker: self, item: TypedItem::Struct(s.name, s.fields, s.is_pub, s.span) }
+        
+        if str_eq(v, "Enum"):
+            let def = variant_field(item, 0)
+            let res = self.check_enum(def.name, def.variants)
+            self = res.checker
+            let e = res.enums[0]
+            return CheckResult_TypedItem { checker: self, item: TypedItem::Enum(e.name, e.variants) }
+        
+        if str_eq(v, "Impl"):
+            let def = variant_field(item, 0)
+            let res = self.check_impl(def.target, def.methods)
+            self = res.checker
+            let i = res.impls[0]
+            return CheckResult_TypedItem { checker: self, item: TypedItem::Impl(i.target, i.methods) }
+        
+        if str_eq(v, "Use"):
+            let path = variant_field(item, 0)
+            return CheckResult_TypedItem { checker: self, item: TypedItem::Use(path) }
+        
+        if str_eq(v, "ExternFn"):
+            let def = variant_field(item, 0)
+            let res = self.resolve_return_type(def.return_type)
+            self = res.checker
+            let ret_ty = res.ty
+            return CheckResult_TypedItem { checker: self, item: TypedItem::ExternFn(def.name, def.params, ret_ty) }
+        
+        // Fallback for unhandled variants
+        return CheckResult_TypedItem { checker: self, item: TypedItem::Use("") }
+    
+    /// Type check a function
+    fn check_function(self, name: String, generics: Array<GenericDef>, params: Array<Param>, return_type: Array<String>, body: Array<Stmt>, is_pub: Bool, is_async: Bool) -> CheckResult_TypedFunction:
+        self.env = self.env.push_scope()
+        self.env = self.env.push_generic_scope()
+
+        for g in generics:
+            self.env = self.env.define_generic(g.name, [ResolvedType::Generic(g.name)])
+        
+        let typed_params = []
+        for param in params:
+            let res_ty = self.resolve_type(param.ty)
+            self = res_ty.checker
+            self.env = self.env.define(param.name, res_ty.ty)
+            push(typed_params, TypedParam { name: param.name, ty: res_ty.ty })
+        
+        let res_ret = self.resolve_return_type(return_type)
+        self = res_ret.checker
+        
+        let res_body = self.check_block(body)
+        self = res_body.checker
+        
+        self.env = self.env.pop_generic_scope()
+        self.env = self.env.pop_scope()
+        
+        return CheckResult_TypedFunction { 
+            checker: self, 
+            funcs: [TypedFunction {
+                name: name,
+                params: typed_params,
+                return_type: res_ret.ty,
+                body: res_body.stmts,
+                is_pub: is_pub,
+                is_async: is_async
+            }]
+        }
+    
+    /// Type check a struct definition
+    fn check_struct(self, name: String, fields_in: Array<FieldDef>, is_pub: Bool, span: Span) -> CheckResult_TypedStruct:
+        let fields = []
+        for field in fields_in:
+            let res_ty = self.resolve_type([field.ty])
+            self = res_ty.checker
+            push(fields, TypedField { name: field.name, ty: res_ty.ty })
+        
+        return CheckResult_TypedStruct {
+            checker: self,
+            structs: [TypedStruct {
+                name: name,
+                fields: fields,
+                is_pub: is_pub,
+                span: span
+            }]
+        }
+    
+    /// Type check an enum definition
+    fn check_enum(self, name: String, variants_in: Array<VariantDef>) -> CheckResult_TypedEnum:
+        let variants = []
+        for variant in variants_in:
+            let payload_types = []
+            // TODO: resolve variant payload types
+            push(variants, TypedVariant { name: variant.name, fields: payload_types })
+        
+        return CheckResult_TypedEnum {
+            checker: self,
+            enums: [TypedEnum {
+                name: name,
+                variants: variants
+            }]
+        }
+    
+    /// Type check an implementation block
+    fn check_impl(self, target: String, methods_in: Array<Array<FnDef>>) -> CheckResult_TypedImpl:
+        let target_ty = self.env.lookup_type(target)
+        
+        self.env = self.env.push_scope()
+        self.env = self.env.set_impl_target(target)
+        self.current_self = target_ty
+        
+        let methods = []
+        for method_box in methods_in:
+            let method = method_box[0]
+            let res = self.check_function(method.name, method.params, method.return_type, method.body, method.is_pub, method.is_async)
+            self = res.checker
+            push(methods, res.funcs[0])
+            
+        self.current_self = [ResolvedType::Unknown]
+        self.env = self.env.clear_impl_target()
+        self.env = self.env.pop_scope()
+        
+        return CheckResult_TypedImpl {
+            checker: self,
+            impls: [TypedImpl {
+                target: target,
+                methods: methods
+            }]
+        }
+    
+    /// Type check a block of statements
+    fn check_block(self, stmts: Array<Stmt>) -> CheckResult_TypedStmts:
+        let typed_stmts = []
+        for stmt in stmts:
+            let res = self.check_stmt(stmt)
+            self = res.checker
+            push(typed_stmts, res.stmt)
+        return CheckResult_TypedStmts { checker: self, stmts: typed_stmts }
+    
+    /// Type check a statement
+    fn check_stmt(self, stmt: Stmt) -> CheckResult_TypedStmt:
+        let v = variant_of(stmt)
+        
+        if v == "Let":
+            let name = variant_field(stmt, 0)
+            let ty_opt = variant_field(stmt, 1)
+            let value = variant_field(stmt, 2)
+            
+            let res_val = self.check_expr(value)
+            self = res_val.checker
+            let typed_value = res_val.expr
+            let ty = typed_value.ty
+            
+            // Check if type annotation exists using variant_of instead of != Option::None
+            if ty_opt != 0:
+                let opt_variant = variant_of(ty_opt)
+                if opt_variant == "Some":
+                    let res_ty = self.resolve_type([variant_field(ty_opt, 0)])
+                    self = res_ty.checker
+                    let declared_ty = res_ty.ty
+                    if !self.types_match(declared_ty, ty):
+                        self = self.type_error(TypeError::TypeMismatch(Span::empty(), self.type_to_string(declared_ty), self.type_to_string(ty)))
+                    ty = declared_ty
+            
+            self.env = self.env.define(name, ty)
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Let(name, ty, typed_value) }
+        
+        if v == "Var":
+            let name = variant_field(stmt, 0)
+            let ty_opt = variant_field(stmt, 1)
+            let value = variant_field(stmt, 2)
+            
+            let res_val = self.check_expr(value)
+            self = res_val.checker
+            let typed_value = res_val.expr
+            let ty = typed_value.ty
+            
+            // Check if type annotation exists using variant_of instead of != Option::None
+            if ty_opt != 0:
+                let opt_variant = variant_of(ty_opt)
+                if opt_variant == "Some":
+                    let res_ty = self.resolve_type([variant_field(ty_opt, 0)])
+                    self = res_ty.checker
+                    ty = res_ty.ty
+            
+            self.env = self.env.define(name, ty)
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Var(name, ty, typed_value) }
+        
+        if v == "Assign":
+            let target = variant_field(stmt, 0)
+            let value = variant_field(stmt, 1)
+            
+            let res_target = self.check_expr(target)
+            self = res_target.checker
+            let typed_target = res_target.expr
+            
+            let res_val = self.check_expr(value)
+            self = res_val.checker
+            let typed_value = res_val.expr
+            
+            if !self.types_match(typed_target.ty, typed_value.ty):
+                self = self.type_error(TypeError::TypeMismatch(Span::empty(), self.type_to_string(typed_target.ty), self.type_to_string(typed_value.ty)))
+            
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Assign(typed_target, typed_value) }
+        
+        if v == "Return":
+            let expr_opt = variant_field(stmt, 0)
+            // Check using variant_of instead of != Option::None
+            if expr_opt != 0:
+                let opt_variant = variant_of(expr_opt)
+                if opt_variant == "Some":
+                    let res_expr = self.check_expr(variant_field(expr_opt, 0))
+                    self = res_expr.checker
+                    return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Return(Some(res_expr.expr)) }
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Return(None) }
+        
+        if v == "If":
+            let cond = variant_field(stmt, 0)
+            let then_block = variant_field(stmt, 1)
+            let else_block = variant_field(stmt, 2)
+            
+            let res_cond = self.check_expr(cond)
+            self = res_cond.checker
+            let typed_cond = res_cond.expr
+            
+            if !self.is_bool_type(typed_cond.ty):
+                self = self.type_error(TypeError::InvalidCondition(Span::empty(), self.type_to_string(typed_cond.ty)))
+            
+            self.env = self.env.push_scope()
+            let res_then = self.check_block(then_block)
+            self = res_then.checker
+            let typed_then = res_then.stmts
+            self.env = self.env.pop_scope()
+            
+            let typed_else = None
+            // Check using variant_of instead of != Option::None
+            if else_block != 0:
+                let else_variant = variant_of(else_block)
+                if else_variant == "Some":
+                    self.env = self.env.push_scope()
+                    let res_else = self.check_block(variant_field(else_block, 0))
+                    self = res_else.checker
+                    typed_else = Some(res_else.stmts)
+                    self.env = self.env.pop_scope()
+            
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::If(typed_cond, typed_then, typed_else) }
+        
+        if v == "While":
+            let cond = variant_field(stmt, 0)
+            let body = variant_field(stmt, 1)
+            
+            let res_cond = self.check_expr(cond)
+            self = res_cond.checker
+            let typed_cond = res_cond.expr
+            
+            if !self.is_bool_type(typed_cond.ty):
+                self = self.type_error(TypeError::InvalidCondition(Span::empty(), self.type_to_string(typed_cond.ty)))
+            
+            self.env = self.env.push_scope()
+            let res_body = self.check_block(body)
+            self = res_body.checker
+            let typed_body = res_body.stmts
+            self.env = self.env.pop_scope()
+            
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::While(typed_cond, typed_body) }
+        
+        if v == "For":
+            let binding = variant_field(stmt, 0)
+            let iter = variant_field(stmt, 1)
+            let body = variant_field(stmt, 2)
+            
+            let res_iter = self.check_expr(iter)
+            self = res_iter.checker
+            let typed_iter = res_iter.expr
+            let elem_type = self.get_iterator_element_type(typed_iter.ty)
+            
+            self.env = self.env.push_scope()
+            self.env = self.env.define(binding, elem_type)
+            let res_body = self.check_block(body)
+            self = res_body.checker
+            let typed_body = res_body.stmts
+            self.env = self.env.pop_scope()
+            
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::For(binding, typed_iter, typed_body) }
+        
+        if v == "Expr":
+            let expr = variant_field(stmt, 0)
+            let res_expr = self.check_expr(expr)
+            self = res_expr.checker
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Expr(res_expr.expr) }
+        
+        if v == "Break":
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Break }
+        
+        if v == "Continue":
+            return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Continue }
+            
+        return CheckResult_TypedStmt { checker: self, stmt: TypedStmt::Break }
+
+    
+    /// Recursively substitutes generic types within a given type.
+    fn substitute_type(self, ty_box: Array<ResolvedType>, substitutions: Map<String, Array<ResolvedType>>) -> ResolveResult:
+        if array_len(ty_box) == 0:
+            return ResolveResult { checker: self, ty: [] }
+
+        let ty = ty_box[0]
+        let v = variant_of(ty)
+
+        if v == "Generic":
+            let name = variant_field(ty, 0)
+            if contains_key(substitutions, name):
+                return ResolveResult { checker: self, ty: map_get(substitutions, name) }
+            else:
+                // This generic was not in the substitution map, return it as is.
+                return ResolveResult { checker: self, ty: ty_box }
+
+        // Recursive cases for composite types
+        if v == "Array":
+            let inner_res = self.substitute_type(variant_field(ty, 0), substitutions)
+            self = inner_res.checker
+            return ResolveResult { checker: self, ty: [ResolvedType::Array(inner_res.ty, variant_field(ty, 1))] }
+        
+        if v == "Slice":
+            let inner_res = self.substitute_type(variant_field(ty, 0), substitutions)
+            self = inner_res.checker
+            return ResolveResult { checker: self, ty: [ResolvedType::Slice(inner_res.ty)] }
+        
+        if v == "Option":
+            let inner_res = self.substitute_type(variant_field(ty, 0), substitutions)
+            self = inner_res.checker
+            return ResolveResult { checker: self, ty: [ResolvedType::Option(inner_res.ty)] }
+        
+        if v == "Ref":
+             let inner_res = self.substitute_type(variant_field(ty, 1), substitutions)
+             self = inner_res.checker
+             return ResolveResult { checker: self, ty: [ResolvedType::Ref(variant_field(ty, 0), inner_res.ty)] }
+
+        if v == "Tuple":
+            let substituted_members = []
+            for member_ty in variant_field(ty, 0):
+                let member_res = self.substitute_type([member_ty], substitutions)
+                self = member_res.checker
+                push(substituted_members, member_res.ty[0])
+            return ResolveResult { checker: self, ty: [ResolvedType::Tuple(substituted_members)] }
+
+        if v == "Function":
+            let substituted_params = []
+            for param_ty in variant_field(ty, 0):
+                 let param_res = self.substitute_type([param_ty], substitutions)
+                 self = param_res.checker
+                 push(substituted_params, param_res.ty[0])
+
+            let ret_res = self.substitute_type(variant_field(ty, 1), substitutions)
+            self = ret_res.checker
+            
+            return ResolveResult { checker: self, ty: [ResolvedType::Function(substituted_params, ret_res.ty)] }
+
+        // Non-recursive cases, return type as is
+        return ResolveResult { checker: self, ty: ty_box }
+
+    /// Collects all unique generic parameter names from a type.
+    fn collect_generic_params(self, ty_box: Array<ResolvedType>, params: Map<String, Bool>) -> Unit:
+        if array_len(ty_box) == 0:
+            return
+
+        let ty = ty_box[0]
+        let v = variant_of(ty)
+
+        if v == "Generic":
+            map_set(params, variant_field(ty, 0), true)
+            return
+
+        if v == "Array" || v == "Slice" || v == "Option":
+            self.collect_generic_params(variant_field(ty, 0), params)
+            return
+        
+        if v == "Ref":
+            self.collect_generic_params(variant_field(ty, 1), params)
+            return
+            
+        if v == "Tuple":
+            for member_ty in variant_field(ty, 0):
+                self.collect_generic_params([member_ty], params)
+            return
+
+        if v == "Function":
+            for param_ty in variant_field(ty, 0):
+                self.collect_generic_params([param_ty], params)
+            self.collect_generic_params(variant_field(ty, 1), params)
+            return
+    
+    /// Type check an expression
+    fn check_expr(self, expr: Expr) -> CheckResult_TypedExpr:
+        let v = variant_of(expr)
+        
+        if v == "Int":
+            let n = variant_field(expr, 0)
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Int(n),
+                    ty: [ResolvedType::Int(IntSize::I64)]
+                }
+            }
+        
+        if v == "Float":
+            let f = variant_field(expr, 0)
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Float(f),
+                    ty: [ResolvedType::Float(FloatSize::F64)]
+                }
+            }
+        
+        if v == "Bool":
+            let b = variant_field(expr, 0)
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Bool(b),
+                    ty: [ResolvedType::Bool]
+                }
+            }
+        
+        if v == "String":
+            let s = variant_field(expr, 0)
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::String(s),
+                    ty: [ResolvedType::String]
+                }
+            }
+        
+        if v == "Ident":
+            let name = variant_field(expr, 0)
+            let ty = self.env.lookup(name)
+            
+            if ty == 0 || array_len(ty) == 0 || variant_of(ty[0]) == "Unknown":
+                // Check standard library
+                if self.stdlib.has_function(name):
+                    let func_opt = self.stdlib.get_function(name)
+                    let func = variant_field(func_opt, 0)
+                    
+                    let param_types = []
+                    for p in func.params:
+                        let res_ty = self.resolve_type(p.ty)
+                        self = res_ty.checker
+                        push(param_types, res_ty.ty[0])
+                    
+                    let res_ret = self.resolve_return_type(func.return_type)
+                    self = res_ret.checker
+                    let func_ty = [ResolvedType::Function(param_types, res_ret.ty)]
+                    
+                    return CheckResult_TypedExpr { checker: self, expr: TypedExpr { expr: TypedExprKind::Ident(name), ty: func_ty } }
+                
+                self = self.type_error(TypeError::UndefinedVariable(Span::empty(), name))
+                return CheckResult_TypedExpr { checker: self, expr: TypedExpr { expr: TypedExprKind::Ident(name), ty: [ResolvedType::Unknown] } }
+            
+            return CheckResult_TypedExpr { checker: self, expr: TypedExpr { expr: TypedExprKind::Ident(name), ty: ty } }
+
+        if v == "Binary":
+            let left = variant_field(expr, 0)
+            let op = variant_field(expr, 1)
+            let right = variant_field(expr, 2)
+            
+            let res_left = self.check_expr(left)
+            self = res_left.checker
+            let typed_left = res_left.expr
+            
+            let res_right = self.check_expr(right)
+            self = res_right.checker
+            let typed_right = res_right.expr
+            
+            let res_ty = self.check_binary_op(op, typed_left.ty, typed_right.ty)
+            self = res_ty.checker
+            
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Binary([typed_left], op, [typed_right]),
+                    ty: res_ty.ty
+                }
+            }
+        
+        if v == "Unary":
+            let op = variant_field(expr, 0)
+            let operand = variant_field(expr, 1)
+            
+            let res_op = self.check_expr(operand)
+            self = res_op.checker
+            let typed_operand = res_op.expr
+            
+            let res_ty = self.check_unary_op(op, typed_operand.ty)
+            self = res_ty.checker
+            
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Unary(op, [typed_operand]),
+                    ty: res_ty.ty
+                }
+            }
+        
+        if v == "Call":
+            let callee = variant_field(expr, 0)
+            let type_args_str = variant_field(expr, 1)
+            let args = variant_field(expr, 2)
+            
+            let res_callee = self.check_expr(callee)
+            self = res_callee.checker
+            let typed_callee = res_callee.expr
+
+            if variant_of(typed_callee.ty[0]) != "Function":
+                self = self.type_error(TypeError::NotCallable(Span::empty(), self.type_to_string(typed_callee.ty)))
+                return CheckResult_TypedExpr { checker: self, expr: TypedExpr { expr: TypedExprKind::None, ty: [ResolvedType::Unknown] } }
+            
+            let func_ty = typed_callee.ty[0]
+            let original_param_types_boxed = variant_field(func_ty, 0)
+            let original_return_type = variant_field(func_ty, 1)
+
+            // Because of bootstrap compiler bugs, we have to unbox and rebox param types
+            let original_param_types = []
+            for p_ty in original_param_types_boxed:
+                push(original_param_types, [p_ty])
+
+            // Collect generic parameters from function signature
+            let generic_param_names = Map::new()
+            for p_ty in original_param_types:
+                self.collect_generic_params(p_ty, generic_param_names)
+            self.collect_generic_params(original_return_type, generic_param_names)
+            let generic_keys = map_keys(generic_param_names)
+
+            let substitutions = Map::new()
+            let resolved_type_args = []
+            
+            // Build substitution map
+            if array_len(generic_keys) > 0:
+                if array_len(generic_keys) != array_len(type_args_str):
+                    self = self.type_error(TypeError::Other(Span::empty(), "Incorrect number of generic arguments"))
+                
+                let i = 0
+                while i < array_len(generic_keys):
+                    let g_name = generic_keys[i]
+                    let res_t_arg = self.resolve_type([type_args_str[i]])
+                    self = res_t_arg.checker
+                    map_set(substitutions, g_name, res_t_arg.ty)
+                    push(resolved_type_args, res_t_arg.ty)
+                    i = i + 1
+            
+            // Substitute types in signature
+            let expected_param_types = []
+            for p_ty in original_param_types:
+                let p_res = self.substitute_type(p_ty, substitutions)
+                self = p_res.checker
+                push(expected_param_types, p_res.ty)
+
+            let concrete_return_type_res = self.substitute_type(original_return_type, substitutions)
+            self = concrete_return_type_res.checker
+            let concrete_return_type = concrete_return_type_res.ty
+            
+            // Check arguments
+            let typed_args = []
+            if array_len(args) != array_len(expected_param_types):
+                 self = self.type_error(TypeError::ArgumentCountMismatch(Span::empty(), array_len(expected_param_types), array_len(args)))
+            else:
+                let i = 0
+                while i < array_len(args):
+                    let arg = args[i]
+                    let expected_ty = expected_param_types[i]
+                    let res_arg = self.check_expr(arg)
+                    self = res_arg.checker
+                    if !self.types_match(res_arg.expr.ty, expected_ty):
+                        self = self.type_error(TypeError::ArgumentTypeMismatch(Span::empty(), i, self.type_to_string(expected_ty), self.type_to_string(res_arg.expr.ty)))
+                    push(typed_args, res_arg.expr)
+                    i = i + 1
+
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Call([typed_callee], resolved_type_args, typed_args),
+                    ty: concrete_return_type
+                }
+            }
+        
+        if v == "MethodCall":
+            // TODO: Implement generic method calls
+            let receiver = variant_field(expr, 0)
+            let method = variant_field(expr, 1)
+            let args = variant_field(expr, 3) // Index changed
+            
+            let res_rec = self.check_expr(receiver)
+            self = res_rec.checker
+            let typed_receiver = res_rec.expr
+            
+            let typed_args = []
+            for arg in args:
+                let res_arg = self.check_expr(arg)
+                self = res_arg.checker
+                push(typed_args, res_arg.expr)
+            
+            let receiver_type_name = self.get_type_name(typed_receiver.ty)
+            let return_type_opt = self.env.lookup_method(receiver_type_name, method)
+            let return_type = [ResolvedType::Unknown]
+            if return_type_opt != None:
+                return_type = variant_field(return_type_opt, 0)
+            
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::MethodCall([typed_receiver], method, [], typed_args),
+                    ty: return_type
+                }
+            }
+        
+        if v == "Field":
+            let obj = variant_field(expr, 0)
+            let field_name = variant_field(expr, 1)
+            
+            let res_obj = self.check_expr(obj)
+            self = res_obj.checker
+            let typed_obj = res_obj.expr
+            
+            let obj_type_name = self.get_type_name(typed_obj.ty)
+            
+            let field_type_opt = self.env.lookup_field(obj_type_name, field_name)
+            let field_type = [ResolvedType::Unknown]
+            if variant_of(field_type_opt) == "Some":
+                field_type = variant_field(field_type_opt, 0)
+            else:
+                self = self.type_error(TypeError::UndefinedField(Span::empty(), obj_type_name, field_name))
+            
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Field([typed_obj], field_name),
+                    ty: field_type
+                }
+            }
+        
+        if v == "Index":
+            let arr = variant_field(expr, 0)
+            let idx = variant_field(expr, 1)
+            
+            let res_arr = self.check_expr(arr)
+            self = res_arr.checker
+            let typed_arr = res_arr.expr
+            
+            let res_idx = self.check_expr(idx)
+            self = res_idx.checker
+            let typed_idx = res_idx.expr
+            
+            let elem_type = self.get_index_result_type(typed_arr.ty)
+            
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Index([typed_arr], [typed_idx]),
+                    ty: elem_type
+                }
+            }
+        
+        if v == "Array":
+            let elements = variant_field(expr, 0)
+            
+            let typed_elements = []
+            let elem_type = [ResolvedType::Unknown]
+            for elem in elements:
+                let res_el = self.check_expr(elem)
+                self = res_el.checker
+                let typed_elem = res_el.expr
+                
+                if variant_of(elem_type[0]) == "Unknown":
+                    elem_type = typed_elem.ty
+                push(typed_elements, typed_elem)
+            
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Array(typed_elements),
+                    ty: [ResolvedType::Array(elem_type, array_len(elements))]
+                }
+            }
+        
+        if v == "Struct":
+            let name = variant_field(expr, 0)
+            let inits = variant_field(expr, 1)
+            
+            let typed_fields = []
+            for init in inits:
+                let res_val = self.check_expr(init.value)
+                self = res_val.checker
+                push(typed_fields, TypedFieldInit { name: init.name, value: res_val.expr })
+            
+            let struct_type = self.env.lookup_type(name)
+            
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExpr {
+                    expr: TypedExprKind::Struct(name, typed_fields),
+                    ty: struct_type
+                }
+            }
+        
+        if v == "EnumVariant":
+            let enum_name = variant_field(expr, 0)
+            let variant_name = variant_field(expr, 1)
+            let args = variant_field(expr, 2)
+            
+            let typed_args = []
+            for arg in args:
+                let res_arg = self.check_expr(arg)
+                self = res_arg.checker
+                push(typed_args, res_arg.expr)
+            
+            let enum_type = self.env.lookup_type(enum_name)
+            
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExprKind::EnumVariant(enum_name, variant_name, typed_args),
+                ty: enum_type
+            }
+        
+        if v == "None":
+            return CheckResult_TypedExpr {
+                checker: self,
+                expr: TypedExprKind::None,
+                ty: [ResolvedType::Unknown]
+            }
+        
+        
+        return CheckResult_TypedExpr {
+            checker: self,
+            expr: TypedExpr {
+                expr: TypedExprKind::None,
+                ty: [ResolvedType::Unknown]
+            }
+        }
+
+    
+    // =========================================================================
+    // Helper methods
+    // =========================================================================
+    
+    /// Resolve a type annotation string to a ResolvedType
+    fn resolve_type(self, ty: Array<String>) -> ResolveResult:
+        if array_len(ty) == 0:
+            return ResolveResult { checker: self, ty: [ResolvedType::Unknown] }
+        let name = ty[0]
+        
+        // 1. Check for generic types in scope first
+        let generic_ty_opt = self.env.lookup_generic(name)
+        if variant_of(generic_ty_opt) == "Some":
+            return ResolveResult { checker: self, ty: variant_field(generic_ty_opt, 0) }
+        
+        if name == "Int":
+            return ResolveResult { checker: self, ty: [ResolvedType::Int(IntSize::I64)] }
+        if name == "Float":
+            return ResolveResult { checker: self, ty: [ResolvedType::Float(FloatSize::F64)] }
+        if name == "Bool":
+            return ResolveResult { checker: self, ty: [ResolvedType::Bool] }
+        if name == "String":
+            return ResolveResult { checker: self, ty: [ResolvedType::String] }
+        if name == "Unit":
+            return ResolveResult { checker: self, ty: [ResolvedType::Unit] }
+        
+        if name == "Self":
+            let v = variant_of(self.current_self[0])
+            if v != "Unknown":
+                return ResolveResult { checker: self, ty: self.current_self }
+            
+            self = self.type_error(TypeError::SelfOutsideImpl(Span::empty()))
+            return ResolveResult { checker: self, ty: [ResolvedType::Unknown] }
+        
+        if contains_key(self.env.types, name):
+            return ResolveResult { checker: self, ty: map_get(self.env.types, name) }
+        
+        // As a fallback, assume it's a struct type we haven't seen yet.
+        // The second pass will validate this.
+        return ResolveResult { checker: self, ty: [ResolvedType::Struct(name, Map::new())] }
+    
+    /// Resolve return type from Array<String>
+    fn resolve_return_type(self, ty: Array<String>) -> ResolveResult:
+        if array_len(ty) == 0:
+            return ResolveResult { checker: self, ty: [ResolvedType::Unit] }
+        return self.resolve_type(ty)
+    
+    /// Check if two types match
+    fn types_match(self, a: Array<ResolvedType>, b: Array<ResolvedType>) -> Bool:
+        let va = variant_of(a[0])
+        let vb = variant_of(b[0])
+        
+        if va == "Generic" || vb == "Generic":
+            return true // Allow any type to match with a generic for now
+
+        if va != vb:
+            return false
+
+        // TODO: Deeper checks for composite types
+        return true
+    
+    /// Check if type is Bool
+    fn is_bool_type(self, ty: Array<ResolvedType>) -> Bool:
+        let v = variant_of(ty[0])
+        return str_eq(v, "Bool")
+    
+    /// Get element type from iterator type
+    fn get_iterator_element_type(self, ty: Array<ResolvedType>) -> Array<ResolvedType>:
+        let v = variant_of(ty[0])
+        if v == "Array":
+            return variant_field(ty[0], 0)
+        return [ResolvedType::Int(IntSize::I64)]
+    
+    /// Get return type from function type
+    fn get_call_return_type(self, ty: Array<ResolvedType>) -> Array<ResolvedType>:
+        let v = variant_of(ty[0])
+        if v == "Function":
+            return variant_field(ty[0], 1)
+        return [ResolvedType::Unknown]
+    
+    /// Get result type of index operation
+    fn get_index_result_type(self, ty: Array<ResolvedType>) -> Array<ResolvedType>:
+        let v = variant_of(ty[0])
+        if v == "Array":
+            return variant_field(ty[0], 0)
+        if v == "Map":
+            return variant_field(ty[0], 1)
+        if v == "String":
+            return [ResolvedType::Char]
+        return [ResolvedType::Unknown]
+    
+    /// Get type name as string
+    fn get_type_name(self, ty: Array<ResolvedType>) -> String:
+        let v = variant_of(ty[0])
+        if v == "Struct":
+            return variant_field(ty[0], 0)
+        if v == "Enum":
+            return variant_field(ty[0], 0)
+        return v
+    
+    /// Check binary operator and return result type
+    fn check_binary_op(self, op: String, left: Array<ResolvedType>, right: Array<ResolvedType>) -> ResolveResult:
+        // Arithmetic operators
+        if op == "+" || op == "-" || op == "*" || op == "/" || op == "%":
+            if variant_of(left[0]) == "String" && variant_of(right[0]) == "String":
+                return ResolveResult { checker: self, ty: [ResolvedType::String] }
+            if variant_of(left[0]) == "Int" && variant_of(right[0]) == "Int":
+                return ResolveResult { checker: self, ty: left }
+            if variant_of(left[0]) == "Float" && variant_of(right[0]) == "Float":
+                return ResolveResult { checker: self, ty: left }
+            self = self.type_error(TypeError::IncompatibleTypes(Span::empty(), self.type_to_string(left), self.type_to_string(right)))
+            return ResolveResult { checker: self, ty: [ResolvedType::Unknown] }
+        
+        // Comparison operators
+        if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=":
+            return ResolveResult { checker: self, ty: [ResolvedType::Bool] }
+        
+        // Logical operators
+        if op == "&&" || op == "||":
+            if !self.is_bool_type(left) || !self.is_bool_type(right):
+                self = self.type_error(TypeError::IncompatibleTypes(Span::empty(), "Bool", self.type_to_string(left) + " and " + self.type_to_string(right)))
+            return ResolveResult { checker: self, ty: [ResolvedType::Bool] }
+        
+        return ResolveResult { checker: self, ty: [ResolvedType::Unknown] }
+    
+    /// Check unary operator and return result type
+    fn check_unary_op(self, op: String, operand: Array<ResolvedType>) -> ResolveResult:
+        if op == "-":
+            return ResolveResult { checker: self, ty: operand }
+        if op == "!":
+            return ResolveResult { checker: self, ty: [ResolvedType::Bool] }
+        return ResolveResult { checker: self, ty: operand }
+    
+    /// Convert type to string for error messages
+    fn type_to_string(self, ty: Array<ResolvedType>) -> String:
+        if array_len(ty) == 0:
+            return "<unknown>"
+        let v = variant_of(ty[0])
+        if v == "Int":
+            return "Int"
+        if v == "Float":
+            return "Float"
+        if v == "Bool":
+            return "Bool"
+        if v == "String":
+            return "String"
+        if v == "Unit":
+            return "Unit"
+        if v == "Unknown":
+            return "<unknown>"
+        if v == "Generic":
+             return variant_field(ty[0], 0)
+        if v == "Array":
+            return "Array<" + self.type_to_string(variant_field(ty[0], 0)) + ">"
+        if v == "Map":
+            return "Map<...>"
+        if v == "Struct":
+            let name = variant_field(ty[0], 0)
+            if name == "" || name == 0:
+                return "<struct>"
+            return name
+        if v == "Enum":
+            let name = variant_field(ty[0], 0)
+            if name == "" || name == 0:
+                return "<enum>"
+            return name
+        if v == "Function":
+            return "fn(...) -> ..."
+        if v == "None":
+            return "<none>"
+        return v
+    
+    /// Record an error (legacy string-based)
+    fn error(self, msg: String) -> TypeChecker:
+        push(self.errors, msg)
+        println("TYPE ERROR: " + msg)
+        return self
+    
+    /// Record a structured type error
+    fn type_error(self, err: TypeError) -> TypeChecker:
+        push(self.type_errors, err)
+        push(self.errors, err.message())
+        return self
+    
+    /// Check if there were any errors
+    pub fn has_errors(self) -> Bool:
+        return array_len(self.errors) > 0 || array_len(self.type_errors) > 0
+    
+    /// Get all errors (legacy)
+    pub fn get_errors(self) -> Array<String>:
+        return self.errors
+    
+    /// Get all structured type errors
+    pub fn get_type_errors(self) -> Array<TypeError>:
+        return self.type_errors
+    
+    /// Convert all type errors to diagnostics for rich output
+    pub fn get_diagnostics(self) -> DiagnosticBundle:
+        let bundle = DiagnosticBundle::new()
+        bundle.add_source(self.current_file, "")
+        
+        for err in self.type_errors:
+            bundle.add(err.to_diagnostic(self.current_file))
+        
+        return bundle
+
+// =============================================================================
+// Convenience function
+// =============================================================================
+
+/// Type check a program and return typed AST
+pub fn type_check(program: Program) -> TypedProgram:
+    let checker = TypeChecker::new()
+    let res = checker.check_program(program.items)
+    return TypedProgram { items: res.items }

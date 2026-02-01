@@ -1,0 +1,53 @@
+// Test file for Option and HashMap
+
+use std::option
+use std::hashmap
+
+fn main():
+    println("=== Option<T> Tests ===")
+    
+    // Test Some
+    let some_val: Option<Int> = Option::Some(42)
+    println(f"is_some: {some_val.is_some()}")
+    println(f"unwrap: {some_val.unwrap()}")
+    
+    // Test None  
+    let none_val: Option<Int> = Option::None
+    println(f"is_none: {none_val.is_none()}")
+    
+    // Test unwrap_or
+    let default_val = none_val.unwrap_or(100)
+    println(f"unwrap_or(100): {default_val}")
+    
+    // Test map
+    let doubled = some_val.map(fn(x: Int) -> Int: return x * 2)
+    println(f"map(x * 2): {doubled.unwrap()}")
+    
+    println("\n=== HashMap<K, V> Tests ===")
+    
+    // Create a map
+    let map: HashMap<String, Int> = HashMap::new()
+    
+    // Insert values
+    map.insert("one", 1)
+    map.insert("two", 2)
+    map.insert("three", 3)
+    
+    println(f"Size: {map.len()}")
+    
+    // Get values
+    let one = map.get("one")
+    println(f"get('one'): {one.unwrap()}")
+    
+    let two = map.get("two")
+    println(f"get('two'): {two.unwrap()}")
+    
+    // Check contains
+    println(f"contains('three'): {map.contains(\"three\")}")
+    println(f"contains('four'): {map.contains(\"four\")}")
+    
+    // Get missing key
+    let missing = map.get("missing")
+    println(f"get('missing').is_none(): {missing.is_none()}")
+    
+    println("\n=== All tests passed! ===")

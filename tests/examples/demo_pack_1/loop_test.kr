@@ -1,0 +1,13 @@
+// Simple for loop test
+fn sum_range() -> Int:
+    let total = 0
+    for i in range(1, 5):
+        total = total + i
+    return total
+
+fn main():
+    println(111)
+    let result = sum_range()
+    println(result)  // Should be 10 (1+2+3+4)
+    println(222)
+    return 0

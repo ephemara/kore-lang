@@ -1,0 +1,22 @@
+// Type Error Test File
+// This file has intentional type errors to test the type checker output
+
+fn main() -> Unit:
+    // Type mismatch: assigning string to int
+    let x: Int = "hello"
+    
+    // Undefined variable
+    let y = undefined_variable
+    
+    // Wrong argument count
+    let z = println()
+    
+    // Invalid operator on types
+    let a = "hello" - 42
+    
+    // Undefined field access
+    let b = x.nonexistent_field
+    
+    // This one is correct for comparison
+    let correct: Int = 42
+    println("Test complete")

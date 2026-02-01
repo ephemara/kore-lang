@@ -1,0 +1,97 @@
+# GODCODE Showcase - Functional Programming
+# Demonstrates all higher-order functions
+
+println!("=== GODCODE Functional Programming ===")
+println!()
+
+# Test data
+let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+println!("Input: ", numbers)
+println!()
+
+# map - transform each element
+let doubled = map(numbers, |x| x * 2)
+println!("map (x * 2): ", doubled)
+
+let squared = map(numbers, |x| x * x)
+println!("map (x * x): ", squared)
+
+# filter - keep elements matching predicate
+let evens = filter(numbers, |x| x % 2 == 0)
+println!("filter (even): ", evens)
+
+let big = filter(numbers, |x| x > 5)
+println!("filter (> 5): ", big)
+
+# reduce - combine elements into single value
+let total = reduce(numbers, |acc, x| acc + x)
+println!("reduce (sum): ", total)
+
+let product = reduce(numbers, |acc, x| acc * x, 1)
+println!("reduce (product): ", product)
+
+# find - get first matching element
+let first_even = find(numbers, |x| x % 2 == 0)
+println!("find (first even): ", first_even)
+
+let not_found = find(numbers, |x| x > 100)
+println!("find (> 100): ", not_found)
+
+# any - check if any element matches
+let has_even = any(numbers, |x| x % 2 == 0)
+println!("any (even?): ", has_even)
+
+let has_negative = any(numbers, |x| x < 0)
+println!("any (negative?): ", has_negative)
+
+# all - check if all elements match
+let all_positive = all(numbers, |x| x > 0)
+println!("all (positive?): ", all_positive)
+
+let all_even = all(numbers, |x| x % 2 == 0)
+println!("all (even?): ", all_even)
+
+# Chaining operations
+println!()
+println!("=== Chained Operations ===")
+
+let result = filter(numbers, |x| x % 2 == 0)
+let result = map(result, |x| x * 10)
+let result = reduce(result, |a, b| a + b)
+println!("filter(even) |> map(*10) |> sum: ", result)
+
+# zip - combine two arrays
+println!()
+println!("=== Array Utilities ===")
+
+let letters = ["a", "b", "c", "d", "e"]
+let zipped = zip(take(numbers, 5), letters)
+println!("zip: ", zipped)
+
+# enumerate
+let indexed = enumerate(letters)
+println!("enumerate: ", indexed)
+
+# sort
+let unsorted = [5, 2, 8, 1, 9, 3]
+let sorted = sort(unsorted)
+println!("sort: ", sorted)
+
+# take/drop
+let first_three = take(numbers, 3)
+let rest = drop(numbers, 3)
+println!("take(3): ", first_three)
+println!("drop(3): ", rest)
+
+# flatten
+let nested = [[1, 2], [3, 4], [5, 6]]
+let flat = flatten(nested)
+println!("flatten: ", flat)
+
+# foreach
+println!()
+println!("=== forEach Demo ===")
+foreach([10, 20, 30], |x| println!("Value: ", x))
+
+println!()
+println!(" All tests passed!")

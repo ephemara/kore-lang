@@ -1,0 +1,56 @@
+// ============================================================================
+// KORE MATH DEMO - Native Code Execution
+// ============================================================================
+// This demonstrates pure Kore computation running as native machine code!
+// ============================================================================
+
+fn factorial(n: Int) -> Int:
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+fn fibonacci(n: Int) -> Int:
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+fn is_prime(n: Int) -> Int:
+    if n < 2:
+        return 0
+    for i in range(2, n):
+        if n % i == 0:
+            return 0
+    return 1
+
+fn main():
+    // Print header
+    println(12345678)  // Just a marker number
+    println(0)
+    
+    // Factorials
+    println(111111)  // Marker: Factorials section
+    for i in range(1, 11):
+        let f = factorial(i)
+        println(i)
+        println(f)
+    
+    println(0)
+    
+    // Fibonacci
+    println(222222)  // Marker: Fibonacci section
+    for i in range(0, 15):
+        let f = fibonacci(i)
+        println(f)
+    
+    println(0)
+    
+    // Primes up to 50
+    println(333333)  // Marker: Primes section
+    for i in range(2, 51):
+        if is_prime(i) == 1:
+            println(i)
+    
+    println(0)
+    println(99999999)  // End marker
+    
+    return 0

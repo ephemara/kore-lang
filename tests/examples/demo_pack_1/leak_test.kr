@@ -1,0 +1,26 @@
+fn main() with IO:
+    print("=== Leak Test ===")
+    
+    # Test 1: Scope Exit Cleanup
+    # If s leaks, we won't see it easily in output, but we can verify logic.
+    # To really verify, we'd need a debug allocator or RC logging.
+    # The runtime I wrote has logging commented out. I should uncomment it for this test.
+    if true:
+        let s = "ScopeVar"
+        print(s)
+    # s should be released here.
+    
+    # Test 2: Shadowing / Reassignment
+    let x = "First"
+    print("x is " + x)
+    x = "Second"
+    print("x is " + x)
+    # "First" should be released.
+    
+    # Test 3: Return Value
+    let res = make_str()
+    print("Result: " + res)
+    
+fn make_str() -> String:
+    let local = "LocalString"
+    return local

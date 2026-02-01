@@ -1,0 +1,17 @@
+// Minimal Async Debug
+
+async fn simple() -> Int:
+    return 100
+
+fn main():
+    println("Creating future...")
+    let fut = simple()
+    println("Future: ", fut)
+    
+    // Try poll_once
+    println("\nPolling once...")
+    let poll_result = poll_once(fut)
+    println("Poll result: ", poll_result)
+    println("Is ready: ", is_ready(poll_result))
+    
+    println("\nDone")

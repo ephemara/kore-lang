@@ -1,0 +1,8 @@
+fn main() {
+    let s = "("
+    println("Testing match with: " + s)
+    match s:
+        "(" => println("Matched (")
+        ")" => println("Matched )")
+        _ => println("Failed match")
+}

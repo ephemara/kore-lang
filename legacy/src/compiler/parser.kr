@@ -1,0 +1,877 @@
+// ============================================================================
+// KORE Bootstrap Compiler - Parser
+// ============================================================================
+// Project Ouroboros - Phase 2
+//
+// This is the parser for the self-hosted KORE compiler.
+// It converts a token stream into an Abstract Syntax Tree (AST).
+//
+// This module is written in KORE itself!
+// ============================================================================
+
+// TODO: These need stdlib implementations
+// use std/io
+// use std/collections
+
+// Import the lexer module
+use compiler/lexer
+
+// =============================================================================
+// AST Node Types
+// =============================================================================
+
+/// A KORE program is a list of top-level items
+struct Program:
+    items: Array<Item>
+
+/// Top-level items
+enum Item:
+    Function(FnDef)
+    Struct(StructDef)
+    Enum(EnumDef)
+    Impl(ImplDef)
+    Use(String)
+
+/// Function definition
+struct FnDef:
+    name: String
+    params: Array<Param>
+    return_type: Option<String>
+    body: Array<Stmt>
+    is_pub: Bool
+    is_async: Bool
+
+/// Function parameter
+struct Param:
+    name: String
+    ty: Option<String>
+
+/// Struct definition
+struct StructDef:
+    name: String
+    fields: Array<Field>
+    is_pub: Bool
+
+/// Struct field
+struct Field:
+    name: String
+    ty: String
+
+/// Enum definition
+struct EnumDef:
+    name: String
+    variants: Array<Variant>
+
+/// Enum variant
+struct Variant:
+    name: String
+    fields: Array<String>
+
+/// Impl block
+struct ImplDef:
+    target: String
+    methods: Array<FnDef>
+
+// =============================================================================
+// Statements
+// =============================================================================
+
+enum Stmt:
+    Let(String, Option<String>, Expr)
+    Var(String, Option<String>, Expr)
+    Assign(Expr, Expr)
+    Return(Option<Expr>)
+    If(Expr, Array<Stmt>, Option<Array<Stmt> >)
+    While(Expr, Array<Stmt>)
+    Loop(Array<Stmt>)
+    For(String, Expr, Array<Stmt>)
+    Match(Expr, Array<MatchArm>)
+    Expr(Expr)
+    Break
+    Continue
+
+struct MatchArm:
+    pattern: Pattern
+    body: Array<Stmt>
+
+enum Pattern:
+    Wildcard
+    Ident(String)
+    Literal(Expr)
+    Variant(String, Array<Pattern>)
+
+// =============================================================================
+// Expressions
+// =============================================================================
+
+enum Expr:
+    Int(Int)
+    Float(Float)
+    String(String)
+    Bool(Bool)
+    None
+    Ident(String)
+    Binary(Box<Expr>, String, Box<Expr>)
+    Unary(String, Box<Expr>)
+    Call(Box<Expr>, Array<Expr>)
+    MethodCall(Box<Expr>, String, Array<Expr>)
+    Index(Box<Expr>, Box<Expr>)
+    Field(Box<Expr>, String)
+    Array(Array<Expr>)
+    Struct(String, Array<FieldInit>)
+    EnumVariant(String, String, Array<Expr>)
+    If(Box<Expr>, Box<Expr>, Option<Box<Expr> >)
+    Lambda(Array<String>, Box<Expr>)
+    Await(Box<Expr>)
+
+struct FieldInit:
+    name: String
+    value: Expr
+
+// =============================================================================
+// Parser
+// =============================================================================
+
+struct Parser:
+    tokens: Array<Token>
+    pos: Int
+
+impl Parser:
+    pub fn new(tokens: Array<Token>) -> Parser:
+        return Parser { tokens: tokens, pos: 0 }
+    
+    fn is_eof(self) -> Bool:
+        return self.pos >= array_len(self.tokens)
+    
+    fn peek(self) -> Token:
+        if self.is_eof():
+            return Token::new(TokenKind::Eof, 0, 0, "")
+        return self.tokens[self.pos]
+    
+    fn advance(self) -> Token:
+        let tok = self.peek()
+        self.pos = self.pos + 1
+        return tok
+    
+    fn expect_keyword(self, kw: String) -> Token:
+        let tok = self.advance()
+        if !tok.is_keyword(kw):
+            panic("Expected keyword '" + kw + "', got: " + tok.lexeme)
+        return tok
+    
+    fn expect(self, kind_name: String) -> Token:
+        let tok = self.advance()
+        // Simple check - in real impl we'd match on kind
+        return tok
+    
+    fn skip_newlines(self) -> Unit:
+        while !self.is_eof():
+            let tok = self.peek()
+            // Check if token is a newline by looking at lexeme
+            if tok.lexeme == "\n" || tok.lexeme == "\r\n" || tok.lexeme == "\r":
+                self.advance()
+            else:
+                break
+    
+    /// Parse a complete program
+    pub fn parse_program(self) -> Program:
+        let items = []
+        
+        self.skip_newlines()
+        
+        while !self.is_eof():
+            let item = self.parse_item()
+            push(items, item)
+            self.skip_newlines()
+        
+        return Program { items: items }
+    
+    /// Parse a top-level item
+    fn parse_item(self) -> Item:
+        let tok = self.peek()
+        
+        if tok.is_keyword("fn"):
+            return Item::Function(self.parse_fn_def(false, false))
+        else if tok.is_keyword("pub"):
+            self.advance()
+            let next = self.peek()
+            if next.is_keyword("fn"):
+                return Item::Function(self.parse_fn_def(true, false))
+            else if next.is_keyword("struct"):
+                return Item::Struct(self.parse_struct_def(true))
+            else:
+                panic("Expected fn or struct after pub")
+        else if tok.is_keyword("async"):
+            self.advance()
+            self.expect_keyword("fn")
+            return Item::Function(self.parse_fn_def(false, true))
+        else if tok.is_keyword("struct"):
+            return Item::Struct(self.parse_struct_def(false))
+        else if tok.is_keyword("enum"):
+            return Item::Enum(self.parse_enum_def())
+        else if tok.is_keyword("impl"):
+            return Item::Impl(self.parse_impl_def())
+        else if tok.is_keyword("use"):
+            return Item::Use(self.parse_use())
+        else:
+            panic("Unexpected token at top level: " + tok.lexeme)
+    
+    /// Parse function definition (assumes 'fn' is next or just consumed)
+    fn parse_fn_def(self, is_pub: Bool, is_async: Bool) -> FnDef:
+        self.expect_keyword("fn")
+        
+        let name_tok = self.advance()
+        let name = name_tok.lexeme
+        
+        // Parse parameters
+        self.expect("(")
+        let params = self.parse_params()
+        self.expect(")")
+        
+        // Parse return type if present
+        let return_type = None
+        if self.peek().lexeme == "->":
+            self.advance()  // consume '->'
+            return_type = Some(self.parse_type())
+        
+        // Skip 'with Effect' if present
+        if self.peek().is_keyword("with"):
+            self.advance()  // consume 'with'
+            self.advance()  // consume effect name
+        
+        // Parse body
+        self.expect(":")
+        self.skip_newlines()
+        let body = self.parse_block()
+        
+        return FnDef {
+            name: name,
+            params: params,
+            return_type: return_type,
+            body: body,
+            is_pub: is_pub,
+            is_async: is_async
+        }
+    
+    fn parse_params(self) -> Array<Param>:
+        let params = []
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Stop at closing paren
+            if tok.lexeme == ")":
+                break
+            
+            // Handle 'self' parameter
+            if tok.is_keyword("self"):
+                self.advance()
+                push(params, Param { name: "self", ty: Some("Self") })
+                if self.peek().lexeme == ",":
+                    self.advance()
+                continue
+            
+            // Check if it's an identifier
+            if tok.is_ident():
+                self.advance()
+                let param_name = tok.lexeme
+                let param_type = None
+                
+                // Check for type annotation
+                if self.peek().lexeme == ":":
+                    self.advance()  // consume ':'
+                    param_type = Some(self.parse_type())
+                
+                push(params, Param { name: param_name, ty: param_type })
+                
+                // Check for comma
+                if self.peek().lexeme == ",":
+                    self.advance()
+            else:
+                break
+        
+        return params
+    
+    /// Parse a type (handles Array<T>, Option<T>, etc.)
+    fn parse_type(self) -> String:
+        let base = self.advance().lexeme
+        
+        // Check for generic parameters
+        if self.peek().lexeme == "<":
+            self.advance()  // consume '<'
+            let inner = self.parse_type()
+            
+            // Handle nested generics like Option<Box<Expr>>
+            while self.peek().lexeme == ",":
+                self.advance()
+                inner = inner + ", " + self.parse_type()
+            
+            self.advance()  // consume '>'
+            return base + "<" + inner + ">"
+        
+        return base
+    
+    fn parse_block(self) -> Array<Stmt>:
+        let stmts = []
+        let max_stmts = 10000  // Safety limit - increased for large files
+        
+        // Skip any newlines before block
+        self.skip_newlines()
+        
+        // For now, simplified block parsing - just parse until we hit
+        // something that looks like a new top-level item or EOF
+        while !self.is_eof() && len(stmts) < max_stmts:
+            let tok = self.peek()
+            
+            // Check for newlines - skip them
+            if tok.lexeme == "\n" || tok.lexeme == "\r\n":
+                self.advance()
+                continue
+            
+            // Check for end of block - top-level keywords indicate new item
+            if tok.is_keyword("fn") || tok.is_keyword("pub") || tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use"):
+                break
+            
+            // Parse a statement
+            let start_pos = self.pos
+            let stmt = self.parse_stmt()
+            push(stmts, stmt)
+            
+            // Safety: if position didn't advance, break to prevent infinite loop
+            if self.pos == start_pos:
+                break
+        
+        return stmts
+    
+    fn parse_stmt(self) -> Stmt:
+        let tok = self.peek()
+        
+        if tok.is_error():
+            self.advance()
+            return Stmt::Expr(Expr::None)
+        
+        if tok.is_keyword("let"):
+            return self.parse_let()
+        
+        if tok.is_keyword("var"):
+            return self.parse_var()
+        
+        if tok.is_keyword("return"):
+            return self.parse_return()
+        
+        if tok.is_keyword("if"):
+            return self.parse_if()
+        
+        if tok.is_keyword("while"):
+            return self.parse_while()
+        
+        if tok.is_keyword("for"):
+            return self.parse_for()
+        
+        if tok.is_keyword("match"):
+            return self.parse_match()
+        
+        if tok.is_keyword("break"):
+            self.advance()
+            return Stmt::Break
+        
+        if tok.is_keyword("continue"):
+            self.advance()
+            return Stmt::Continue
+        
+        if tok.is_keyword("loop"):
+            return self.parse_loop()
+        
+        // If we get here, it's an expression statement
+        let expr = self.parse_expr()
+        
+        // Check for assignment
+        if self.peek().lexeme == "=":
+            self.advance()
+            let value = self.parse_expr()
+            return Stmt::Assign(expr, value)
+        
+        return Stmt::Expr(expr)
+    
+    fn parse_let(self) -> Stmt:
+        self.expect_keyword("let")
+        let name_tok = self.advance()
+        let name = name_tok.lexeme
+        self.expect("=")
+        let value = self.parse_expr()
+        return Stmt::Let(name, None, value)
+    
+    fn parse_var(self) -> Stmt:
+        self.expect_keyword("var")
+        let name_tok = self.advance()
+        let name = name_tok.lexeme
+        self.expect("=")
+        let value = self.parse_expr()
+        return Stmt::Var(name, None, value)
+    
+    fn parse_return(self) -> Stmt:
+        self.expect_keyword("return")
+        if self.peek().lexeme == "\n":
+            return Stmt::Return(None)
+        let expr = self.parse_expr()
+        return Stmt::Return(Some(expr))
+    
+    fn parse_if(self) -> Stmt:
+        self.expect_keyword("if")
+        let cond = self.parse_expr()
+        self.expect(":")
+        self.skip_newlines()
+        let then_block = self.parse_block()
+        
+        let else_block = None
+        if self.peek().is_keyword("else"):
+            self.advance()
+            self.expect(":")
+            self.skip_newlines()
+            else_block = Some(self.parse_block())
+        
+        return Stmt::If(cond, then_block, else_block)
+    
+    fn parse_while(self) -> Stmt:
+        self.expect_keyword("while")
+        let cond = self.parse_expr()
+        self.expect(":")
+        self.skip_newlines()
+        let body = self.parse_block()
+        return Stmt::While(cond, body)
+    
+    fn parse_for(self) -> Stmt:
+        self.expect_keyword("for")
+        let var_tok = self.advance()
+        let var_name = var_tok.lexeme
+        self.expect_keyword("in")
+        let iter = self.parse_expr()
+        self.expect(":")
+        self.skip_newlines()
+        let body = self.parse_block()
+        return Stmt::For(var_name, iter, body)
+    
+    fn parse_loop(self) -> Stmt:
+        self.expect_keyword("loop")
+        self.expect(":")
+        self.skip_newlines()
+        let body = self.parse_block()
+        return Stmt::Loop(body)
+    
+    fn parse_match(self) -> Stmt:
+        self.expect_keyword("match")
+        let scrutinee = self.parse_expr()
+        self.expect(":")
+        self.skip_newlines()
+        
+        let arms = []
+        // Parse match arms until we hit a dedent
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Stop at new statement-level keywords (outside match)
+            if tok.is_keyword("fn") || tok.is_keyword("let") || tok.is_keyword("var") || tok.is_keyword("return") || tok.is_keyword("if") || tok.is_keyword("while") || tok.is_keyword("for"):
+                break
+            if tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use") || tok.is_keyword("pub"):
+                break
+            
+            // Skip newlines
+            if tok.lexeme == "\n":
+                self.advance()
+                continue
+            
+            // Parse pattern => body
+            let pattern = self.parse_pattern()
+            self.expect("=")  // expect =>  (we already consumed =)
+            self.expect(">")
+            
+            // Parse arm body (could be single expr or block)
+            let body = []
+            if self.peek().lexeme == "\n":
+                self.skip_newlines()
+                body = self.parse_block()
+            else:
+                let expr = self.parse_expr()
+                push(body, Stmt::Expr(expr))
+            
+            push(arms, MatchArm { pattern: pattern, body: body })
+        
+        return Stmt::Match(scrutinee, arms)
+    
+    fn parse_pattern(self) -> Pattern:
+        let tok = self.peek()
+        
+        // Wildcard pattern
+        if tok.lexeme == "_":
+            self.advance()
+            return Pattern::Wildcard
+        
+        // Identifier or variant pattern
+        if tok.is_ident():
+            self.advance()
+            let name = tok.lexeme
+            
+            // Check for variant with bindings: Variant(x, y)
+            if self.peek().lexeme == "(":
+                self.advance()  // consume '('
+                let bindings = []
+                while self.peek().lexeme != ")":
+                    push(bindings, self.parse_pattern())
+                    if self.peek().lexeme == ",":
+                        self.advance()
+                self.advance()  // consume ')'
+                return Pattern::Variant(name, bindings)
+            
+            return Pattern::Ident(name)
+        
+        // Literal pattern (numbers, strings)
+        let expr = self.parse_primary()
+        return Pattern::Literal(expr)
+    
+    // Expression parser with operator precedence
+    fn parse_expr(self) -> Expr:
+        return self.parse_or()
+    
+    fn parse_or(self) -> Expr:
+        let left = self.parse_and()
+        while self.peek().lexeme == "||":
+            self.advance()
+            let right = self.parse_and()
+            left = Expr::Binary(Box::new(left), "||", Box::new(right))
+        return left
+    
+    fn parse_and(self) -> Expr:
+        let left = self.parse_equality()
+        while self.peek().lexeme == "&&":
+            self.advance()
+            let right = self.parse_equality()
+            left = Expr::Binary(Box::new(left), "&&", Box::new(right))
+        return left
+    
+    fn parse_equality(self) -> Expr:
+        let left = self.parse_comparison()
+        while self.peek().lexeme == "==" || self.peek().lexeme == "!=":
+            let op = self.advance().lexeme
+            let right = self.parse_comparison()
+            left = Expr::Binary(Box::new(left), op, Box::new(right))
+        return left
+    
+    fn parse_comparison(self) -> Expr:
+        let left = self.parse_term()
+        while self.peek().lexeme == "<" || self.peek().lexeme == ">" || self.peek().lexeme == "<=" || self.peek().lexeme == ">=":
+            let op = self.advance().lexeme
+            let right = self.parse_term()
+            left = Expr::Binary(Box::new(left), op, Box::new(right))
+        return left
+    
+    fn parse_term(self) -> Expr:
+        let left = self.parse_factor()
+        while self.peek().lexeme == "+" || self.peek().lexeme == "-":
+            let op = self.advance().lexeme
+            let right = self.parse_factor()
+            left = Expr::Binary(Box::new(left), op, Box::new(right))
+        return left
+    
+    fn parse_factor(self) -> Expr:
+        let left = self.parse_unary()
+        while self.peek().lexeme == "*" || self.peek().lexeme == "/" || self.peek().lexeme == "%":
+            let op = self.advance().lexeme
+            let right = self.parse_unary()
+            left = Expr::Binary(Box::new(left), op, Box::new(right))
+        return left
+    
+    fn parse_unary(self) -> Expr:
+        if self.peek().lexeme == "!" || self.peek().lexeme == "-":
+            let op = self.advance().lexeme
+            let operand = self.parse_unary()
+            return Expr::Unary(op, Box::new(operand))
+        return self.parse_postfix()
+    
+    fn parse_postfix(self) -> Expr:
+        let expr = self.parse_primary()
+        
+        // Handle postfix operations: field access, method calls, indexing
+        loop:
+            let next = self.peek().lexeme
+            
+            if next == ".":
+                self.advance()  // consume '.'
+                let field = self.advance().lexeme
+                
+                // Check if it's a method call
+                if self.peek().lexeme == "(":
+                    self.advance()  // consume '('
+                    let args = self.parse_args()
+                    self.advance()  // consume ')'
+                    expr = Expr::MethodCall(Box::new(expr), field, args)
+                else:
+                    expr = Expr::Field(Box::new(expr), field)
+                continue
+            
+            if next == "[":
+                self.advance()  // consume '['
+                let index = self.parse_expr()
+                self.advance()  // consume ']'
+                expr = Expr::Index(Box::new(expr), Box::new(index))
+                continue
+            
+            if next == "(":
+                // Direct function call on expression
+                self.advance()  // consume '('
+                let args = self.parse_args()
+                self.advance()  // consume ')'
+                expr = Expr::Call(Box::new(expr), args)
+                continue
+            
+            // None of the above - break out
+            break
+        
+        return expr
+    
+    fn parse_args(self) -> Array<Expr>:
+        let args = []
+        while self.peek().lexeme != ")":
+            push(args, self.parse_expr())
+            if self.peek().lexeme == ",":
+                self.advance()
+        return args
+    
+    fn parse_primary(self) -> Expr:
+        let tok = self.peek()
+        
+        // Parenthesized expression
+        if tok.lexeme == "(":
+            self.advance()  // consume '('
+            let expr = self.parse_expr()
+            self.advance()  // consume ')'
+            return expr
+        
+        // Array literal
+        if tok.lexeme == "[":
+            self.advance()  // consume '['
+            let elements = []
+            while self.peek().lexeme != "]":
+                push(elements, self.parse_expr())
+                if self.peek().lexeme == ",":
+                    self.advance()
+            self.advance()  // consume ']'
+            return Expr::Array(elements)
+        
+        // Now consume the token
+        self.advance()
+        
+        // Check for integer literal (digits only)
+        if len(tok.lexeme) > 0:
+            let first_char = ord(tok.lexeme)
+            let is_digit = first_char >= 48 && first_char <= 57
+            if is_digit:
+                return Expr::Int(int(tok.lexeme))
+        
+        // Check for float (contains .)
+        if contains(split(tok.lexeme, ""), "."):
+            let first_char = ord(tok.lexeme)
+            let is_digit = first_char >= 48 && first_char <= 57
+            if is_digit:
+                return Expr::Float(float(tok.lexeme))
+        
+        // Check for string literal (starts with quote)
+        if len(tok.lexeme) > 0:
+            let first_char = ord(tok.lexeme)
+            if first_char == 34 || first_char == 39:  // " or '
+                return Expr::String(tok.lexeme)
+        
+        // Check for bool/keywords
+        if tok.lexeme == "true":
+            return Expr::Bool(true)
+        if tok.lexeme == "false":
+            return Expr::Bool(false)
+        if tok.lexeme == "none" || tok.lexeme == "None":
+            return Expr::None
+        
+        // Check for struct/enum construction: Name { ... } or Name::Variant
+        if tok.is_ident():
+            let name = tok.lexeme
+            
+            // Enum variant: Name::Variant or Name::Variant(...)
+            if self.peek().lexeme == ":":
+                if self.peek_n(1).lexeme == ":":
+                    self.advance()  // consume first ':'
+                    self.advance()  // consume second ':'
+                    let variant = self.advance().lexeme
+                    
+                    // Check for variant with data
+                    if self.peek().lexeme == "(":
+                        self.advance()  // consume '('
+                        let args = self.parse_args()
+                        self.advance()  // consume ')'
+                        return Expr::EnumVariant(name, variant, args)
+                    
+                    return Expr::EnumVariant(name, variant, [])
+            
+            // Struct literal: Name { field: value, ... }
+            if self.peek().lexeme == "{":
+                self.advance()  // consume '{'
+                let fields = []
+                while self.peek().lexeme != "}":
+                    let field_name = self.advance().lexeme
+                    self.expect(":")
+                    let field_value = self.parse_expr()
+                    push(fields, FieldInit { name: field_name, value: field_value })
+                    if self.peek().lexeme == ",":
+                        self.advance()
+                self.advance()  // consume '}'
+                return Expr::Struct(name, fields)
+            
+            return Expr::Ident(name)
+        
+        // Fallback - treat as identifier
+        return Expr::Ident(tok.lexeme)
+    
+    /// Peek ahead n tokens
+    fn peek_n(self, n: Int) -> Token:
+        let idx = self.pos + n
+        if idx >= array_len(self.tokens):
+            return Token::new(TokenKind::Eof, 0, 0, "")
+        return self.tokens[idx]
+    
+    // =========================================================================
+    // Struct/Enum/Impl parsing
+    // =========================================================================
+    
+    fn parse_struct_def(self, is_pub: Bool) -> StructDef:
+        self.expect_keyword("struct")
+        let name = self.advance().lexeme
+        self.expect(":")
+        self.skip_newlines()
+        
+        let fields = []
+        // Parse fields until we hit a dedent (new top-level item)
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Stop at new top-level items
+            if tok.is_keyword("fn") || tok.is_keyword("pub") || tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use"):
+                break
+            
+            // Skip newlines
+            if tok.lexeme == "\n":
+                self.advance()
+                continue
+            
+            // Parse field: name: Type
+            if tok.is_ident():
+                let field_name = self.advance().lexeme
+                self.expect(":")
+                let field_type = self.parse_type()
+                push(fields, Field { name: field_name, ty: field_type })
+            else:
+                break
+        
+        return StructDef { name: name, fields: fields, is_pub: is_pub }
+    
+    fn parse_enum_def(self) -> EnumDef:
+        self.expect_keyword("enum")
+        let name = self.advance().lexeme
+        self.expect(":")
+        self.skip_newlines()
+        
+        let variants = []
+        // Parse variants until we hit a dedent
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Stop at new top-level items
+            if tok.is_keyword("fn") || tok.is_keyword("pub") || tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use"):
+                break
+            
+            // Skip newlines and comments
+            if tok.lexeme == "\n":
+                self.advance()
+                continue
+            
+            // Parse variant: Name or Name(Type1, Type2)
+            if tok.is_ident():
+                let variant_name = self.advance().lexeme
+                let variant_fields = []
+                
+                // Check for variant data
+                if self.peek().lexeme == "(":
+                    self.advance()  // consume '('
+                    while self.peek().lexeme != ")":
+                        push(variant_fields, self.parse_type())
+                        if self.peek().lexeme == ",":
+                            self.advance()
+                    self.advance()  // consume ')'
+                
+                push(variants, Variant { name: variant_name, fields: variant_fields })
+            else:
+                break
+        
+        return EnumDef { name: name, variants: variants }
+    
+    fn parse_impl_def(self) -> ImplDef:
+        self.expect_keyword("impl")
+        let target = self.advance().lexeme
+        self.expect(":")
+        self.skip_newlines()
+        
+        let methods = []
+        // Parse methods until we hit a dedent
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Stop at new top-level items (but not 'fn' or 'pub fn' which are methods)
+            if tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use"):
+                break
+            
+            // Skip newlines
+            if tok.lexeme == "\n":
+                self.advance()
+                continue
+            
+            // Parse method
+            if tok.is_keyword("pub"):
+                self.advance()
+                if self.peek().is_keyword("fn"):
+                    let method = self.parse_fn_def(true, false)
+                    push(methods, method)
+                else:
+                    break
+            else if tok.is_keyword("fn"):
+                let method = self.parse_fn_def(false, false)
+                push(methods, method)
+            else:
+                break
+        
+        return ImplDef { target: target, methods: methods }
+    
+    fn parse_use(self) -> String:
+        self.expect_keyword("use")
+        let path = self.advance().lexeme
+        return path
+
+// =============================================================================
+// Entry Point
+// =============================================================================
+
+fn main():
+    println("=== KORE Bootstrap Parser ===")
+    
+    let source = "fn main():
+    let x = 42
+    println(x)"
+    
+    println("Source:")
+    println(source)
+    println("")
+    
+    // Tokenize
+    let lexer = Lexer::new(source)
+    let tokens = lexer.tokenize()
+    
+    println("Parsing " + str(len(tokens)) + " tokens...")
+    let parser = Parser::new(tokens)
+    let program = parser.parse_program()
+    
+    println("Parsed " + str(len(program.items)) + " items")
+    println(" Parser complete!")
+

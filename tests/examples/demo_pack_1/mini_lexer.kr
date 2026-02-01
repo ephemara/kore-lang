@@ -1,0 +1,17 @@
+// Test comment
+/// Doc comment
+
+enum TokenKind:
+    Int(Int)
+    Float(Float)
+
+struct Token:
+    kind: TokenKind
+    line: Int
+
+impl Token:
+    pub fn new(kind: TokenKind, line: Int) -> Token:
+        return Token { kind: kind, line: line }
+
+fn main():
+    println("Test")

@@ -1,0 +1,491 @@
+# KORE WHACKY TEST: Neural Network From Scratch
+# Full ML framework: tensors, autograd, layers, optimizers, training loop
+# Pure KORE, no external libs - because why not
+
+println!("=== NEURAL NETWORK FRAMEWORK ===")
+println!()
+
+# ==========================================
+# TENSOR OPERATIONS
+# ==========================================
+
+struct Tensor:
+    data: Array<Float>
+    shape: Array<Int>
+    grad: Option<Array<Float>>
+    requires_grad: Bool
+    _backward: Option<fn() -> ()>
+    _prev: Array<Tensor>
+    _op: String
+
+fn tensor(data: Array<Float>, shape: Array<Int>, requires_grad: Bool = false) -> Tensor:
+    return Tensor {
+        data: data,
+        shape: shape,
+        grad: if requires_grad: Some(zeros_like(data)) else: None,
+        requires_grad: requires_grad,
+        _backward: None,
+        _prev: [],
+        _op: ""
+    }
+
+fn zeros(shape: Array<Int>) -> Tensor:
+    let size = shape.fold(1, (a, b) => a * b)
+    return tensor(Array.new(size, 0.0), shape)
+
+fn ones(shape: Array<Int>) -> Tensor:
+    let size = shape.fold(1, (a, b) => a * b)
+    return tensor(Array.new(size, 1.0), shape)
+
+fn randn(shape: Array<Int>, requires_grad: Bool = false) -> Tensor:
+    let size = shape.fold(1, (a, b) => a * b)
+    let data = Array.new(size, 0.0).map(_ => random_normal())
+    return tensor(data, shape, requires_grad)
+
+fn random_normal() -> Float:
+    # Box-Muller transform
+    let u1 = random()
+    let u2 = random()
+    return sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+
+# ==========================================
+# AUTOGRAD ENGINE
+# ==========================================
+
+impl Tensor:
+    fn add(self, other: Tensor) -> Tensor:
+        let out_data = zip(self.data, other.data).map((a, b) => a + b)
+        var out = tensor(out_data, self.shape, self.requires_grad or other.requires_grad)
+        out._prev = [self, other]
+        out._op = "+"
+        
+        if out.requires_grad:
+            out._backward = Some(fn():
+                if self.requires_grad:
+                    self.grad = Some(zip(self.grad.unwrap(), out.grad.unwrap()).map((a, b) => a + b))
+                if other.requires_grad:
+                    other.grad = Some(zip(other.grad.unwrap(), out.grad.unwrap()).map((a, b) => a + b))
+            )
+        return out
+    
+    fn mul(self, other: Tensor) -> Tensor:
+        let out_data = zip(self.data, other.data).map((a, b) => a * b)
+        var out = tensor(out_data, self.shape, self.requires_grad or other.requires_grad)
+        out._prev = [self, other]
+        out._op = "*"
+        
+        if out.requires_grad:
+            out._backward = Some(fn():
+                if self.requires_grad:
+                    # d/dx(x*y) = y
+                    let grad = zip3(self.grad.unwrap(), out.grad.unwrap(), other.data)
+                        .map((g, og, o) => g + og * o)
+                    self.grad = Some(grad)
+                if other.requires_grad:
+                    # d/dy(x*y) = x
+                    let grad = zip3(other.grad.unwrap(), out.grad.unwrap(), self.data)
+                        .map((g, og, s) => g + og * s)
+                    other.grad = Some(grad)
+            )
+        return out
+    
+    fn matmul(self, other: Tensor) -> Tensor:
+        # self: [M, K], other: [K, N] => out: [M, N]
+        let m = self.shape[0]
+        let k = self.shape[1]
+        let n = other.shape[1]
+        
+        var out_data = Array.new(m * n, 0.0)
+        for i in range(0, m):
+            for j in range(0, n):
+                var sum = 0.0
+                for kk in range(0, k):
+                    sum = sum + self.data[i * k + kk] * other.data[kk * n + j]
+                out_data[i * n + j] = sum
+        
+        var out = tensor(out_data, [m, n], self.requires_grad or other.requires_grad)
+        out._prev = [self, other]
+        out._op = "@"
+        
+        if out.requires_grad:
+            out._backward = Some(fn():
+                if self.requires_grad:
+                    # dL/dA = dL/dC @ B^T
+                    let other_t = other.transpose()
+                    let grad_a = matmul_raw(out.grad.unwrap(), [m, n], other_t.data, [n, k])
+                    self.grad = Some(zip(self.grad.unwrap(), grad_a).map((a, b) => a + b))
+                if other.requires_grad:
+                    # dL/dB = A^T @ dL/dC
+                    let self_t = self.transpose()
+                    let grad_b = matmul_raw(self_t.data, [k, m], out.grad.unwrap(), [m, n])
+                    other.grad = Some(zip(other.grad.unwrap(), grad_b).map((a, b) => a + b))
+            )
+        return out
+    
+    fn relu(self) -> Tensor:
+        let out_data = self.data.map(x => if x > 0.0: x else: 0.0)
+        var out = tensor(out_data, self.shape, self.requires_grad)
+        out._prev = [self]
+        out._op = "relu"
+        
+        if out.requires_grad:
+            out._backward = Some(fn():
+                let grad = zip3(self.grad.unwrap(), out.grad.unwrap(), self.data)
+                    .map((g, og, x) => g + og * (if x > 0.0: 1.0 else: 0.0))
+                self.grad = Some(grad)
+            )
+        return out
+    
+    fn sigmoid(self) -> Tensor:
+        let out_data = self.data.map(x => 1.0 / (1.0 + exp(-x)))
+        var out = tensor(out_data, self.shape, self.requires_grad)
+        out._prev = [self]
+        out._op = "sigmoid"
+        
+        if out.requires_grad:
+            out._backward = Some(fn():
+                let grad = zip3(self.grad.unwrap(), out.grad.unwrap(), out.data)
+                    .map((g, og, s) => g + og * s * (1.0 - s))
+                self.grad = Some(grad)
+            )
+        return out
+    
+    fn softmax(self) -> Tensor:
+        let max_val = self.data.fold(Float.MIN, max)
+        let exp_data = self.data.map(x => exp(x - max_val))
+        let sum_exp = exp_data.fold(0.0, (a, b) => a + b)
+        let out_data = exp_data.map(x => x / sum_exp)
+        
+        var out = tensor(out_data, self.shape, self.requires_grad)
+        out._prev = [self]
+        out._op = "softmax"
+        return out
+    
+    fn sum(self) -> Tensor:
+        let total = self.data.fold(0.0, (a, b) => a + b)
+        var out = tensor([total], [1], self.requires_grad)
+        out._prev = [self]
+        out._op = "sum"
+        
+        if out.requires_grad:
+            out._backward = Some(fn():
+                let grad = self.grad.unwrap().map(g => g + out.grad.unwrap()[0])
+                self.grad = Some(grad)
+            )
+        return out
+    
+    fn mean(self) -> Tensor:
+        let n = self.data.len() as Float
+        return self.sum() * tensor([1.0 / n], [1])
+    
+    fn backward(self):
+        # Topological sort
+        var topo: Array<Tensor> = []
+        var visited: Set<u64> = Set.new()
+        
+        fn build_topo(t: Tensor):
+            if not visited.contains(t.id()):
+                visited.insert(t.id())
+                for child in t._prev:
+                    build_topo(child)
+                topo.push(t)
+        
+        build_topo(self)
+        
+        # Set output gradient to 1
+        self.grad = Some([1.0])
+        
+        # Backpropagate in reverse topological order
+        for t in topo.reversed():
+            match t._backward:
+                Some(backward_fn) => backward_fn()
+                None => ()
+    
+    fn zero_grad(self):
+        if self.requires_grad:
+            self.grad = Some(zeros_like(self.data))
+
+# ==========================================
+# NEURAL NETWORK LAYERS
+# ==========================================
+
+trait Layer:
+    fn forward(self, x: Tensor) -> Tensor
+    fn parameters(self) -> Array<Tensor>
+
+struct Linear:
+    weight: Tensor
+    bias: Tensor
+    
+    fn new(in_features: Int, out_features: Int) -> Linear:
+        # Xavier initialization
+        let scale = sqrt(2.0 / (in_features + out_features) as Float)
+        let weight = randn([in_features, out_features], requires_grad: true) * scale
+        let bias = zeros([1, out_features])
+        bias.requires_grad = true
+        return Linear { weight: weight, bias: bias }
+    
+    impl Layer:
+        fn forward(self, x: Tensor) -> Tensor:
+            return x.matmul(self.weight).add(self.bias)
+        
+        fn parameters(self) -> Array<Tensor>:
+            return [self.weight, self.bias]
+
+struct ReLU:
+    impl Layer:
+        fn forward(self, x: Tensor) -> Tensor:
+            return x.relu()
+        
+        fn parameters(self) -> Array<Tensor>:
+            return []
+
+struct Sigmoid:
+    impl Layer:
+        fn forward(self, x: Tensor) -> Tensor:
+            return x.sigmoid()
+        
+        fn parameters(self) -> Array<Tensor>:
+            return []
+
+struct Sequential:
+    layers: Array<dyn Layer>
+    
+    fn new(layers: Array<dyn Layer>) -> Sequential:
+        return Sequential { layers: layers }
+    
+    impl Layer:
+        fn forward(self, x: Tensor) -> Tensor:
+            var out = x
+            for layer in self.layers:
+                out = layer.forward(out)
+            return out
+        
+        fn parameters(self) -> Array<Tensor>:
+            return self.layers.flat_map(l => l.parameters())
+
+# ==========================================
+# LOSS FUNCTIONS
+# ==========================================
+
+fn mse_loss(pred: Tensor, target: Tensor) -> Tensor:
+    let diff = pred.add(target.mul(tensor([-1.0], [1])))
+    return diff.mul(diff).mean()
+
+fn cross_entropy_loss(pred: Tensor, target: Tensor) -> Tensor:
+    let probs = pred.softmax()
+    let log_probs = probs.data.map(x => ln(x + 1e-8))
+    let loss = zip(log_probs, target.data).map((lp, t) => -t * lp).fold(0.0, (a, b) => a + b)
+    return tensor([loss], [1], true)
+
+# ==========================================
+# OPTIMIZERS
+# ==========================================
+
+trait Optimizer:
+    fn step(self) -> ()
+    fn zero_grad(self) -> ()
+
+struct SGD:
+    params: Array<Tensor>
+    lr: Float
+    momentum: Float
+    velocities: Array<Array<Float>>
+    
+    fn new(params: Array<Tensor>, lr: Float, momentum: Float = 0.0) -> SGD:
+        let velocities = params.map(p => zeros_like(p.data))
+        return SGD { 
+            params: params, 
+            lr: lr, 
+            momentum: momentum, 
+            velocities: velocities 
+        }
+    
+    impl Optimizer:
+        fn step(self):
+            for (i, p) in self.params.enumerate():
+                match p.grad:
+                    Some(grad) =>
+                        # v = momentum * v - lr * grad
+                        self.velocities[i] = zip(self.velocities[i], grad)
+                            .map((v, g) => self.momentum * v - self.lr * g)
+                        
+                        # p = p + v
+                        p.data = zip(p.data, self.velocities[i])
+                            .map((d, v) => d + v)
+                    None => ()
+        
+        fn zero_grad(self):
+            for p in self.params:
+                p.zero_grad()
+
+struct Adam:
+    params: Array<Tensor>
+    lr: Float
+    beta1: Float
+    beta2: Float
+    eps: Float
+    m: Array<Array<Float>>
+    v: Array<Array<Float>>
+    t: Int
+    
+    fn new(params: Array<Tensor>, lr: Float = 0.001, beta1: Float = 0.9, beta2: Float = 0.999) -> Adam:
+        return Adam {
+            params: params,
+            lr: lr,
+            beta1: beta1,
+            beta2: beta2,
+            eps: 1e-8,
+            m: params.map(p => zeros_like(p.data)),
+            v: params.map(p => zeros_like(p.data)),
+            t: 0
+        }
+    
+    impl Optimizer:
+        fn step(self):
+            self.t = self.t + 1
+            
+            for (i, p) in self.params.enumerate():
+                match p.grad:
+                    Some(grad) =>
+                        # m = beta1 * m + (1 - beta1) * grad
+                        self.m[i] = zip(self.m[i], grad)
+                            .map((m, g) => self.beta1 * m + (1.0 - self.beta1) * g)
+                        
+                        # v = beta2 * v + (1 - beta2) * grad^2
+                        self.v[i] = zip(self.v[i], grad)
+                            .map((v, g) => self.beta2 * v + (1.0 - self.beta2) * g * g)
+                        
+                        # Bias correction
+                        let m_hat = self.m[i].map(m => m / (1.0 - pow(self.beta1, self.t as Float)))
+                        let v_hat = self.v[i].map(v => v / (1.0 - pow(self.beta2, self.t as Float)))
+                        
+                        # p = p - lr * m_hat / (sqrt(v_hat) + eps)
+                        p.data = zip3(p.data, m_hat, v_hat)
+                            .map((d, m, v) => d - self.lr * m / (sqrt(v) + self.eps))
+                    None => ()
+        
+        fn zero_grad(self):
+            for p in self.params:
+                p.zero_grad()
+
+# ==========================================
+# DATA LOADING
+# ==========================================
+
+struct DataLoader:
+    data: Tensor
+    labels: Tensor
+    batch_size: Int
+    shuffle: Bool
+    
+    fn new(data: Tensor, labels: Tensor, batch_size: Int, shuffle: Bool = true) -> DataLoader:
+        return DataLoader { data: data, labels: labels, batch_size: batch_size, shuffle: shuffle }
+    
+    fn iter(self) -> Iterator<(Tensor, Tensor)>:
+        let n = self.data.shape[0]
+        var indices = range(0, n).collect()
+        
+        if self.shuffle:
+            shuffle_inplace(indices)
+        
+        for batch_start in range(0, n, self.batch_size):
+            let batch_end = min(batch_start + self.batch_size, n)
+            let batch_indices = indices[batch_start..batch_end]
+            
+            let batch_data = gather(self.data, batch_indices, axis: 0)
+            let batch_labels = gather(self.labels, batch_indices, axis: 0)
+            
+            yield (batch_data, batch_labels)
+
+# ==========================================
+# TRAINING LOOP
+# ==========================================
+
+fn train(
+    model: dyn Layer,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    epochs: Int,
+    optimizer: dyn Optimizer
+) with IO:
+    for epoch in range(0, epochs):
+        var train_loss = 0.0
+        var train_batches = 0
+        
+        for (x, y) in train_loader.iter():
+            # Forward pass
+            let pred = model.forward(x)
+            let loss = cross_entropy_loss(pred, y)
+            
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            train_loss = train_loss + loss.data[0]
+            train_batches = train_batches + 1
+        
+        # Validation
+        var val_loss = 0.0
+        var val_correct = 0
+        var val_total = 0
+        
+        for (x, y) in val_loader.iter():
+            let pred = model.forward(x)
+            val_loss = val_loss + cross_entropy_loss(pred, y).data[0]
+            
+            # Accuracy
+            let pred_class = argmax(pred, axis: 1)
+            let true_class = argmax(y, axis: 1)
+            val_correct = val_correct + zip(pred_class, true_class).filter((p, t) => p == t).len()
+            val_total = val_total + y.shape[0]
+        
+        let train_avg = train_loss / train_batches as Float
+        let val_acc = val_correct as Float / val_total as Float * 100.0
+        
+        println!(f"Epoch {epoch + 1}/{epochs} | Train Loss: {train_avg:.4} | Val Acc: {val_acc:.2}%")
+
+# ==========================================
+# EXAMPLE: MNIST CLASSIFIER
+# ==========================================
+
+fn main() with IO:
+    println!("Building neural network...")
+    
+    # 784 inputs (28x28), 128 hidden, 64 hidden, 10 outputs
+    let model = Sequential.new([
+        Linear.new(784, 128),
+        ReLU{},
+        Linear.new(128, 64),
+        ReLU{},
+        Linear.new(64, 10),
+    ])
+    
+    println!(f"Model has {model.parameters().len()} parameter tensors")
+    let total_params = model.parameters().map(p => p.data.len()).fold(0, (a, b) => a + b)
+    println!(f"Total parameters: {total_params}")
+    
+    # Mock data (in real use, load MNIST)
+    println!()
+    println!("Creating mock dataset...")
+    let train_x = randn([60000, 784])
+    let train_y = randn([60000, 10])  # One-hot encoded
+    let val_x = randn([10000, 784])
+    let val_y = randn([10000, 10])
+    
+    let train_loader = DataLoader.new(train_x, train_y, batch_size: 64)
+    let val_loader = DataLoader.new(val_x, val_y, batch_size: 64, shuffle: false)
+    
+    # Optimizer
+    let optimizer = Adam.new(model.parameters(), lr: 0.001)
+    
+    # Train!
+    println!()
+    println!("Training...")
+    train(model, train_loader, val_loader, epochs: 10, optimizer)
+    
+    println!()
+    println!("Training complete!")
+    println!("This was a neural network framework written entirely in KORE.")
+    println!("No PyTorch. No TensorFlow. Just KORE.")

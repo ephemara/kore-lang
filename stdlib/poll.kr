@@ -1,0 +1,39 @@
+// KORE Standard Library: Poll<T>
+// Represents the result of polling a Future
+
+enum Poll<T>:
+    Ready(T)    // The future has completed with value T
+    Pending     // The future is not ready yet
+
+impl<T> Poll<T>:
+    /// Returns true if the poll result is Ready
+    fn is_ready(self) -> Bool:
+        match self:
+            Poll::Ready(_) => return true
+            Poll::Pending => return false
+    
+    /// Returns true if the poll result is Pending
+    fn is_pending(self) -> Bool:
+        match self:
+            Poll::Ready(_) => return false
+            Poll::Pending => return true
+    
+    /// Unwraps the Ready value, panics if Pending
+    fn unwrap(self) -> T:
+        match self:
+            Poll::Ready(v) => return v
+            Poll::Pending => panic("called unwrap() on Poll::Pending")
+    
+    /// Maps Poll<T> to Poll<U>
+    fn map<U>(self, f: fn(T) -> U) -> Poll<U>:
+        match self:
+            Poll::Ready(v) => return Poll::Ready(f(v))
+            Poll::Pending => return Poll::Pending
+
+/// Helper to create Poll::Ready
+fn Ready<T>(value: T) -> Poll<T>:
+    return Poll::Ready(value)
+
+/// Helper constant for Poll::Pending  
+fn Pending<T>() -> Poll<T>:
+    return Poll::Pending

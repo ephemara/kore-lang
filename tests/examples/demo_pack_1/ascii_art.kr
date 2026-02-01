@@ -1,0 +1,142 @@
+// ============================================================================
+// KORE ASCII ART DEMO
+// ============================================================================
+// This runs as NATIVE CODE compiled from Kore!
+// The loops, math, and logic = pure machine code from your .kr file
+// ============================================================================
+
+fn print_banner():
+    println("╔══════════════════════════════════════════════════════════════════╗")
+    println("║                                                                  ║")
+    println("║   ██╗  ██╗ ██████╗ ██████╗ ███████╗    ██████╗ ███████╗███╗   ███╗║")
+    println("║   ██║ ██╔╝██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██╔════╝████╗ ████║║")
+    println("║   █████╔╝ ██║   ██║██████╔╝█████╗      ██║  ██║█████╗  ██╔████╔██║║")
+    println("║   ██╔═██╗ ██║   ██║██╔══██╗██╔══╝      ██║  ██║██╔══╝  ██║╚██╔╝██║║")
+    println("║   ██║  ██╗╚██████╔╝██║  ██║███████╗    ██████╔╝███████╗██║ ╚═╝ ██║║")
+    println("║   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝    ╚═════╝ ╚══════╝╚═╝     ╚═╝║")
+    println("║                                                                  ║")
+    println("║              Running on NATIVE Kore-compiled code!               ║")
+    println("╚══════════════════════════════════════════════════════════════════╝")
+    println("")
+
+fn print_pyramid(height: Int):
+    println(" PYRAMID (height = " + str(height) + ")")
+    println("")
+    for i in range(1, height + 1):
+        // Print spaces
+        let spaces = ""
+        for s in range(0, height - i):
+            spaces = spaces + " "
+        // Print stars
+        let stars = ""
+        for j in range(0, 2 * i - 1):
+            stars = stars + "*"
+        println(spaces + stars)
+    println("")
+
+fn print_diamond(size: Int):
+    println(" DIAMOND (size = " + str(size) + ")")
+    println("")
+    // Top half
+    for i in range(1, size + 1):
+        let spaces = ""
+        for s in range(0, size - i):
+            spaces = spaces + " "
+        let stars = ""
+        for j in range(0, 2 * i - 1):
+            stars = stars + "◆"
+        println(spaces + stars)
+    // Bottom half
+    for i in range(size - 1, 0):
+        let spaces = ""
+        for s in range(0, size - i):
+            spaces = spaces + " "
+        let stars = ""
+        for j in range(0, 2 * i - 1):
+            stars = stars + "◆"
+        println(spaces + stars)
+    println("")
+
+fn print_wave():
+    println(" WAVE PATTERN")
+    println("")
+    let wave_chars = [".", "o", "O", "o", ".", " ", " "]
+    for row in range(0, 5):
+        let line = ""
+        for col in range(0, 50):
+            let idx = (col + row) % 7
+            // Simple wave
+            if idx == 0:
+                line = line + "."
+            if idx == 1:
+                line = line + "o"
+            if idx == 2:
+                line = line + "O"
+            if idx == 3:
+                line = line + "o"
+            if idx == 4:
+                line = line + "."
+            if idx == 5:
+                line = line + " "
+            if idx == 6:
+                line = line + " "
+        println(line)
+    println("")
+
+fn print_box_art():
+    println(" BOX ART")
+    println("")
+    println("  ┌────────────────────────────────┐")
+    println("  │  This text is inside a box!   │")
+    println("  │                                │")
+    println("  │  Written in Kore              │")
+    println("  │  Compiled to native code      │")
+    println("  │  Running at full speed!       │")
+    println("  │                                │")
+    println("  └────────────────────────────────┘")
+    println("")
+
+fn count_to_ten():
+    println(" COUNTING (pure Kore loop)")
+    println("")
+    for i in range(1, 11):
+        let bar = ""
+        for j in range(0, i):
+            bar = bar + "█"
+        println("  " + str(i) + " " + bar)
+    println("")
+
+fn fibonacci(n: Int):
+    println(" FIBONACCI SEQUENCE (first " + str(n) + " numbers)")
+    println("")
+    let a = 0
+    let b = 1
+    let line = ""
+    for i in range(0, n):
+        line = line + str(a) + " "
+        let temp = a + b
+        a = b
+        b = temp
+    println("  " + line)
+    println("")
+
+fn main():
+    print_banner()
+    
+    println("═══════════════════════════════════════════════════════════════════")
+    println("                    KORE NATIVE CODE DEMOS")
+    println("═══════════════════════════════════════════════════════════════════")
+    println("")
+    
+    print_pyramid(6)
+    print_diamond(5)
+    print_wave()
+    print_box_art()
+    count_to_ten()
+    fibonacci(15)
+    
+    println("═══════════════════════════════════════════════════════════════════")
+    println("   All demos complete! This was 100% Kore native code!")
+    println("═══════════════════════════════════════════════════════════════════")
+    
+    return 0

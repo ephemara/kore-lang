@@ -1,0 +1,7 @@
+fn main():
+    let arr = []
+    push(arr, 42)
+    let len = array_len(arr)
+    println("Array length: " + to_string(len))
+    let val = arr[0]
+    println("Array[0]: " + to_string(val))

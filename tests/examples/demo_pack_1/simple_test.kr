@@ -1,0 +1,26 @@
+// Super simple test
+
+fn main():
+    println("=== Simple Keyword Test ===")
+    
+    let keywords = ["fn", "let", "var"]
+    
+    let test_word = "fn"
+    
+    println("Testing word: '" + test_word + "'")
+    
+    if contains(keywords, test_word):
+        println("YES - contains works!")
+    else:
+        println("NO - contains failed")
+    
+    if test_word == "fn":
+        println("YES - equality works!")
+    else:
+        println("NO - equality failed")
+    
+    // Test both together
+    if test_word == "fn" && contains(keywords, test_word):
+        println("YES - BOTH work!")
+    else:
+        println("NO - combined check failed")

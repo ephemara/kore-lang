@@ -1,0 +1,251 @@
+// ============================================================================
+// KORE Shader Examples - Signed Distance Field Raymarcher
+// ============================================================================
+// A complete SDF raymarcher with CSG operations, soft shadows,
+// ambient occlusion, and anti-aliased rendering.
+// ============================================================================
+
+// Primitive SDF functions
+fn sdf_sphere(p: Vec3, radius: Float) -> Float:
+    return length(p) - radius
+
+fn sdf_box(p: Vec3, size: Vec3) -> Float:
+    let q = abs(p) - size
+    return length(max(q, vec3(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0)
+
+fn sdf_torus(p: Vec3, major_radius: Float, minor_radius: Float) -> Float:
+    let q = vec2(length(p.xz) - major_radius, p.y)
+    return length(q) - minor_radius
+
+fn sdf_cylinder(p: Vec3, height: Float, radius: Float) -> Float:
+    let d = abs(vec2(length(p.xz), p.y)) - vec2(radius, height)
+    return min(max(d.x, d.y), 0.0) + length(max(d, vec2(0.0)))
+
+fn sdf_plane(p: Vec3, normal: Vec3, offset: Float) -> Float:
+    return dot(p, normal) + offset
+
+fn sdf_capsule(p: Vec3, a: Vec3, b: Vec3, radius: Float) -> Float:
+    let pa = p - a
+    let ba = b - a
+    let h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)
+    return length(pa - ba * h) - radius
+
+// CSG operations
+fn op_union(d1: Float, d2: Float) -> Float:
+    return min(d1, d2)
+
+fn op_subtract(d1: Float, d2: Float) -> Float:
+    return max(d1, -d2)
+
+fn op_intersect(d1: Float, d2: Float) -> Float:
+    return max(d1, d2)
+
+// Smooth CSG operations (polynomial smooth min)
+fn op_smooth_union(d1: Float, d2: Float, k: Float) -> Float:
+    let h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0)
+    return mix(d2, d1, h) - k * h * (1.0 - h)
+
+fn op_smooth_subtract(d1: Float, d2: Float, k: Float) -> Float:
+    let h = clamp(0.5 - 0.5 * (d2 + d1) / k, 0.0, 1.0)
+    return mix(d1, -d2, h) + k * h * (1.0 - h)
+
+fn op_smooth_intersect(d1: Float, d2: Float, k: Float) -> Float:
+    let h = clamp(0.5 - 0.5 * (d2 - d1) / k, 0.0, 1.0)
+    return mix(d2, d1, h) + k * h * (1.0 - h)
+
+// Domain operations
+fn op_repeat(p: Vec3, period: Vec3) -> Vec3:
+    return mod(p + period * 0.5, period) - period * 0.5
+
+fn op_twist(p: Vec3, amount: Float) -> Vec3:
+    let c = cos(amount * p.y)
+    let s = sin(amount * p.y)
+    let m = mat2(c, -s, s, c)
+    let twisted_xz = m * p.xz
+    return vec3(twisted_xz.x, p.y, twisted_xz.y)
+
+fn op_bend(p: Vec3, amount: Float) -> Vec3:
+    let c = cos(amount * p.x)
+    let s = sin(amount * p.x)
+    let m = mat2(c, -s, s, c)
+    let bent_xy = m * p.xy
+    return vec3(bent_xy.x, bent_xy.y, p.z)
+
+// Material ID alongside distance
+struct SdfResult:
+    distance: Float
+    material_id: Int
+
+// Scene definition - complex CSG sculpture
+fn scene_sdf(p: Vec3, time: Float) -> SdfResult:
+    // Ground plane
+    let ground = sdf_plane(p, vec3(0.0, 1.0, 0.0), 0.0)
+    
+    // Animated twisted torus
+    let twist_amount = sin(time * 0.5) * 0.3
+    let twisted_p = op_twist(p - vec3(0.0, 1.5, 0.0), twist_amount)
+    let torus = sdf_torus(twisted_p, 1.0, 0.3)
+    
+    // Sphere with box cutout
+    let sphere = sdf_sphere(p - vec3(-2.5, 1.0, 0.0), 1.0)
+    let rotated_box = sdf_box(p - vec3(-2.5, 1.0, 0.0), vec3(0.7))
+    let carved_sphere = op_subtract(sphere, rotated_box)
+    
+    // Smooth blob (metaball-like)
+    let blob1 = sdf_sphere(p - vec3(2.5, 1.0, sin(time) * 0.5), 0.6)
+    let blob2 = sdf_sphere(p - vec3(2.5, 1.5, cos(time) * 0.5), 0.5)
+    let blob3 = sdf_sphere(p - vec3(2.8, 0.8, 0.0), 0.4)
+    let metaball = op_smooth_union(op_smooth_union(blob1, blob2, 0.3), blob3, 0.3)
+    
+    // Infinite pillars (repeated)
+    let pillar_p = op_repeat(p - vec3(0.0, 0.0, 5.0), vec3(4.0, 0.0, 4.0))
+    let pillar = sdf_cylinder(pillar_p, 3.0, 0.3)
+    
+    // Combine scene with materials
+    var result = SdfResult { distance: ground, material_id: 0 }
+    
+    if torus < result.distance:
+        result = SdfResult { distance: torus, material_id: 1 }
+    
+    if carved_sphere < result.distance:
+        result = SdfResult { distance: carved_sphere, material_id: 2 }
+    
+    if metaball < result.distance:
+        result = SdfResult { distance: metaball, material_id: 3 }
+    
+    if pillar < result.distance:
+        result = SdfResult { distance: pillar, material_id: 4 }
+    
+    return result
+
+// Normal estimation via central differences
+fn estimate_normal(p: Vec3, time: Float) -> Vec3:
+    let eps = 0.001
+    let dx = vec3(eps, 0.0, 0.0)
+    let dy = vec3(0.0, eps, 0.0)
+    let dz = vec3(0.0, 0.0, eps)
+    
+    let nx = scene_sdf(p + dx, time).distance - scene_sdf(p - dx, time).distance
+    let ny = scene_sdf(p + dy, time).distance - scene_sdf(p - dy, time).distance
+    let nz = scene_sdf(p + dz, time).distance - scene_sdf(p - dz, time).distance
+    
+    return normalize(vec3(nx, ny, nz))
+
+// Soft shadows using sphere tracing
+fn soft_shadow(ray_origin: Vec3, ray_dir: Vec3, min_t: Float, max_t: Float, k: Float, time: Float) -> Float:
+    var result = 1.0
+    var t = min_t
+    
+    for step in range(0, 64):
+        if t > max_t:
+            break
+            
+        let h = scene_sdf(ray_origin + ray_dir * t, time).distance
+        
+        if h < 0.001:
+            return 0.0
+        
+        result = min(result, k * h / t)
+        t = t + h
+    
+    return clamp(result, 0.0, 1.0)
+
+// Ambient occlusion using short-range raymarching
+fn ambient_occlusion(p: Vec3, n: Vec3, time: Float) -> Float:
+    var occ = 0.0
+    var weight = 1.0
+    
+    for i in range(0, 5):
+        let dist = 0.01 + 0.15 * float(i)
+        let sample_point = p + n * dist
+        let d = scene_sdf(sample_point, time).distance
+        occ = occ + weight * (dist - d)
+        weight = weight * 0.8
+    
+    return 1.0 - clamp(occ * 2.0, 0.0, 1.0)
+
+// Material colors based on ID
+fn get_material_color(mat_id: Int) -> Vec3:
+    match mat_id:
+        0 => vec3(0.4, 0.4, 0.4)     // Ground - gray
+        1 => vec3(0.9, 0.2, 0.1)     // Torus - red
+        2 => vec3(0.2, 0.6, 0.9)     // Carved sphere - blue
+        3 => vec3(0.8, 0.8, 0.2)     // Metaball - yellow
+        4 => vec3(0.9, 0.9, 0.95)    // Pillars - white marble
+        _ => vec3(1.0, 0.0, 1.0)     // Error - magenta
+
+// Main raymarching fragment shader
+shader fragment SDFRaymarch(
+    screen_uv: Vec2
+) -> Vec4:
+    // Uniforms
+    uniform camera_pos: Vec3 @0
+    uniform camera_target: Vec3 @1
+    uniform time: Float @2
+    uniform resolution: Vec2 @3
+    uniform sun_dir: Vec3 @4
+    
+    // Build camera matrix
+    let forward = normalize(camera_target - camera_pos)
+    let right = normalize(cross(vec3(0.0, 1.0, 0.0), forward))
+    let up = cross(forward, right)
+    
+    // Ray direction
+    let aspect = resolution.x / resolution.y
+    let uv = (screen_uv - 0.5) * 2.0
+    let ray_dir = normalize(forward + uv.x * aspect * right + uv.y * up)
+    
+    // Raymarching
+    var t = 0.0
+    var hit_result = SdfResult { distance: 1000.0, material_id: -1 }
+    
+    for step in range(0, 128):
+        let p = camera_pos + ray_dir * t
+        hit_result = scene_sdf(p, time)
+        
+        if hit_result.distance < 0.001:
+            break
+        
+        if t > 100.0:
+            break
+        
+        t = t + hit_result.distance
+    
+    // Sky color if no hit
+    if hit_result.distance > 0.01:
+        let sky_gradient = mix(vec3(0.5, 0.7, 1.0), vec3(0.1, 0.2, 0.5), screen_uv.y)
+        return vec4(sky_gradient, 1.0)
+    
+    // Hit point and normal
+    let hit_pos = camera_pos + ray_dir * t
+    let normal = estimate_normal(hit_pos, time)
+    
+    // Material
+    let base_color = get_material_color(hit_result.material_id)
+    
+    // Lighting
+    let n_dot_l = max(dot(normal, sun_dir), 0.0)
+    let shadow = soft_shadow(hit_pos + normal * 0.01, sun_dir, 0.01, 50.0, 16.0, time)
+    let ao = ambient_occlusion(hit_pos, normal, time)
+    
+    // Diffuse + ambient
+    let sun_light = vec3(1.0, 0.95, 0.8) * n_dot_l * shadow
+    let ambient = vec3(0.2, 0.25, 0.35) * ao
+    
+    // Specular (Blinn-Phong for simplicity)
+    let view_dir = normalize(camera_pos - hit_pos)
+    let half_vec = normalize(sun_dir + view_dir)
+    let spec = pow(max(dot(normal, half_vec), 0.0), 32.0) * shadow
+    
+    // Final color
+    let color = base_color * (sun_light + ambient) + vec3(0.5) * spec
+    
+    // Fog
+    let fog_amount = 1.0 - exp(-t * 0.02)
+    let fog_color = vec3(0.6, 0.7, 0.8)
+    let final_color = mix(color, fog_color, fog_amount)
+    
+    // Gamma correction
+    let gamma = pow(final_color, vec3(1.0 / 2.2))
+    
+    return vec4(gamma, 1.0)

@@ -1,0 +1,1223 @@
+// ============================================================================
+// KORE Bootstrap Compiler - LLVM IR Code Generator (Rust)
+// ============================================================================
+// Hand-translated from codegen.kr for Project Ouroboros
+// Outputs LLVM IR text that can be compiled with clang or llc.
+// ============================================================================
+
+use crate::compiler::parser::{
+    Program, Item, FnDef, Param, StructDef, Field, EnumDef, Variant, ImplDef,
+    Stmt, MatchArm, Pattern, Expr, FieldInit
+};
+use std::collections::HashMap;
+
+// =============================================================================
+// StringBuilder - Simple string accumulator
+// =============================================================================
+
+pub struct StringBuilder {
+    lines: Vec<String>,
+}
+
+impl StringBuilder {
+    pub fn new() -> StringBuilder {
+        StringBuilder { lines: Vec::new() }
+    }
+    
+    pub fn push(&mut self, text: &str) {
+        self.lines.push(text.to_string());
+    }
+    
+    pub fn push_line(&mut self, text: &str) {
+        self.lines.push(format!("{}\n", text));
+    }
+    
+    pub fn build(&self) -> String {
+        self.lines.join("")
+    }
+}
+
+// =============================================================================
+// LLVM Code Generator
+// =============================================================================
+
+pub struct LLVMGen {
+    output: StringBuilder,
+    indent: usize,
+    local_counter: usize,
+    string_counter: usize,
+    label_counter: usize,
+    strings: Vec<String>,
+    vars: HashMap<String, String>,
+    // Struct layout info: Name -> [FieldNames]
+    struct_layouts: HashMap<String, Vec<String>>,
+    // Field to Struct mapping: FieldName -> StructName (Assumes unique fields for now)
+    field_map: HashMap<String, String>,
+    // Variant mapping: VariantName -> (EnumName, TagIndex)
+    variant_map: HashMap<String, (String, usize)>,
+    // Method mapping: MethodName -> TargetType (Assumes unique method names)
+    method_map: HashMap<String, String>,
+    // Field type mapping: StructName -> (FieldName -> FieldType)
+    field_types: HashMap<String, HashMap<String, String>>,
+    // Current impl target type (for resolving self.field)
+    current_impl_type: Option<String>,
+    // Stack of (cond_label, end_label) for loops
+    loop_stack: Vec<(String, String)>,
+}
+
+impl LLVMGen {
+    pub fn new() -> LLVMGen {
+        let mut variant_map = HashMap::new();
+        // Register built-in Option variants
+        // Assuming Option is defined as: enum Option { None, Some(T) }
+        variant_map.insert("None".to_string(), ("Option".to_string(), 0));
+        variant_map.insert("Some".to_string(), ("Option".to_string(), 1));
+
+        LLVMGen {
+            output: StringBuilder::new(),
+            indent: 0,
+            local_counter: 0,
+            string_counter: 0,
+            label_counter: 0,
+            strings: Vec::new(),
+            vars: HashMap::new(),
+            struct_layouts: HashMap::new(),
+            field_map: HashMap::new(),
+            variant_map: variant_map,
+            method_map: HashMap::new(),
+            field_types: HashMap::new(),
+            current_impl_type: None,
+            loop_stack: Vec::new(),
+        }
+    }
+    
+    /// Generate a fresh local variable name
+    fn fresh_local(&mut self) -> String {
+        let n = self.local_counter;
+        self.local_counter += 1;
+        format!("%t{}", n)
+    }
+    
+    /// Generate a fresh label name
+    fn fresh_label(&mut self, prefix: &str) -> String {
+        let n = self.label_counter;
+        self.label_counter += 1;
+        format!("{}{}", prefix, n)
+    }
+    
+    /// Emit a line of IR
+    fn emit(&mut self, line: &str) {
+        let indent_str = "  ".repeat(self.indent);
+        self.output.push_line(&format!("{}{}", indent_str, line));
+    }
+    
+    // =========================================================================
+    // Program Generation
+    // =========================================================================
+    
+    /// Generate IR for an entire program
+    pub fn gen_program(&mut self, program: Program) -> String {
+        // Pre-pass: Index structs and fields
+        for item in &program.items {
+            if let Item::Struct(def) = item {
+                let field_names: Vec<String> = def.fields.iter().map(|f| f.name.clone()).collect();
+                self.struct_layouts.insert(def.name.clone(), field_names.clone());
+                for f in field_names {
+                    self.field_map.insert(f, def.name.clone());
+                }
+            } else if let Item::Enum(def) = item {
+                for (i, variant) in def.variants.iter().enumerate() {
+                    self.variant_map.insert(variant.name.clone(), (def.name.clone(), i));
+                }
+            } else if let Item::Impl(def) = item {
+                for method in &def.methods {
+                    self.method_map.insert(method.name.clone(), def.target.clone());
+                }
+            }
+        }
+
+        // Emit header
+        self.emit("; KORE Compiler Output - LLVM IR");
+        self.emit("; Generated by Project Ouroboros");
+        self.emit("; Compile with: clang output.ll kore_runtime.o -o output");
+        self.emit("");
+        
+        // Target triple
+        self.emit("target triple = \"x86_64-pc-windows-msvc\"");
+        self.emit("");
+        
+        // Emit external declarations
+        self.emit_externals();
+        self.emit("");
+        
+        // Emit items in order: structs/enums first, then standalone functions, then impls
+        // This ensures helper functions are defined before they're used by methods
+        
+        // Pass 1: Structs and Enums (type definitions)
+        for item in &program.items {
+            match item {
+                Item::Struct(def) => {
+                    self.gen_struct(def.clone());
+                    self.emit("");
+                }
+                Item::Enum(def) => {
+                    self.gen_enum(def.clone());
+                    self.emit("");
+                }
+                _ => {}
+            }
+        }
+        
+        // Pass 2: Standalone functions (helpers like contains, is_digit, etc.)
+        for item in &program.items {
+            if let Item::Function(def) = item {
+                self.gen_function(def.clone());
+                self.emit("");
+            }
+        }
+        
+        // Pass 3: Impl blocks (methods that may call standalone functions)
+        for item in program.items {
+            if let Item::Impl(def) = item {
+                self.gen_impl(def);
+                self.emit("");
+            }
+        }
+        
+        // Emit string constants at the end
+        if !self.strings.is_empty() {
+            self.emit("; String Constants");
+            // Clone strings to avoid borrow issues
+            let strings_copy: Vec<(usize, String)> = self.strings.iter().enumerate()
+                .map(|(i, s)| (i, s.clone()))
+                .collect();
+            for (i, s) in strings_copy {
+                let name = format!("@.str.{}", i);
+                let escaped = self.escape_string(&s);
+                self.emit(&format!(
+                    "{} = private unnamed_addr constant [{} x i8] c\"{}\\00\"",
+                    name, s.len() + 1, escaped
+                ));
+            }
+        }
+        
+        self.output.build()
+    }
+    
+    /// Emit external function declarations
+    fn emit_externals(&mut self) {
+        self.emit("; External Runtime Functions");
+        self.emit("declare i8* @malloc(i64)");
+        self.emit("declare void @free(i8*)");
+        self.emit("declare i32 @printf(i8*, ...)");
+        self.emit("declare i32 @puts(i8*)");
+        self.emit("");
+        self.emit("; Kore Runtime");
+        self.emit("declare void @kore_print_i64(i64)");
+        self.emit("declare void @kore_print_str(i8*)");
+        self.emit("declare void @kore_println_str(i8*)");
+        self.emit("declare i8* @kore_str_concat(i8*, i8*)");
+        self.emit("declare i64 @kore_array_new()");
+        self.emit("declare void @kore_array_push(i64, i64)");
+        self.emit("declare i64 @kore_array_pop(i64)");
+        self.emit("declare i64 @kore_array_get(i64, i64)");
+        self.emit("declare i64 @kore_array_len(i64)");
+        self.emit("");
+        self.emit("; Kore Stdlib");
+        self.emit("declare i64 @kore_len(i64)");
+        self.emit("declare i64 @kore_split(i64, i64)");
+        self.emit("declare i64 @kore_contains(i64, i64)");
+        self.emit("declare i64 @kore_ord(i64)");
+        self.emit("declare i64 @kore_to_int(i64)");
+        self.emit("declare i64 @kore_to_float(i64)");
+        self.emit("declare i64 @kore_to_string(i64)");
+        self.emit("declare i64 @kore_range(i64, i64)");
+        self.emit("declare i64 @kore_slice(i64, i64, i64)");
+        self.emit("declare i64 @kore_char_at(i64, i64)");
+        self.emit("declare i64 @kore_substring(i64, i64, i64)");
+        self.emit("declare i64 @kore_str_eq(i64, i64)");
+        self.emit("declare i64 @kore_append(i64, i64)");
+        self.emit("");
+        self.emit("; Direct Main Wrappers");
+        self.emit("declare i64 @args()");
+        self.emit("declare void @exit(i64)");
+        self.emit("declare i8* @read_file(i8*)");
+        self.emit("declare i64 @write_file(i8*, i8*)");
+        self.emit("declare i64 @substring(i64, i64, i64)");
+        self.emit("declare i64 @replace(i64, i64, i64)");
+        self.emit("declare i64 @starts_with(i64, i64)");
+        self.emit("");
+        self.emit("; Built-in generic types (used as opaque pointers)");
+        self.emit("%Box = type { i64, i64 }");
+        self.emit("%Array = type { i64 }");
+        self.emit("%Option = type { i64, i64 }");
+        self.emit("%Vec = type { i64 }");
+        self.emit("%StringBuilder = type { i64 }");
+        self.emit("%Result = type { i64, i64 }");
+        self.emit("%HashMap = type { i64 }");
+        self.emit("%HashSet = type { i64 }");
+        self.emit("%Map = type { i64 }");
+        self.emit("%Set = type { i64 }");
+        self.emit("");
+        self.emit("; Option/Box helpers");
+        self.emit("declare i64 @kore_some(i64)");
+        self.emit("declare i64 @kore_none()");
+        self.emit("declare i64 @kore_box(i64)");
+        self.emit("declare i64 @kore_unwrap(i64)");
+        self.emit("declare void @kore_panic(i64)");
+        self.emit("");
+        self.emit("; Map/Variant helpers");
+        self.emit("declare i64 @kore_contains_key(i64, i64)");
+        self.emit("declare i64 @kore_join(i64, i64)");
+        self.emit("declare i64 @kore_variant_of(i64)");
+        self.emit("declare i64 @kore_variant_field(i64, i64)");
+        self.emit("declare i64 @Map_new()");
+    }
+    
+    fn escape_string(&self, s: &str) -> String {
+        let mut result = String::new();
+        for c in s.chars() {
+            match c {
+                '\n' => result.push_str("\\0A"),
+                '\t' => result.push_str("\\09"),
+                '\\' => result.push_str("\\5C"),
+                '"' => result.push_str("\\22"),
+                _ => result.push(c),
+            }
+        }
+        result
+    }
+    
+    // =========================================================================
+    // Item Generation
+    // =========================================================================
+    
+    fn gen_item(&mut self, item: Item) {
+        match item {
+            Item::Function(fn_def) => self.gen_function(fn_def),
+            Item::Struct(struct_def) => self.gen_struct(struct_def),
+            Item::Enum(enum_def) => self.gen_enum(enum_def),
+            Item::Impl(impl_def) => self.gen_impl(impl_def),
+            Item::Use(path) => self.emit(&format!("; use {}", path)),
+        }
+    }
+    
+    fn gen_function(&mut self, fn_def: FnDef) {
+        let mut name = fn_def.name.clone();
+        if name == "main" {
+            name = "main_kore".to_string();
+        }
+        
+        // Reset state for each function
+        self.local_counter = 0;
+        self.vars.clear();
+        
+        // Build parameter list - include self for methods
+        let params: Vec<String> = fn_def.params.iter()
+            .map(|p| format!("i64 %{}", p.name))
+            .collect();
+        let params_str = params.join(", ");
+        
+        // Emit function definition
+        self.emit(&format!("define i64 @{}({}) {{", name, params_str));
+        self.indent += 1;
+        
+        self.emit("entry:");
+        
+        // Store parameters in alloca'd slots (including self)
+        for param in &fn_def.params {
+            let ptr = self.fresh_local();
+            self.emit(&format!("{} = alloca i64", ptr));
+            self.emit(&format!("store i64 %{}, i64* {}", param.name, ptr));
+            self.vars.insert(param.name.clone(), ptr);
+        }
+        
+        // Generate body
+        for stmt in fn_def.body {
+            self.gen_stmt(stmt);
+        }
+        
+        // Ensure we have a return
+        self.emit("ret i64 0");
+        
+        self.indent -= 1;
+        self.emit("}");
+    }
+    
+    fn gen_struct(&mut self, struct_def: StructDef) {
+        // Skip type definition for built-in types (already declared in emit_externals)
+        let builtin_types = ["StringBuilder", "Box", "Array", "Option", "Vec", "Result", "HashMap", "HashSet", "Map", "Set"];
+        let skip_type_def = builtin_types.contains(&struct_def.name.as_str());
+        
+        self.emit(&format!("; struct {}", struct_def.name));
+        if !skip_type_def {
+            let fields_str = if struct_def.fields.is_empty() {
+                "i64".to_string()
+            } else {
+                struct_def.fields.iter().map(|_| "i64").collect::<Vec<_>>().join(", ")
+            };
+            self.emit(&format!("%{} = type {{ {} }}", struct_def.name, fields_str));
+        }
+        
+        // Register struct layout for field access
+        let field_names: Vec<String> = struct_def.fields.iter().map(|f| f.name.clone()).collect();
+        self.struct_layouts.insert(struct_def.name.clone(), field_names.clone());
+        
+        // Register field -> struct mapping
+        let mut type_map = HashMap::new();
+        for field in &struct_def.fields {
+            self.field_map.insert(field.name.clone(), struct_def.name.clone());
+            type_map.insert(field.name.clone(), field.ty.clone());
+        }
+        self.field_types.insert(struct_def.name.clone(), type_map);
+    }
+    
+    fn gen_enum(&mut self, enum_def: EnumDef) {
+        self.emit(&format!("; enum {}", enum_def.name));
+        self.emit(&format!("%{} = type {{ i64, i8* }}", enum_def.name));
+        
+        // Register all variants in the variant_map
+        for (idx, variant) in enum_def.variants.iter().enumerate() {
+            self.variant_map.insert(variant.name.clone(), (enum_def.name.clone(), idx));
+        }
+    }
+    
+    fn gen_impl(&mut self, impl_def: ImplDef) {
+        self.emit(&format!("; impl {}", impl_def.target));
+        // Set current impl type so self.field accesses know which struct to use
+        self.current_impl_type = Some(impl_def.target.clone());
+        for mut method in impl_def.methods {
+            // Register method in method_map for method call resolution
+            self.method_map.insert(method.name.clone(), impl_def.target.clone());
+            
+            // Mangle method name
+            let mangled = format!("{}_{}", impl_def.target, method.name);
+            method.name = mangled;
+            self.gen_function(method);
+        }
+        self.current_impl_type = None;
+    }
+    
+    fn is_terminator(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Return(_) => true,
+            Stmt::Break => true,
+            Stmt::Continue => true,
+            _ => false,
+        }
+    }
+    
+    // =========================================================================
+    // Statement Generation
+    // =========================================================================
+    
+    fn gen_stmt(&mut self, stmt: Stmt) {
+        match stmt {
+            Stmt::Let(name, _ty, value) => {
+                let val_reg = self.gen_expr(value);
+                let ptr = self.fresh_local();
+                self.emit(&format!("{} = alloca i64", ptr));
+                self.emit(&format!("store i64 {}, i64* {}", val_reg, ptr));
+                self.vars.insert(name, ptr);
+            }
+            
+            Stmt::Var(name, _ty, value) => {
+                let val_reg = self.gen_expr(value);
+                let ptr = self.fresh_local();
+                self.emit(&format!("{} = alloca i64", ptr));
+                self.emit(&format!("store i64 {}, i64* {}", val_reg, ptr));
+                self.vars.insert(name, ptr);
+            }
+            
+            Stmt::Return(maybe_expr) => {
+                if let Some(expr) = maybe_expr {
+                    let val = self.gen_expr(expr);
+                    self.emit(&format!("ret i64 {}", val));
+                } else {
+                    self.emit("ret i64 0");
+                }
+            }
+            
+            Stmt::Expr(expr) => {
+                self.gen_expr(expr);
+            }
+            
+            Stmt::If(cond, then_block, else_block) => {
+                let cond_val = self.gen_expr(cond);
+                let cond_bool = self.fresh_local();
+                self.emit(&format!("{} = icmp ne i64 {}, 0", cond_bool, cond_val));
+                
+                let then_label = self.fresh_label("then");
+                let else_label = self.fresh_label("else");
+                let end_label = self.fresh_label("endif");
+                
+                if else_block.is_some() {
+                    self.emit(&format!("br i1 {}, label %{}, label %{}", cond_bool, then_label, else_label));
+                } else {
+                    self.emit(&format!("br i1 {}, label %{}, label %{}", cond_bool, then_label, end_label));
+                }
+                
+                // Then block
+                self.emit(&format!("{}:", then_label));
+                let mut then_terminated = false;
+                for s in then_block {
+                    self.gen_stmt(s.clone());
+                    if self.is_terminator(&s) {
+                        then_terminated = true;
+                        break;
+                    }
+                }
+                if !then_terminated {
+                    self.emit(&format!("br label %{}", end_label));
+                }
+                
+                // Else block
+                if let Some(else_stmts) = else_block {
+                    self.emit(&format!("{}:", else_label));
+                    let mut else_terminated = false;
+                    for s in else_stmts {
+                        self.gen_stmt(s.clone());
+                        if self.is_terminator(&s) {
+                            else_terminated = true;
+                            break;
+                        }
+                    }
+                    if !else_terminated {
+                        self.emit(&format!("br label %{}", end_label));
+                    }
+                }
+                
+                self.emit(&format!("{}:", end_label));
+            }
+            
+            Stmt::While(cond, body) => {
+                let cond_label = self.fresh_label("while_cond");
+                let body_label = self.fresh_label("while_body");
+                let end_label = self.fresh_label("while_end");
+                
+                self.loop_stack.push((cond_label.clone(), end_label.clone()));
+
+                self.emit(&format!("br label %{}", cond_label));
+                
+                self.emit(&format!("{}:", cond_label));
+                let cond_val = self.gen_expr(cond);
+                let cond_bool = self.fresh_local();
+                self.emit(&format!("{} = icmp ne i64 {}, 0", cond_bool, cond_val));
+                self.emit(&format!("br i1 {}, label %{}, label %{}", cond_bool, body_label, end_label));
+                
+                self.emit(&format!("{}:", body_label));
+                let mut body_terminated = false;
+                for s in body {
+                    self.gen_stmt(s.clone());
+                    if self.is_terminator(&s) {
+                        body_terminated = true;
+                        break;
+                    }
+                }
+                if !body_terminated {
+                    self.emit(&format!("br label %{}", cond_label));
+                }
+                
+                self.emit(&format!("{}:", end_label));
+                self.loop_stack.pop();
+            }
+            
+            Stmt::For(var_name, iter, body) => {
+                self.emit(&format!("; for {} in ...", var_name));
+                
+                // Evaluate array expression
+                let arr_ptr = self.gen_expr(iter);
+                
+                // Get length
+                let len_reg = self.fresh_local();
+                self.emit(&format!("{} = call i64 @kore_array_len(i64 {})", len_reg, arr_ptr));
+                
+                // Loop structure
+                let cond_label = self.fresh_label("for_cond");
+                let body_label = self.fresh_label("for_body");
+                let update_label = self.fresh_label("for_update");
+                let end_label = self.fresh_label("for_end");
+                
+                self.loop_stack.push((update_label.clone(), end_label.clone()));
+
+                // Loop index variable
+                let idx_ptr = self.fresh_local();
+                self.emit(&format!("{} = alloca i64", idx_ptr));
+                self.emit(&format!("store i64 0, i64* {}", idx_ptr));
+                
+                self.emit(&format!("br label %{}", cond_label));
+                self.emit(&format!("{}:", cond_label));
+                
+                // Check index < len
+                let idx_val = self.fresh_local();
+                self.emit(&format!("{} = load i64, i64* {}", idx_val, idx_ptr));
+                
+                let cmp = self.fresh_local();
+                self.emit(&format!("{} = icmp slt i64 {}, {}", cmp, idx_val, len_reg));
+                self.emit(&format!("br i1 {}, label %{}, label %{}", cmp, body_label, end_label));
+                
+                self.emit(&format!("{}:", body_label));
+                
+                // Get element
+                let elem_val = self.fresh_local();
+                self.emit(&format!("{} = call i64 @kore_array_get(i64 {}, i64 {})", elem_val, arr_ptr, idx_val));
+                
+                // Bind loop variable
+                let var_ptr = self.fresh_local();
+                self.emit(&format!("{} = alloca i64", var_ptr));
+                self.emit(&format!("store i64 {}, i64* {}", elem_val, var_ptr));
+                self.vars.insert(var_name, var_ptr);
+                
+                // Execute body
+                let mut body_terminated = false;
+                for s in body {
+                    self.gen_stmt(s.clone());
+                    if self.is_terminator(&s) {
+                        body_terminated = true;
+                        break;
+                    }
+                }
+                
+                if !body_terminated {
+                    self.emit(&format!("br label %{}", update_label));
+                }
+                
+                // Increment index
+                self.emit(&format!("{}:", update_label));
+                let current_idx_val = self.fresh_local();
+                self.emit(&format!("{} = load i64, i64* {}", current_idx_val, idx_ptr));
+                let next_idx = self.fresh_local();
+                self.emit(&format!("{} = add i64 {}, 1", next_idx, current_idx_val));
+                self.emit(&format!("store i64 {}, i64* {}", next_idx, idx_ptr));
+                self.emit(&format!("br label %{}", cond_label));
+                
+                self.emit(&format!("{}:", end_label));
+                self.loop_stack.pop();
+            }
+            
+            Stmt::Loop(body) => {
+                let loop_label = self.fresh_label("loop");
+                let end_label = self.fresh_label("loop_end");
+                
+                self.loop_stack.push((loop_label.clone(), end_label.clone()));
+                
+                self.emit(&format!("br label %{}", loop_label));
+                self.emit(&format!("{}:", loop_label));
+                let mut body_terminated = false;
+                for s in body {
+                    self.gen_stmt(s.clone());
+                    if self.is_terminator(&s) {
+                        body_terminated = true;
+                        break;
+                    }
+                }
+                if !body_terminated {
+                    self.emit(&format!("br label %{}", loop_label));
+                }
+                self.emit(&format!("{}:", end_label));
+                
+                self.loop_stack.pop();
+            }
+            
+            Stmt::Match(scrutinee, arms) => {
+                self.emit("; match");
+                let val = self.gen_expr(scrutinee);
+                let end_label = self.fresh_label("match_end");
+                
+                for arm in arms {
+                    let next_arm = self.fresh_label("match_next");
+                    let body_label = self.fresh_label("match_body");
+                    
+                    match &arm.pattern {
+                        Pattern::Literal(lit_expr) => {
+                            let lit_val = self.gen_expr(lit_expr.clone());
+                            let cmp = self.fresh_local();
+                            self.emit(&format!("{} = icmp eq i64 {}, {}", cmp, val, lit_val));
+                            self.emit(&format!("br i1 {}, label %{}, label %{}", cmp, body_label, next_arm));
+                        }
+                        Pattern::Wildcard => {
+                            self.emit(&format!("br label %{}", body_label));
+                        }
+                        Pattern::Ident(name) => {
+                             // Check if it is a variant or a variable binding
+                             let variant_info = self.variant_map.get(name).cloned();
+                             if let Some((_enum_name, tag)) = variant_info {
+                                 // Variant check
+                                 let struct_ptr = self.fresh_local();
+                                 self.emit(&format!("{} = inttoptr i64 {} to {{ i64, i8* }}*", struct_ptr, val));
+                                 let tag_ptr = self.fresh_local();
+                                 self.emit(&format!("{} = getelementptr {{ i64, i8* }}, {{ i64, i8* }}* {}, i32 0, i32 0", tag_ptr, struct_ptr));
+                                 let tag_val = self.fresh_local();
+                                 self.emit(&format!("{} = load i64, i64* {}", tag_val, tag_ptr));
+                                 
+                                 let cmp = self.fresh_local();
+                                 self.emit(&format!("{} = icmp eq i64 {}, {}", cmp, tag_val, tag));
+                                 self.emit(&format!("br i1 {}, label %{}, label %{}", cmp, body_label, next_arm));
+                             } else {
+                                 // Variable binding (matches everything)
+                                 self.emit(&format!("br label %{}", body_label));
+                             }
+                        }
+                        Pattern::Variant(variant_name, inner_patterns) => {
+                             // Get the tag for this variant from variant_map
+                             let variant_info = self.variant_map.get(variant_name).cloned();
+                             if let Some((_enum_name, tag)) = variant_info {
+                                 // Cast scrutinee to struct pointer to extract tag
+                                 let struct_ptr = self.fresh_local();
+                                 self.emit(&format!("{} = inttoptr i64 {} to {{ i64, i8* }}*", struct_ptr, val));
+                                 
+                                 // Load the tag field (field 0)
+                                 let tag_ptr = self.fresh_local();
+                                 self.emit(&format!("{} = getelementptr {{ i64, i8* }}, {{ i64, i8* }}* {}, i32 0, i32 0", tag_ptr, struct_ptr));
+                                 let tag_val = self.fresh_local();
+                                 self.emit(&format!("{} = load i64, i64* {}", tag_val, tag_ptr));
+                                 
+                                 // Compare tag and branch
+                                 let cmp = self.fresh_local();
+                                 self.emit(&format!("{} = icmp eq i64 {}, {}", cmp, tag_val, tag));
+                                 self.emit(&format!("br i1 {}, label %{}, label %{}", cmp, body_label, next_arm));
+                                 
+                                 // Emit body label and extract payload for inner bindings
+                                 self.emit(&format!("{}:", body_label));
+                                 
+                                 // Extract payload field (field 1) and bind inner patterns
+                                 if !inner_patterns.is_empty() {
+                                     let payload_ptr = self.fresh_local();
+                                     self.emit(&format!("{} = getelementptr {{ i64, i8* }}, {{ i64, i8* }}* {}, i32 0, i32 1", payload_ptr, struct_ptr));
+                                     let payload_i8ptr = self.fresh_local();
+                                     self.emit(&format!("{} = load i8*, i8** {}", payload_i8ptr, payload_ptr));
+                                     let payload = self.fresh_local();
+                                     self.emit(&format!("{} = ptrtoint i8* {} to i64", payload, payload_i8ptr));
+                                     
+                                     // Bind each inner pattern (typically just one Ident)
+                                     for inner in inner_patterns {
+                                         if let Pattern::Ident(inner_name) = inner {
+                                             let ptr = self.fresh_local();
+                                             self.emit(&format!("{} = alloca i64", ptr));
+                                             self.emit(&format!("store i64 {}, i64* {}", payload, ptr));
+                                             self.vars.insert(inner_name.clone(), ptr);
+                                         }
+                                     }
+                                 }
+                                 
+                                 // Generate body statements
+                                 let mut body_terminated = false;
+                                 for s in arm.body.clone() {
+                                     self.gen_stmt(s.clone());
+                                     if self.is_terminator(&s) {
+                                         body_terminated = true;
+                                         break;
+                                     }
+                                 }
+                                 if !body_terminated {
+                                     self.emit(&format!("br label %{}", end_label));
+                                 }
+                                 
+                                 self.emit(&format!("{}:", next_arm));
+                                 continue; // Skip the common body handling below
+                             } else {
+                                 // Unknown variant - treat as wildcard for now
+                                 self.emit(&format!("; unknown variant: {}", variant_name));
+                                 self.emit(&format!("br label %{}", body_label));
+                             }
+                        }
+                    }
+                    
+                    self.emit(&format!("{}:", body_label));
+                    // Handle bindings
+                    if let Pattern::Ident(name) = &arm.pattern {
+                        if !self.variant_map.contains_key(name) {
+                             let ptr = self.fresh_local();
+                             self.emit(&format!("{} = alloca i64", ptr));
+                             self.emit(&format!("store i64 {}, i64* {}", val, ptr));
+                             self.vars.insert(name.clone(), ptr);
+                        }
+                    }
+
+                    let mut body_terminated = false;
+                    for s in arm.body {
+                        self.gen_stmt(s.clone());
+                        if self.is_terminator(&s) {
+                            body_terminated = true;
+                            break;
+                        }
+                    }
+                    if !body_terminated {
+                        self.emit(&format!("br label %{}", end_label));
+                    }
+                    
+                    self.emit(&format!("{}:", next_arm));
+                }
+                // Add fallthrough branch from the last next_arm to end_label
+                self.emit(&format!("br label %{}", end_label));
+                self.emit(&format!("{}:", end_label));
+            }
+            
+            Stmt::Break => {
+                if let Some((_, end_label)) = self.loop_stack.last() {
+                    self.emit(&format!("br label %{}", end_label));
+                } else {
+                    self.emit("; Error: break outside loop");
+                }
+            }
+            
+            Stmt::Continue => {
+                if let Some((cond_label, _)) = self.loop_stack.last() {
+                    self.emit(&format!("br label %{}", cond_label));
+                } else {
+                    self.emit("; Error: continue outside loop");
+                }
+            }
+            
+            Stmt::Assign(lhs, rhs) => {
+                let val = self.gen_expr(rhs);
+                match lhs {
+                    Expr::Ident(name) => {
+                        if let Some(ptr) = self.vars.get(&name).cloned() {
+                            self.emit(&format!("store i64 {}, i64* {}", val, ptr));
+                        }
+                    }
+                    Expr::Field(ref obj, ref field) => {
+                        // Field assignment: self.field = value
+                        // 1. Get the object pointer
+                        let obj_val = self.gen_expr(*obj.clone());
+                        
+                        // 2. Determine struct type (use current_impl_type for self.field)
+                        let struct_name = if let Expr::Ident(ref name) = **obj {
+                            if name == "self" {
+                                self.current_impl_type.clone()
+                            } else {
+                                self.field_map.get(field).cloned()
+                            }
+                        } else {
+                            self.field_map.get(field).cloned()
+                        };
+                        
+                        if let Some(struct_name) = struct_name {
+                            // 3. Cast to struct pointer
+                            let struct_ptr = self.fresh_local();
+                            self.emit(&format!("{} = inttoptr i64 {} to %{}*", struct_ptr, obj_val, struct_name));
+                            
+                            // 4. Get field index
+                            let layout_opt = self.struct_layouts.get(&struct_name).cloned();
+                            if let Some(layout) = layout_opt {
+                                if let Some(idx) = layout.iter().position(|f| f == field) {
+                                    // 5. GEP to field and store
+                                    let field_ptr = self.fresh_local();
+                                    self.emit(&format!("{} = getelementptr %{}, %{}* {}, i32 0, i32 {}", 
+                                        field_ptr, struct_name, struct_name, struct_ptr, idx));
+                                    self.emit(&format!("store i64 {}, i64* {}", val, field_ptr));
+                                } else {
+                                    self.emit(&format!("; Error: field {} not found in struct {}", field, struct_name));
+                                }
+                            }
+                        } else {
+                            self.emit(&format!("; Error: unknown struct for field {}", field));
+                        }
+                    }
+                    _ => {
+                        self.emit("; Error: unsupported assignment target");
+                    }
+                }
+            }
+        }
+    }
+    
+    // =========================================================================
+    // Expression Generation
+    // =========================================================================
+    
+    fn gen_expr(&mut self, expr: Expr) -> String {
+        match expr {
+            Expr::Int(n) => n.to_string(),
+            
+            Expr::Float(f) => f.to_string(),
+            
+            Expr::Bool(b) => if b { "1".to_string() } else { "0".to_string() },
+            
+            Expr::String(s) => {
+                let idx = self.strings.len();
+                self.strings.push(s.clone());
+                let name = format!("@.str.{}", idx);
+                let ptr = self.fresh_local();
+                self.emit(&format!(
+                    "{} = getelementptr [{} x i8], [{} x i8]* {}, i64 0, i64 0",
+                    ptr, s.len() + 1, s.len() + 1, name
+                ));
+                // Convert pointer to i64 for storing in arrays
+                let result = self.fresh_local();
+                self.emit(&format!("{} = ptrtoint i8* {} to i64", result, ptr));
+                result
+            }
+            
+            Expr::Ident(name) => {
+                // Guard against empty or invalid identifiers (punctuation accidentally parsed as idents)
+                let invalid = ["", ":", "\n", "\r\n", "(", ")", "[", "]", "{", "}", ",", ".", 
+                               "=>", "->", "::", "=", "+", "-", "*", "/", "%", "&", "|", "!", 
+                               "<", ">", "<=", ">=", "==", "!=", "&&", "||"];
+                if invalid.contains(&name.as_str()) {
+                    return "0".to_string();
+                }
+                // Check if it's in our variable environment
+                if let Some(ptr) = self.vars.get(&name).cloned() {
+                    let result = self.fresh_local();
+                    self.emit(&format!("{} = load i64, i64* {}", result, ptr));
+                    result
+                } else if self.struct_layouts.contains_key(&name) {
+                    // It's a type name, not a value - return 0 (this happens in Type::method calls)
+                    // The type name itself isn't a value
+                    "0".to_string()
+                } else {
+                    // Unknown identifier - might be a global or just undefined
+                    format!("%{}", name)
+                }
+            }
+            
+            Expr::Binary(left, op, right) => {
+                let l = self.gen_expr(*left);
+                let r = self.gen_expr(*right);
+                let result = self.fresh_local();
+                
+                match op.as_str() {
+                    "+" => self.emit(&format!("{} = add i64 {}, {}", result, l, r)),
+                    "-" => self.emit(&format!("{} = sub i64 {}, {}", result, l, r)),
+                    "*" => self.emit(&format!("{} = mul i64 {}, {}", result, l, r)),
+                    "/" => self.emit(&format!("{} = sdiv i64 {}, {}", result, l, r)),
+                    "%" => self.emit(&format!("{} = srem i64 {}, {}", result, l, r)),
+                    "==" => {
+                        let cmp = self.fresh_local();
+                        self.emit(&format!("{} = icmp eq i64 {}, {}", cmp, l, r));
+                        self.emit(&format!("{} = zext i1 {} to i64", result, cmp));
+                    }
+                    "!=" => {
+                        let cmp = self.fresh_local();
+                        self.emit(&format!("{} = icmp ne i64 {}, {}", cmp, l, r));
+                        self.emit(&format!("{} = zext i1 {} to i64", result, cmp));
+                    }
+                    "<" => {
+                        let cmp = self.fresh_local();
+                        self.emit(&format!("{} = icmp slt i64 {}, {}", cmp, l, r));
+                        self.emit(&format!("{} = zext i1 {} to i64", result, cmp));
+                    }
+                    "<=" => {
+                        let cmp = self.fresh_local();
+                        self.emit(&format!("{} = icmp sle i64 {}, {}", cmp, l, r));
+                        self.emit(&format!("{} = zext i1 {} to i64", result, cmp));
+                    }
+                    ">" => {
+                        let cmp = self.fresh_local();
+                        self.emit(&format!("{} = icmp sgt i64 {}, {}", cmp, l, r));
+                        self.emit(&format!("{} = zext i1 {} to i64", result, cmp));
+                    }
+                    ">=" => {
+                        let cmp = self.fresh_local();
+                        self.emit(&format!("{} = icmp sge i64 {}, {}", cmp, l, r));
+                        self.emit(&format!("{} = zext i1 {} to i64", result, cmp));
+                    }
+                    "&&" => self.emit(&format!("{} = and i64 {}, {}", result, l, r)),
+                    "||" => self.emit(&format!("{} = or i64 {}, {}", result, l, r)),
+                    _ => {
+                        self.emit(&format!("; unknown op: {}", op));
+                        return "0".to_string();
+                    }
+                }
+                result
+            }
+            
+            Expr::Unary(op, operand) => {
+                let o = self.gen_expr(*operand);
+                let result = self.fresh_local();
+                
+                match op.as_str() {
+                    "-" => self.emit(&format!("{} = sub i64 0, {}", result, o)),
+                    "!" => {
+                        let cmp = self.fresh_local();
+                        self.emit(&format!("{} = icmp eq i64 {}, 0", cmp, o));
+                        self.emit(&format!("{} = zext i1 {} to i64", result, cmp));
+                    }
+                    _ => return o,
+                }
+                result
+            }
+            
+            Expr::Call(callee, args) => {
+                if let Expr::Ident(ref fn_name) = *callee {
+                    // Handle built-in print
+                    if fn_name == "println" || fn_name == "print" {
+                        if !args.is_empty() {
+                            // Check if argument is a string literal
+                            if let Expr::String(_) = args[0] {
+                                let val = self.gen_expr(args[0].clone());
+                                let ptr = self.fresh_local();
+                                self.emit(&format!("{} = inttoptr i64 {} to i8*", ptr, val));
+                                
+                                if fn_name == "println" {
+                                    self.emit(&format!("call void @kore_println_str(i8* {})", ptr));
+                                } else {
+                                    self.emit(&format!("call void @kore_print_str(i8* {})", ptr));
+                                }
+                            } else {
+                                let val = self.gen_expr(args[0].clone());
+                                self.emit(&format!("call void @kore_print_i64(i64 {})", val));
+                            }
+                        }
+                        return "0".to_string();
+                    }
+                }
+
+                let arg_regs: Vec<String> = args.into_iter()
+                    .map(|a| self.gen_expr(a))
+                    .collect();
+                
+                if let Expr::Ident(fn_name) = *callee {
+                    // Handle stdlib mappings
+                    let target_name = match fn_name.as_str() {
+                        "len" => "kore_len",
+                        "concat" => "kore_str_concat",
+                        "split" => "kore_split",
+                        "contains" => "kore_contains",
+                        "ord" => "kore_ord",
+                        "to_int" => "kore_to_int",
+                        "to_float" => "kore_to_float",
+                        "str" => "kore_to_string",
+                        "push" => "kore_array_push",
+                        "pop" => "kore_array_pop",
+                        "range" => "kore_range",
+                        "slice" => "kore_slice",
+                        "char_at" => "kore_char_at",
+                        "substring" => "kore_substring",
+                        "str_eq" => "kore_str_eq",
+                        "append" => "kore_append",
+                        "Some" => "kore_some",
+                        "None" => "kore_none", 
+                        "Box" => "kore_box",
+                        "unwrap" => "kore_unwrap",
+                        "float" => "kore_to_float",
+                        "int" => "kore_to_int",
+                        "panic" => "kore_panic",
+                        "contains_key" => "kore_contains_key",
+                        "join" => "kore_join",
+                        "variant_of" => "kore_variant_of",
+                        "variant_field" => "kore_variant_field",
+                        _ => fn_name.as_str(),
+                    };
+                    
+                    let result = self.fresh_local();
+                    let args_str = arg_regs.iter()
+                        .map(|r| format!("i64 {}", r))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    self.emit(&format!("{} = call i64 @{}({})", result, target_name, args_str));
+                    return result;
+                }
+                
+                self.emit("; indirect call (TODO)");
+                "0".to_string()
+            }
+            
+            Expr::MethodCall(receiver, method, args) => {
+                // Try to determine receiver type for method resolution
+                let type_name = match &*receiver {
+                    Expr::Field(base_obj, field_name) => {
+                        // receiver is something like self.output - look up field type
+                        // First find what struct the field belongs to
+                        if let Some(struct_name) = self.field_map.get(field_name).cloned() {
+                            // Then get the type of that field
+                            self.field_types.get(&struct_name)
+                                .and_then(|fields| fields.get(field_name).cloned())
+                                .unwrap_or_else(|| self.method_map.get(&method).cloned().unwrap_or("Unknown".to_string()))
+                        } else {
+                            self.method_map.get(&method).cloned().unwrap_or("Unknown".to_string())
+                        }
+                    }
+                    Expr::Ident(var_name) => {
+                        // Could be a typed variable - for now, fall back to method_map
+                        self.method_map.get(&method).cloned().unwrap_or("Unknown".to_string())
+                    }
+                    _ => {
+                        // Fallback to method_map lookup
+                        self.method_map.get(&method).cloned().unwrap_or("Unknown".to_string())
+                    }
+                };
+                
+                let recv_val = self.gen_expr(*receiver);
+                let mut arg_regs = vec![format!("i64 {}", recv_val)];
+                for a in args {
+                    arg_regs.push(format!("i64 {}", self.gen_expr(a)));
+                }
+                let args_str = arg_regs.join(", ");
+                
+                // Mangle name: Type_method
+                let mangled = format!("{}_{}", type_name, method);
+                
+                let result = self.fresh_local();
+                self.emit(&format!("{} = call i64 @{}({})", result, mangled, args_str));
+                result
+            }
+            
+            Expr::Index(array, index) => {
+                let arr_ptr = self.gen_expr(*array);
+                let idx_val = self.gen_expr(*index);
+                let result = self.fresh_local();
+                self.emit(&format!("{} = call i64 @kore_array_get(i64 {}, i64 {})", result, arr_ptr, idx_val));
+                result
+            }
+            
+            Expr::Field(ref obj, ref field) => {
+                // Check if this is self.field and we know the current impl type
+                let struct_name = if let Expr::Ident(ref name) = **obj {
+                    if name == "self" {
+                        self.current_impl_type.clone()
+                    } else {
+                        self.field_map.get(field).cloned()
+                    }
+                } else {
+                    self.field_map.get(field).cloned()
+                };
+                
+                let obj_val = self.gen_expr(*obj.clone());
+                
+                if let Some(struct_name) = struct_name {
+                    // Cast to struct ptr
+                    let struct_ptr = self.fresh_local();
+                    self.emit(&format!("{} = inttoptr i64 {} to %{}*", struct_ptr, obj_val, struct_name));
+                    
+                    // Get index
+                    let layout_opt = self.struct_layouts.get(&struct_name).cloned();
+                    if let Some(layout) = layout_opt {
+                        if let Some(idx) = layout.iter().position(|f| f == field) {
+                            let field_ptr = self.fresh_local();
+                            self.emit(&format!("{} = getelementptr %{}, %{}* {}, i32 0, i32 {}", field_ptr, struct_name, struct_name, struct_ptr, idx));
+                            let val = self.fresh_local();
+                            self.emit(&format!("{} = load i64, i64* {}", val, field_ptr));
+                            return val;
+                        }
+                    }
+                }
+                
+                self.emit(&format!("; field access failed for .{}", field));
+                "0".to_string()
+            }
+            
+            Expr::Array(elements) => {
+                let arr = self.fresh_local();
+                self.emit(&format!("{} = call i64 @kore_array_new()", arr));
+                for e in elements {
+                    let val = self.gen_expr(e);
+                    self.emit(&format!("call void @kore_array_push(i64 {}, i64 {})", arr, val));
+                }
+                arr
+            }
+            
+            Expr::Struct(name, fields) => {
+                self.emit(&format!("; struct literal: {}", name));
+                
+                // Calculate struct size (number of fields * 8 bytes each)
+                let layout_opt = self.struct_layouts.get(&name).cloned();
+                let num_fields = layout_opt.as_ref().map(|l| l.len()).unwrap_or(1);
+                let size = if num_fields == 0 { 8 } else { num_fields * 8 };
+                
+                // Allocate on HEAP (not stack!) so struct survives function return
+                let ptr_i8 = self.fresh_local();
+                self.emit(&format!("{} = call i8* @malloc(i64 {})", ptr_i8, size));
+                
+                let ptr = self.fresh_local();
+                self.emit(&format!("{} = bitcast i8* {} to %{}*", ptr, ptr_i8, name));
+                
+                if let Some(layout) = layout_opt {
+                     for init in fields {
+                         if let Some(idx) = layout.iter().position(|f| f == &init.name) {
+                             let val = self.gen_expr(init.value);
+                             let field_ptr = self.fresh_local();
+                             self.emit(&format!("{} = getelementptr %{}, %{}* {}, i32 0, i32 {}", field_ptr, name, name, ptr, idx));
+                             self.emit(&format!("store i64 {}, i64* {}", val, field_ptr));
+                         }
+                     }
+                }
+                
+                let int_val = self.fresh_local();
+                self.emit(&format!("{} = ptrtoint %{}* {} to i64", int_val, name, ptr));
+                int_val
+            }
+            
+            Expr::EnumVariant(enum_name, variant, args) => {
+                // Check if this is actually a static method call on a struct (e.g., Token::new)
+                if self.struct_layouts.contains_key(&enum_name) {
+                    // It's a struct type - treat as static method call
+                    let mangled = format!("{}_{}", enum_name, variant);
+                    let arg_regs: Vec<String> = args.into_iter()
+                        .map(|a| format!("i64 {}", self.gen_expr(a)))
+                        .collect();
+                    let args_str = arg_regs.join(", ");
+                    let result = self.fresh_local();
+                    self.emit(&format!("{} = call i64 @{}({})", result, mangled, args_str));
+                    return result;
+                }
+                
+                // Otherwise, it's an actual enum variant
+                self.emit(&format!("; enum variant: {}::{}", enum_name, variant));
+                let tag_idx = if let Some((_, idx)) = self.variant_map.get(&variant) { *idx } else { 0 };
+                
+                // Allocate on HEAP (not stack!) so enum survives function return
+                // All enums are { i64, i8* } = 16 bytes
+                let ptr_i8 = self.fresh_local();
+                self.emit(&format!("{} = call i8* @malloc(i64 16)", ptr_i8));
+                let ptr = self.fresh_local();
+                self.emit(&format!("{} = bitcast i8* {} to %{}*", ptr, ptr_i8, enum_name));
+                
+                // Store tag
+                let tag_ptr = self.fresh_local();
+                self.emit(&format!("{} = getelementptr %{}, %{}* {}, i32 0, i32 0", tag_ptr, enum_name, enum_name, ptr));
+                self.emit(&format!("store i64 {}, i64* {}", tag_idx, tag_ptr));
+                
+                // Store payload (simplification: store first arg as i64 in i8* slot if present)
+                if !args.is_empty() {
+                    let arg_val = self.gen_expr(args[0].clone());
+                    let payload_ptr = self.fresh_local();
+                    self.emit(&format!("{} = getelementptr %{}, %{}* {}, i32 0, i32 1", payload_ptr, enum_name, enum_name, ptr));
+                    let cast_val = self.fresh_local();
+                    self.emit(&format!("{} = inttoptr i64 {} to i8*", cast_val, arg_val));
+                    self.emit(&format!("store i8* {}, i8** {}", cast_val, payload_ptr));
+                }
+                
+                let int_val = self.fresh_local();
+                self.emit(&format!("{} = ptrtoint %{}* {} to i64", int_val, enum_name, ptr));
+                int_val
+            }
+            
+            Expr::If(cond, then_expr, else_expr) => {
+                self.emit("; if expression (TODO)");
+                "0".to_string()
+            }
+            
+            Expr::Lambda(params, body) => {
+                self.emit("; lambda (TODO)");
+                "0".to_string()
+            }
+            
+            Expr::Await(future) => {
+                self.emit("; await (TODO)");
+                "0".to_string()
+            }
+            
+            Expr::None => "0".to_string(),
+        }
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_gen_simple() {
+        let program = Program { items: vec![] };
+        let mut gen = LLVMGen::new();
+        let ir = gen.gen_program(program);
+        assert!(ir.contains("KORE Compiler Output"));
+    }
+}

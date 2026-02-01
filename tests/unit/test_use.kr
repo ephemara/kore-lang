@@ -1,0 +1,7 @@
+// Test if 'use' statement works with local files
+
+use span
+
+fn main():
+    let s = Span::new(0, 10)
+    println(s.start)

@@ -1,0 +1,60 @@
+/// All possible token types in KORE
+enum TokenKind:
+    // Literals
+    Int(Int)
+    Float(Float)
+    String(String)
+    Bool(Bool)
+    
+    // Identifiers and Keywords
+    Ident(String)
+    Keyword(String)
+    
+    // Operators
+    Plus
+    Minus
+    Star
+    Slash
+    Percent
+    Eq
+    EqEq
+    NotEq
+    Lt
+    LtEq
+    Gt
+    GtEq
+    And
+    Or
+    Not
+    Arrow      
+    FatArrow   
+    Dot
+    DotDot     
+    Colon
+    ColonColon 
+    Comma
+    Semicolon
+    Pipe       
+    Ampersand  
+    
+    // Brackets
+    LParen
+    RParen
+    LBracket
+    RBracket
+    LBrace
+    RBrace
+    LAngle     
+    RAngle     
+    
+    // Whitespace (significant in KORE!)
+    Newline
+    Indent
+    Dedent
+    
+    // Special
+    Eof
+    Error(String)
+
+fn main():
+    println("TokenKind enum test")

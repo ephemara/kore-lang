@@ -1,0 +1,13 @@
+component MyCounter(start: int) with Reactive:
+    state count: int = start
+    
+    fn increment():
+        count = count + 1
+
+    render:
+        <div>
+            <h1>Counter: {count}</h1>
+        </div>
+
+let app = <MyCounter start={10} />
+print(app)

@@ -1,0 +1,23 @@
+# Test inline if
+
+fn main() with IO:
+    print("=== Inline If Test ===")
+    
+    let x = 5
+    
+    # Inline if
+    if x > 3: print("x is greater than 3")
+    
+    # Inline if with assignment
+    let y = -10
+    if y < 0: y = -y
+    print("y after abs:", y)
+    
+    # Inline if-else
+    if x > 10: print("big") else: print("small")
+    
+    # Multi-line if (standard)
+    if x > 0:
+        print("x is positive")
+    
+    print("Done!")

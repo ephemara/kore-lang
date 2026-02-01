@@ -1,0 +1,26 @@
+fn main() with IO:
+    print("=== Memory & Array Test ===")
+    
+    # Test 1: Array Literals
+    print("Creating array...")
+    let arr = [10, 20, 30]
+    
+    print("Accessing elements:")
+    print(to_string(arr[0]))
+    print(to_string(arr[1]))
+    print(to_string(arr[2]))
+    
+    # Test 2: Assignment & Mutation
+    print("Mutating array...")
+    arr[1] = 99
+    print("New arr[1]: " + to_string(arr[1]))
+    
+    print("Array Length (manual check): 3")
+    
+    # Test 3: String RC
+    let s1 = "Hello"
+    let s2 = s1 # Should retain s1
+    print("s1: " + s1)
+    print("s2: " + s2)
+    
+    print("Done.")

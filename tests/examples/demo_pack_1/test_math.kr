@@ -1,0 +1,21 @@
+use stdlib::math
+
+fn main():
+    print("Testing Math Library...")
+    
+    let v1 = Vec2.new(3.0, 4.0)
+    print("v1: " + str(v1.x) + ", " + str(v1.y))
+    print("v1 length (should be 5): " + str(v1.len()))
+    
+    let v2 = v1.normalize()
+    print("v1 normalized: " + str(v2.x) + ", " + str(v2.y))
+    
+    let v3 = Vec3.new(1.0, 0.0, 0.0)
+    let v4 = Vec3.new(0.0, 1.0, 0.0)
+    let v5 = v3.cross(v4)
+    print("cross product (should be 0,0,1): " + str(v5.x) + ", " + str(v5.y) + ", " + str(v5.z))
+    
+    let l = lerp(0.0, 10.0, 0.5)
+    print("lerp(0, 10, 0.5): " + str(l))
+    
+    print("Math tests completed.")

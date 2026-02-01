@@ -1,0 +1,24 @@
+// Test for-loop implementation with break and continue
+
+fn main():
+    // Test 1: Basic for-loop
+    let arr = [1, 2, 3, 4, 5]
+    println("Test 1: Basic iteration")
+    for x in arr:
+        println(str(x))
+
+    // Test 2: For-loop with continue
+    println("Test 2: Skip even numbers")
+    for x in arr:
+        if x % 2 == 0:
+            continue
+        println(str(x))
+
+    // Test 3: For-loop with break
+    println("Test 3: Break at 3")
+    for x in arr:
+        if x > 3:
+            break
+        println(str(x))
+
+    println("All tests complete!")

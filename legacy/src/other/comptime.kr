@@ -1,0 +1,381 @@
+// ============================================================================
+// KORE Comptime Evaluation
+// ============================================================================
+// Ported from legacy_prototype/src/comptime.rs
+//
+// This module provides compile-time evaluation of expressions marked with
+// the `comptime` keyword. Comptime expressions are evaluated during
+// compilation and replaced with their literal values.
+//
+// Usage:
+//   let size = comptime { 4 * 1024 }      // Becomes: let size = 4096
+//   let msg = comptime { "ver" + "1.0" }  // Becomes: let msg = "ver1.0"
+// ============================================================================
+
+use ast
+use runtime
+
+// =============================================================================
+// Main Entry Point
+// =============================================================================
+
+/// Evaluate all comptime expressions in a program
+/// This should be called after parsing but before type checking or codegen
+pub fn eval_comptime(program: Program) -> Result<Program, String>:
+    var env = Env::new()
+    
+    var new_items: Array<Item> = []
+    for item in program.items:
+        let evaluated = eval_item(env, item)?
+        push(new_items, evaluated)
+    
+    return Ok(Program { items: new_items, span: program.span })
+
+// =============================================================================
+// Item Evaluation
+// =============================================================================
+
+fn eval_item(env: Env, item: Item) -> Result<Item, String>:
+    match item:
+        Item::Function(f) =>
+            // Evaluate comptime expressions in function body
+            let new_body = eval_block(env, f.body)?
+            var new_func = clone(f)
+            new_func.body = new_body
+            return Ok(Item::Function(new_func))
+        
+        Item::Comptime(block) =>
+            // Execute the entire comptime block at compile time
+            // The result is discarded (side effects only, like defining consts)
+            eval_block_for_side_effects(env, block)?
+            // Return a no-op item or remove it
+            // For now, return as-is since codegen ignores Comptime items
+            return Ok(item)
+        
+        Item::Component(c) =>
+            // Evaluate comptime in component body
+            let new_body = eval_jsx_node(env, c.body)?
+            var new_comp = clone(c)
+            new_comp.body = new_body
+            
+            // Evaluate comptime in methods
+            var new_methods: Array<Function> = []
+            for method in c.methods:
+                let new_body = eval_block(env, method.body)?
+                var new_method = clone(method)
+                new_method.body = new_body
+                push(new_methods, new_method)
+            new_comp.methods = new_methods
+            
+            return Ok(Item::Component(new_comp))
+        
+        Item::Const(c) =>
+            // Evaluate the const value at compile time
+            let new_value = eval_expr_in_place(env, c.value)?
+            var new_const = clone(c)
+            new_const.value = new_value
+            return Ok(Item::Const(new_const))
+        
+        _ =>
+            return Ok(item)
+
+// =============================================================================
+// Block Evaluation
+// =============================================================================
+
+fn eval_block(env: Env, block: Block) -> Result<Block, String>:
+    var new_stmts: Array<Stmt> = []
+    
+    for stmt in block.stmts:
+        let new_stmt = eval_stmt(env, stmt)?
+        push(new_stmts, new_stmt)
+    
+    return Ok(Block { stmts: new_stmts, span: block.span })
+
+fn eval_block_for_side_effects(env: Env, block: Block) -> Result<Unit, String>:
+    // Execute the block using the runtime interpreter
+    // This allows comptime blocks to define values, call functions, etc.
+    runtime::eval_block(env, block)?
+    return Ok(())
+
+// =============================================================================
+// Statement Evaluation
+// =============================================================================
+
+fn eval_stmt(env: Env, stmt: Stmt) -> Result<Stmt, String>:
+    match stmt:
+        Stmt::Let(pattern, ty, value, span) =>
+            match value:
+                Some(v) =>
+                    let new_value = eval_expr_in_place(env, v)?
+                    return Ok(Stmt::Let(pattern, ty, Some(new_value), span))
+                None =>
+                    return Ok(stmt)
+        
+        Stmt::Expr(e, span) =>
+            let new_expr = eval_expr_in_place(env, e)?
+            return Ok(Stmt::Expr(new_expr, span))
+        
+        Stmt::Return(value, span) =>
+            match value:
+                Some(e) =>
+                    let new_expr = eval_expr_in_place(env, e)?
+                    return Ok(Stmt::Return(Some(new_expr), span))
+                None =>
+                    return Ok(stmt)
+        
+        Stmt::For(pattern, iter, body, span) =>
+            let new_iter = eval_expr_in_place(env, iter)?
+            let new_body = eval_block(env, body)?
+            return Ok(Stmt::For(pattern, new_iter, new_body, span))
+        
+        Stmt::While(cond, body, span) =>
+            let new_cond = eval_expr_in_place(env, cond)?
+            let new_body = eval_block(env, body)?
+            return Ok(Stmt::While(new_cond, new_body, span))
+        
+        Stmt::If(cond, then_block, else_block, span) =>
+            let new_cond = eval_expr_in_place(env, cond)?
+            let new_then = eval_block(env, then_block)?
+            let new_else = match else_block:
+                Some(eb) =>
+                    let new_eb = eval_else_branch(env, eb)?
+                    Some(new_eb)
+                None => None
+            return Ok(Stmt::If(new_cond, new_then, new_else, span))
+        
+        _ =>
+            return Ok(stmt)
+
+fn eval_else_branch(env: Env, branch: ElseBranch) -> Result<ElseBranch, String>:
+    match branch:
+        ElseBranch::Else(block) =>
+            let new_block = eval_block(env, block)?
+            return Ok(ElseBranch::Else(new_block))
+        
+        ElseBranch::ElseIf(cond, then_block, next) =>
+            let new_cond = eval_expr_in_place(env, cond)?
+            let new_then = eval_block(env, then_block)?
+            let new_next = match next:
+                Some(n) =>
+                    let new_n = eval_else_branch(env, n)?
+                    Some(new_n)
+                None => None
+            return Ok(ElseBranch::ElseIf(new_cond, new_then, new_next))
+
+// =============================================================================
+// Expression Evaluation
+// =============================================================================
+
+/// Evaluate comptime expressions, replacing them with literals
+/// Non-comptime expressions are recursively processed
+fn eval_expr_in_place(env: Env, expr: Expr) -> Result<Expr, String>:
+    // Check if this IS a comptime expression
+    match expr:
+        Expr::Comptime(inner, span) =>
+            // Evaluate inner expression using the runtime
+            let val = runtime::eval_expr(env, inner)?
+            
+            // Convert the runtime value to an AST expression (literal)
+            return Ok(value_to_expr(val, span))
+        
+        // For other expressions, recursively process children
+        Expr::Binary(left, op, right, span) =>
+            let new_left = eval_expr_in_place(env, left)?
+            let new_right = eval_expr_in_place(env, right)?
+            return Ok(Expr::Binary(Box::new(new_left), op, Box::new(new_right), span))
+        
+        Expr::Unary(op, operand, span) =>
+            let new_operand = eval_expr_in_place(env, operand)?
+            return Ok(Expr::Unary(op, Box::new(new_operand), span))
+        
+        Expr::Call(callee, args, span) =>
+            let new_callee = eval_expr_in_place(env, callee)?
+            var new_args: Array<Arg> = []
+            for arg in args:
+                let new_value = eval_expr_in_place(env, arg.value)?
+                push(new_args, Arg { name: arg.name, value: new_value })
+            return Ok(Expr::Call(Box::new(new_callee), new_args, span))
+        
+        Expr::MethodCall(receiver, method, args, span) =>
+            let new_receiver = eval_expr_in_place(env, receiver)?
+            var new_args: Array<Arg> = []
+            for arg in args:
+                let new_value = eval_expr_in_place(env, arg.value)?
+                push(new_args, Arg { name: arg.name, value: new_value })
+            return Ok(Expr::MethodCall(Box::new(new_receiver), method, new_args, span))
+        
+        Expr::Index(object, index, span) =>
+            let new_object = eval_expr_in_place(env, object)?
+            let new_index = eval_expr_in_place(env, index)?
+            return Ok(Expr::Index(Box::new(new_object), Box::new(new_index), span))
+        
+        Expr::Field(object, field, span) =>
+            let new_object = eval_expr_in_place(env, object)?
+            return Ok(Expr::Field(Box::new(new_object), field, span))
+        
+        Expr::If(cond, then_block, else_block, span) =>
+            let new_cond = eval_expr_in_place(env, cond)?
+            let new_then = eval_block(env, then_block)?
+            let new_else = match else_block:
+                Some(eb) =>
+                    let new_eb = eval_else_branch(env, eb)?
+                    Some(new_eb)
+                None => None
+            return Ok(Expr::If(Box::new(new_cond), new_then, new_else, span))
+        
+        Expr::Match(scrutinee, arms, span) =>
+            let new_scrutinee = eval_expr_in_place(env, scrutinee)?
+            var new_arms: Array<MatchArm> = []
+            for arm in arms:
+                let new_body = eval_expr_in_place(env, arm.body)?
+                let new_guard = match arm.guard:
+                    Some(g) =>
+                        let new_g = eval_expr_in_place(env, g)?
+                        Some(new_g)
+                    None => None
+                push(new_arms, MatchArm {
+                    pattern: arm.pattern,
+                    guard: new_guard,
+                    body: new_body
+                })
+            return Ok(Expr::Match(Box::new(new_scrutinee), new_arms, span))
+        
+        Expr::Block(block, span) =>
+            let new_block = eval_block(env, block)?
+            return Ok(Expr::Block(new_block, span))
+        
+        Expr::Array(items, span) =>
+            var new_items: Array<Expr> = []
+            for item in items:
+                let new_item = eval_expr_in_place(env, item)?
+                push(new_items, new_item)
+            return Ok(Expr::Array(new_items, span))
+        
+        Expr::Tuple(items, span) =>
+            var new_items: Array<Expr> = []
+            for item in items:
+                let new_item = eval_expr_in_place(env, item)?
+                push(new_items, new_item)
+            return Ok(Expr::Tuple(new_items, span))
+        
+        Expr::Struct(name, fields, span) =>
+            var new_fields: Array<(String, Expr)> = []
+            for (fname, fexpr) in fields:
+                let new_fexpr = eval_expr_in_place(env, fexpr)?
+                push(new_fields, (fname, new_fexpr))
+            return Ok(Expr::Struct(name, new_fields, span))
+        
+        Expr::Lambda(params, body, captures, span) =>
+            let new_body = eval_expr_in_place(env, body)?
+            return Ok(Expr::Lambda(params, Box::new(new_body), captures, span))
+        
+        Expr::Assign(target, value, span) =>
+            let new_target = eval_expr_in_place(env, target)?
+            let new_value = eval_expr_in_place(env, value)?
+            return Ok(Expr::Assign(Box::new(new_target), Box::new(new_value), span))
+        
+        Expr::Paren(inner, span) =>
+            let new_inner = eval_expr_in_place(env, inner)?
+            return Ok(Expr::Paren(Box::new(new_inner), span))
+        
+        Expr::JSX(node, span) =>
+            let new_node = eval_jsx_node(env, node)?
+            return Ok(Expr::JSX(new_node, span))
+        
+        Expr::Await(inner, span) =>
+            let new_inner = eval_expr_in_place(env, inner)?
+            return Ok(Expr::Await(Box::new(new_inner), span))
+        
+        // Literals and identifiers don't need processing
+        _ =>
+            return Ok(expr)
+
+// =============================================================================
+// JSX Evaluation
+// =============================================================================
+
+fn eval_jsx_node(env: Env, node: JSXNode) -> Result<JSXNode, String>:
+    match node:
+        JSXNode::Element(el) =>
+            // Evaluate attribute values
+            var new_attrs: Array<JSXAttribute> = []
+            for attr in el.attributes:
+                let new_value = match attr.value:
+                    JSXAttrValue::Expr(e) =>
+                        let new_e = eval_expr_in_place(env, e)?
+                        JSXAttrValue::Expr(new_e)
+                    other =>
+                        other
+                push(new_attrs, JSXAttribute { name: attr.name, value: new_value })
+            
+            // Evaluate children
+            var new_children: Array<JSXNode> = []
+            for child in el.children:
+                let new_child = eval_jsx_node(env, child)?
+                push(new_children, new_child)
+            
+            return Ok(JSXNode::Element(JSXElement {
+                name: el.name,
+                attributes: new_attrs,
+                children: new_children,
+                is_self_closing: el.is_self_closing
+            }))
+        
+        JSXNode::Expression(e) =>
+            let new_e = eval_expr_in_place(env, e)?
+            return Ok(JSXNode::Expression(new_e))
+        
+        JSXNode::Fragment(children) =>
+            var new_children: Array<JSXNode> = []
+            for child in children:
+                let new_child = eval_jsx_node(env, child)?
+                push(new_children, new_child)
+            return Ok(JSXNode::Fragment(new_children))
+        
+        // Text nodes don't need processing
+        _ =>
+            return Ok(node)
+
+// =============================================================================
+// Value to Expression Conversion
+// =============================================================================
+
+/// Convert a runtime Value back to an AST Expr (for literal embedding)
+fn value_to_expr(val: Value, span: Span) -> Expr:
+    match val:
+        Value::Int(n) =>
+            return Expr::Int(n, span)
+        
+        Value::Float(f) =>
+            return Expr::Float(f, span)
+        
+        Value::Bool(b) =>
+            return Expr::Bool(b, span)
+        
+        Value::String(s) =>
+            return Expr::String(s, span)
+        
+        Value::Unit =>
+            // Unit is represented as an empty block
+            return Expr::Block(Block { stmts: [], span: span }, span)
+        
+        Value::None =>
+            return Expr::None(span)
+        
+        Value::Array(items) =>
+            var exprs: Array<Expr> = []
+            for item in items:
+                push(exprs, value_to_expr(item, span))
+            return Expr::Array(exprs, span)
+        
+        Value::Tuple(items) =>
+            var exprs: Array<Expr> = []
+            for item in items:
+                push(exprs, value_to_expr(item, span))
+            return Expr::Tuple(exprs, span)
+        
+        _ =>
+            // For complex values that can't be represented as literals,
+            // return a placeholder error string
+            return Expr::String("<unrepresentable comptime value: " + val.to_string() + ">", span)

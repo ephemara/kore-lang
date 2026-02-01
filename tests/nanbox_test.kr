@@ -1,0 +1,14 @@
+// Test NaN-boxing
+fn main():
+    let x = 42
+    let y = 100
+    let sum = x + y
+    println(str(sum))
+    
+    let msg = "Hello"
+    let msg2 = " World"
+    println(msg + msg2)
+    
+    let flag = true
+    if flag:
+        println("Flag is true")

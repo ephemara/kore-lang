@@ -1,0 +1,34 @@
+// ============================================================================
+// KORE SIMPLE DEMO - Proof of Native Execution
+// ============================================================================
+
+fn add(a: Int, b: Int) -> Int:
+    return a + b
+
+fn multiply(a: Int, b: Int) -> Int:
+    return a * b
+
+fn factorial(n: Int) -> Int:
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+fn main():
+    // Simple arithmetic - proves native code is running!
+    println(1)                    // Should print: 1
+    println(2)                    // Should print: 2
+    println(add(40, 2))           // Should print: 42 (40+2)
+    println(multiply(6, 7))       // Should print: 42 (6*7)
+    println(multiply(11, 11))     // Should print: 121 (11*11)
+    println(add(100, 23))         // Should print: 123
+    
+    // Factorial computation
+    println(factorial(1))         // Should print: 1
+    println(factorial(5))         // Should print: 120
+    println(factorial(7))         // Should print: 5040
+    println(factorial(10))        // Should print: 3628800
+    
+    // End marker
+    println(999)
+    
+    return 0

@@ -1,0 +1,26 @@
+// Simple Async Test
+
+// Basic async function
+async fn get_value() -> Int:
+    return 42
+
+// Test
+fn main():
+    println("Starting async test...")
+    
+    // Create a future
+    let fut = get_value()
+    println("Future created: ", fut)
+    println("Type of future: ", type_of(fut))
+    
+    // Block on it
+    println("Calling block_on...")
+    let result = block_on(fut)
+    println("Result: ", result)
+    
+    // Direct await (in non-async context)
+    println("\nDirect await test:")
+    let direct = await get_value()
+    println("Direct await result: ", direct)
+    
+    println("\n Done!")

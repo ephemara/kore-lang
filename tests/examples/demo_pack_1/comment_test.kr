@@ -1,0 +1,4 @@
+// Debug tokens from parser.kr
+fn main():
+    let x = 42
+    println(x)

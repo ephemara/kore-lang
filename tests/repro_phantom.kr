@@ -1,0 +1,9 @@
+struct Foo:
+    x: String
+
+impl Foo:
+    pub fn new() -> Foo:
+        return Foo { x: "hello" }
+
+fn main():
+    let f = Foo::new()

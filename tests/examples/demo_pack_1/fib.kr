@@ -1,0 +1,39 @@
+# fib.god - Fibonacci Sequence Demo
+
+use stdlib::math
+
+# Recursive (naive)
+fn fib_rec(n):
+    if n <= 1:
+        return n
+    return fib_rec(n - 1) + fib_rec(n - 2)
+
+# Iterative (efficient)
+fn fib_iter(n):
+    if n <= 1:
+        return n
+    let a = 0
+    let b = 1
+    for i in range(2, n + 1):
+        let temp = a + b
+        a = b
+        b = temp
+    return b
+
+fn main() with IO:
+    print("=== Fibonacci Sequence ===")
+    
+    let n = 10
+    print("Calculating Fib(" + to_string(n) + ")...")
+    
+    let start_time = now()
+    let res_rec = fib_rec(n)
+    let end_time = now()
+    print("Recursive result: " + to_string(res_rec))
+    print("Time: " + to_string(end_time - start_time) + " ticks") # Assuming float arithmetic works
+    
+    print("Iterative result: " + to_string(fib_iter(n)))
+    
+    print("First 10 numbers:")
+    for i in range(0, 10):
+        print(to_string(i) + ": " + to_string(fib_iter(i)))

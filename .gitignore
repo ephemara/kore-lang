@@ -1,0 +1,27 @@
+# Build artifacts
+/build/
+/target/
+*.obj
+*.pdb
+
+# Legacy build artifacts (large files)
+/legacy/target/
+
+# Bootstrap build artifacts
+/bootstrap/target/
+
+# legacy build artifacts (from updated bootstrapper)
+/legacy/bootstrap/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

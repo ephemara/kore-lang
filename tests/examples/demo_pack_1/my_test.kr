@@ -1,0 +1,8 @@
+fn main() with IO:
+    print("My test")
+    print("The answer is:")
+    let x = 42
+    print(x)
+    print("Looping:")
+    for i in range(0, 5):
+        print(i)

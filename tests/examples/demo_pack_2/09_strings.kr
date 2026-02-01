@@ -1,0 +1,35 @@
+// Test 09: String operations
+fn main():
+    let s1 = "Hello"
+    let s2 = "World"
+    
+    // Concatenation
+    let combined = s1 + ", " + s2 + "!"
+    println(combined)
+    
+    // String length
+    println("Length of combined: " + str(str_len(combined)))
+    
+    // Substring
+    let sub = substring(combined, 0, 5)
+    println("Substring(0,5): " + sub)
+    
+    // String comparison
+    if str_eq(s1, "Hello"):
+        println("s1 equals 'Hello'")
+    
+    if !str_eq(s1, s2):
+        println("s1 and s2 are different")
+    
+    // Character access
+    let first_char = substring(s1, 0, 1)
+    println("First char of s1: " + first_char)
+    
+    // Building strings
+    let parts = ["The", "quick", "brown", "fox"]
+    let sentence = join(parts, " ")
+    println("Sentence: " + sentence)
+    
+    // Escape sequences
+    let with_escapes = "Line1\nLine2\tTabbed"
+    println(with_escapes)

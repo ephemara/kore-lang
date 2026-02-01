@@ -1,0 +1,123 @@
+// ============================================================================
+// KORE Span System - Source code location tracking
+// ============================================================================
+// Ported from legacy_prototype/src/span.rs
+// Enhanced with SourceLocation for better error messages.
+// ============================================================================
+
+/// Human-readable source location (line:column)
+struct SourceLocation:
+    line: Int       // 1-based line number
+    column: Int     // 1-based column number
+    offset: Int     // 0-based byte offset
+    length: Int     // Span length in bytes
+    source_line: String  // The actual line of source code
+
+/// A span of source code (start and end byte positions)
+struct Span:
+    start: Int
+    end: Int
+    file: String
+
+impl Span:
+    pub fn new(start: Int, end: Int, file: String) -> Span:
+        return Span { start: start, end: end, file: file }
+    
+    pub fn empty() -> Span:
+        return Span { start: 0, end: 0, file: "" }
+    
+    /// Check if span is defined (not default/empty)
+    pub fn is_defined(self) -> Bool:
+        return self.start != 0 || self.end != 0
+
+    pub fn merge(self, other: Span) -> Span:
+        let new_start = self.start
+        if other.start < self.start:
+            new_start = other.start
+            
+        let new_end = self.end
+        if other.end > self.end:
+            new_end = other.end
+            
+        return Span { start: new_start, end: new_end, file: self.file }
+    
+    /// Get the length of the span
+    pub fn len(self) -> Int:
+        return self.end - self.start
+    
+    /// Check if span is empty
+    pub fn is_empty(self) -> Bool:
+        return self.start == self.end
+    
+    /// Extend span to include a position
+    pub fn extend_to(self, pos: Int) -> Span:
+        let my_start = self.start
+        let my_end = self.end
+        
+        if pos < my_start:
+            return Span { start: pos, end: my_end, file: self.file }
+        if pos > my_end:
+            return Span { start: my_start, end: pos, file: self.file }
+            
+        return self
+    
+    /// Convert byte offset to line:column location
+    /// Based on Naga's span.rs implementation
+    pub fn location(self, source: String) -> SourceLocation:
+        let src_len = str_len(source)
+        
+        // Count newlines before start to get line number
+        let line = 1
+        let line_start = 0
+        let i = 0
+        while i < self.start && i < src_len:
+            let ch = char_code_at(source, i)
+            if ch == 10:  // '\n'
+                line = line + 1
+                line_start = i + 1
+            i = i + 1
+        
+        // Column is offset from line start (1-based)
+        let column = self.start - line_start + 1
+        
+        // Find end of current line for source_line extraction
+        let line_end = self.start
+        while line_end < src_len:
+            let ch = char_code_at(source, line_end)
+            if ch == 10:  // '\n'
+                break
+            line_end = line_end + 1
+        
+        // Extract the source line
+        // let source_line = span_substring(source, line_start, line_end)
+        // Use builtin substring directly - type checker has stdlib loaded
+        let source_line = substring(source, line_start, line_end)
+        
+        return SourceLocation {
+            line: line,
+            column: column,
+            offset: self.start,
+            length: self.len(),
+            source_line: source_line
+        }
+
+// Helper: Extract substring (avoid stdlib dependency issues)
+// fn span_substring(s: String, start: Int, end: Int) -> String:
+//    let result = ""
+//    let i = start
+//    while i < end && i < str_len(s):
+//        let ch = char_code_at(s, i)
+//        result = result + char_from_code(ch)
+//        i = i + 1
+//    return result
+
+// Helper: Repeat a character n times
+// fn repeat_char(ch: String, n: Int) -> String:
+//    let result = ""
+//    let i = 0
+//    while i < n:
+//        result = result + ch
+//        i = i + 1
+//    return result
+
+// Spanned<T> removed for bootstrap compatibility

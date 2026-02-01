@@ -1,0 +1,33 @@
+use stdlib::math
+
+actor Player:
+    state pos: Vec2 = Vec2.zero()
+    state name: String = "Player"
+
+    on Move(x: Float, y: Float):
+        print("Player " + self.name + " moving by " + str(x) + ", " + str(y))
+        let delta = Vec2.new(x, y)
+        self.pos = self.pos.add(delta)
+        print("New position: " + str(self.pos.x) + ", " + str(self.pos.y))
+
+    on Teleport(target: Vec2):
+        print("Teleporting to " + str(target.x) + ", " + str(target.y))
+        self.pos = target
+
+fn main():
+    print("Starting Game Test...")
+    
+    # Spawn player
+    let p = spawn Player(name="Hero")
+    
+    # Send messages
+    send p.Move(x=10.0, y=5.0)
+    send p.Move(x=-2.0, y=3.0)
+    
+    let target = Vec2.new(100.0, 100.0)
+    send p.Teleport(target=target)
+
+    # Give some time for async processing
+    sleep(100)
+    
+    print("Game Test Finished (async messages sent)")

@@ -1,0 +1,42 @@
+// Test 08: Arrays and array operations
+fn sum_array(arr: Array<Int>) -> Int:
+    let total = 0
+    for item in arr:
+        total = total + item
+    return total
+
+fn find_max(arr: Array<Int>) -> Int:
+    if array_len(arr) == 0:
+        return 0
+    let max = arr[0]
+    for item in arr:
+        if item > max:
+            max = item
+    return max
+
+fn main():
+    // Array literals
+    let numbers = [1, 2, 3, 4, 5]
+    println("Array length: " + str(array_len(numbers)))
+    println("First element: " + str(numbers[0]))
+    println("Last element: " + str(numbers[4]))
+    
+    // Array operations
+    println("Sum: " + str(sum_array(numbers)))
+    println("Max: " + str(find_max(numbers)))
+    
+    // Dynamic array with push
+    let dynamic = []
+    push(dynamic, 10)
+    push(dynamic, 20)
+    push(dynamic, 30)
+    println("Dynamic array length: " + str(array_len(dynamic)))
+    
+    // String array
+    let names = ["Alice", "Bob", "Charlie"]
+    for name in names:
+        println("Hello, " + name + "!")
+    
+    // Nested arrays
+    let matrix = [[1, 2], [3, 4], [5, 6]]
+    println("Matrix[1][0] = " + str(matrix[1][0]))

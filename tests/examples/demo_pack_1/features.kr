@@ -1,0 +1,27 @@
+# F-strings
+let name = "World"
+print(f"Hello, {name}!")
+
+# Destructuring
+let (a, b) = (10, 20)
+print(a)
+print(b)
+
+let [x, y] = [30, 40]
+print(x)
+print(y)
+
+let (f1, s1) = (100, 200)
+print(f"First: {f1}, Second: {s1}")
+
+# Map/Filter/Reduce
+let nums = [1, 2, 3, 4, 5]
+
+let doubled = map(nums, |x| x * 2)
+print(f"Doubled: {doubled}")
+
+let evens = filter(nums, |x| x % 2 == 0)
+print(f"Evens: {evens}")
+
+let sum_val = reduce(nums, 0, |acc, x| acc + x)
+print(f"Sum: {sum_val}")

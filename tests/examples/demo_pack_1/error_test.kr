@@ -1,0 +1,4 @@
+# Test file with parse error
+let x = 5
+let y = x +
+print(y)

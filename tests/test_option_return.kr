@@ -1,0 +1,13 @@
+// Minimal test for Option<String> return type
+
+struct Parser:
+    data: String
+
+impl Parser:
+    pub fn test_option(self) -> Option<String>:
+        return Option::Some("hello")
+
+fn main():
+    let p = Parser { data: "test" }
+    let result = p.test_option()
+    println("Done")

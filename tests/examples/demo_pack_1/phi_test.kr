@@ -1,0 +1,37 @@
+fn main() with IO:
+    println("Testing Phi Nodes...")
+    
+    let x = if true:
+        10
+    else:
+        20
+    
+    println(to_string(x)) 
+    
+    let y = if false:
+        30
+    else:
+        40
+    
+    println(to_string(y)) 
+    
+    # String test (RC)
+    let s = if true:
+        "Hello"
+    else:
+        "World"
+    
+    println(s) 
+    
+    # Nested If (ElseIf)
+    let z = if false:
+        100
+    else:
+        if true:
+            200
+        else:
+            300
+    
+    println(to_string(z)) 
+    
+    println("Done.")

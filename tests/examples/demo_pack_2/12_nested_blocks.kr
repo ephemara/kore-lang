@@ -1,0 +1,59 @@
+// Test 12: Deeply nested blocks and scoping
+fn process_matrix(rows: Int, cols: Int) -> Int:
+    let total = 0
+    let r = 0
+    while r < rows:
+        let c = 0
+        while c < cols:
+            if r == c:
+                // Diagonal element
+                total = total + (r * cols + c) * 2
+            else if r < c:
+                // Upper triangle
+                total = total + (r * cols + c)
+            else:
+                // Lower triangle
+                let idx = r * cols + c
+                if idx % 2 == 0:
+                    total = total + idx
+                else:
+                    total = total - idx
+            c = c + 1
+        r = r + 1
+    return total
+
+fn complex_control_flow(n: Int) -> Int:
+    let result = 0
+    let i = 0
+    
+    loop:
+        if i >= n:
+            break
+        
+        let j = 0
+        while j < i:
+            if j % 2 == 0:
+                if i % 3 == 0:
+                    result = result + i * j
+                else:
+                    result = result + i + j
+            else:
+                loop:
+                    if j <= 0:
+                        break
+                    result = result + 1
+                    j = j - 1
+                    continue
+            j = j + 1
+        
+        i = i + 1
+        continue
+    
+    return result
+
+fn main():
+    println("Matrix processing (3x3): " + str(process_matrix(3, 3)))
+    println("Matrix processing (5x5): " + str(process_matrix(5, 5)))
+    
+    println("Complex control flow (5): " + str(complex_control_flow(5)))
+    println("Complex control flow (10): " + str(complex_control_flow(10)))

@@ -1,0 +1,34 @@
+// Test 04: Loops (while, loop, for)
+fn main():
+    // While loop
+    println("While loop:")
+    let i = 0
+    while i < 5:
+        println("  i = " + str(i))
+        i = i + 1
+    
+    // Loop with break
+    println("Loop with break:")
+    let j = 0
+    loop:
+        if j >= 3:
+            break
+        println("  j = " + str(j))
+        j = j + 1
+    
+    // Loop with continue
+    println("Loop with continue (skip evens):")
+    let k = 0
+    loop:
+        if k >= 6:
+            break
+        k = k + 1
+        if k % 2 == 0:
+            continue
+        println("  k = " + str(k))
+    
+    // For loop over array
+    println("For loop:")
+    let items = [10, 20, 30, 40]
+    for item in items:
+        println("  item = " + str(item))

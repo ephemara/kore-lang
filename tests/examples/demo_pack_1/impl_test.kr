@@ -1,0 +1,28 @@
+// Test with impl blocks and self
+
+struct Lexer:
+    source: String
+    pos: Int
+
+impl Lexer:
+    pub fn new(source: String) -> Lexer:
+        return Lexer { source: source, pos: 0 }
+    
+    fn is_eof(self) -> Bool:
+        return self.pos >= len(self.source)
+    
+    fn peek(self) -> String:
+        if self.is_eof():
+            return ""
+        return self.source[self.pos]
+    
+    fn advance(self) -> String:
+        if self.is_eof():
+            return ""
+        let c = self.source[self.pos]
+        self.pos = self.pos + 1
+        return c
+
+fn main():
+    let lex = Lexer::new("hello")
+    println(lex.peek())

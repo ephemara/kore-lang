@@ -1,0 +1,147 @@
+// KORE Standard Library: HashMap<K, V>
+// A hash map implementation using chained collision handling
+
+// Trait for types that can be hashed
+trait Hash:
+    fn hash(self) -> Int
+
+// Trait for types that can be compared for equality  
+trait Eq:
+    fn equals(self, other: Self) -> Bool
+
+// Built-in Hash implementations
+impl Hash for Int:
+    fn hash(self) -> Int:
+        return self
+
+impl Hash for String:
+    fn hash(self) -> Int:
+        let h = 0
+        for c in self:
+            h = h * 31 + char_code(c)
+        return h
+
+impl Hash for Bool:
+    fn hash(self) -> Int:
+        if self:
+            return 1
+        return 0
+// Built-in Eq implementations
+impl Eq for Int:
+    fn equals(self, other: Int) -> Bool:
+        return self == other
+
+impl Eq for String:
+    fn equals(self, other: String) -> Bool:
+        return self == other
+
+impl Eq for Bool:
+    fn equals(self, other: Bool) -> Bool:
+        return self == other
+
+// Entry in the hash map (linked list node for collision chaining)
+struct Entry<K, V>:
+    key: K
+    value: V
+    next: Option<Entry<K, V>>
+
+// The HashMap itself
+struct HashMap<K, V>:
+    buckets: Array<Option<Entry<K, V>>>
+    size: Int
+    capacity: Int
+
+impl<K: Hash + Eq, V> HashMap<K, V>:
+    /// Create a new empty HashMap with default capacity
+    fn new() -> HashMap<K, V>:
+        let cap = 16
+        let buckets = []
+        for i in range(0, cap):
+            push(buckets, Option::None)
+        return HashMap {
+            buckets: buckets,
+            size: 0,
+            capacity: cap
+        }
+
+    /// Get a value by key
+    fn get(self, key: K) -> Option<V>:
+        let hash = key.hash()
+        let idx = hash % self.capacity
+        if idx < 0:
+            idx = -idx
+        
+        let entry = self.buckets[idx]
+        while entry.is_some():
+            let e = entry.unwrap()
+            if e.key.equals(key):
+                return Option::Some(e.value)
+            entry = e.next
+        return Option::None
+
+    /// Insert or update a key-value pair
+    fn insert(mut self, key: K, value: V):
+        let hash = key.hash()
+        let idx = hash % self.capacity
+        if idx < 0:
+            idx = -idx
+        
+        let entry = self.buckets[idx]
+        
+        // Check if key already exists
+        while entry.is_some():
+            let e = entry.unwrap()
+            if e.key.equals(key):
+                e.value = value
+                return
+            entry = e.next
+        
+        // Insert new entry at head of chain
+        let new_entry = Entry {
+            key: key,
+            value: value,
+            next: self.buckets[idx]
+        }
+        self.buckets[idx] = Option::Some(new_entry)
+        self.size = self.size + 1
+
+    /// Check if a key exists
+    fn contains(self, key: K) -> Bool:
+        return self.get(key).is_some()
+    
+    /// Get the number of entries
+    fn len(self) -> Int:
+        return self.size
+    
+    /// Check if empty
+    fn is_empty(self) -> Bool:
+        return self.size == 0
+    
+    /// Remove a key and return its value
+    fn remove(mut self, key: K) -> Option<V>:
+        let hash = key.hash()
+        let idx = hash % self.capacity
+        if idx < 0:
+            idx = -idx
+        
+        let prev: Option<Entry<K, V>> = Option::None
+        let entry = self.buckets[idx]
+        
+        while entry.is_some():
+            let e = entry.unwrap()
+            if e.key.equals(key):
+                // Found it, remove from chain
+                if prev.is_none():
+                    self.buckets[idx] = e.next
+                else:
+                    prev.unwrap().next = e.next
+                self.size = self.size - 1
+                return Option::Some(e.value)
+            prev = entry
+            entry = e.next
+        
+        return Option::None
+
+/// Convenience function to create a new HashMap
+fn map<K: Hash + Eq, V>() -> HashMap<K, V>:
+    return HashMap::new()

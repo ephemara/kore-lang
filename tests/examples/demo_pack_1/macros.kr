@@ -1,0 +1,18 @@
+# Macro test - all built-in macros
+
+println!("Hello from println! macro")
+
+let x = 42
+let y = "world"
+dbg!(x, y)
+
+let arr = vec!(1, 2, 3, 4, 5)
+print("Array from vec!: ")
+print(arr)
+println!()
+
+let msg = format!("The answer is: ", x)
+println!(msg)
+
+# This should cause a panic
+# panic!("Something went wrong!")

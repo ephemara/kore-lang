@@ -1,0 +1,18 @@
+actor Counter:
+    state count: Int = 0
+
+    on increment(amount: Int):
+        count = count + amount
+        print(f"Counter incremented by {amount}, new count: {count}")
+
+    on get_count():
+        print(f"Current count is: {count}")
+
+let c = spawn Counter(count=10)
+print("Spawned counter with initial count 10")
+send c.increment(amount=5)
+send c.increment(amount=3)
+send c.get_count()
+print("Messages sent, sleeping...")
+sleep(1.0)
+print("Done")

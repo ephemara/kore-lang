@@ -1,0 +1,22 @@
+fn safe_div(a, b):
+    if b == 0:
+        return err("Division by zero")
+    return ok(a / b)
+
+fn calculate(a, b):
+    let val = safe_div(a, b)?
+    return ok(val + 10)
+
+print("--- Error Handling Test ---")
+print(f"Safe Div 10 / 2: {safe_div(10, 2)}")
+print(f"Safe Div 10 / 0: {safe_div(10, 0)}")
+
+print(f"Calc 10 / 2: {calculate(10, 2)}")
+print(f"Calc 10 / 0: {calculate(10, 0)}")
+
+fn test_early_return():
+    let x = safe_div(10, 0)?
+    print("This should not print")
+    return ok(x)
+
+print(f"Test Early Return: {test_early_return()}")

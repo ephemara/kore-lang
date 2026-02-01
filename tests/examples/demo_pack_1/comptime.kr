@@ -1,0 +1,12 @@
+// Comptime test
+const CALC: int = comptime:
+    let x = 10
+    let y = 20
+    x * y 
+
+
+print("Calculated at compile time:", CALC)
+
+// Test that it actually ran at compile time
+comptime:
+    print("I am running during compilation!")

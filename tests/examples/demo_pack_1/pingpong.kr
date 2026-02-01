@@ -1,0 +1,41 @@
+# pingpong.god - Actor Ping Pong Demo
+
+actor Player:
+    state name: String = ""
+    state hits: Int = 0
+    state me: Any = 0 
+
+    on init(ref: ActorRef):
+        me = ref
+
+    on start(partner: ActorRef):
+        print(name + ": Serving to partner")
+        let my_ref = me as ActorRef
+        send partner.hit(from=my_ref)
+    
+    on hit(from: ActorRef):
+        hits = hits + 1
+        print(name + ": Hit " + to_string(hits))
+        sleep(0.5)
+        if hits < 5:
+            let my_ref = me as ActorRef
+            send from.hit(from=my_ref)
+        else:
+            print(name + ": Good game!")
+
+fn main() with IO:
+    print("=== Ping Pong ===")
+    
+    let p1 = spawn Player(name="Ping", hits=0, me=0)
+    let p2 = spawn Player(name="Pong", hits=0, me=0)
+    
+    # Initialize them with their own refs
+    send p1.init(ref=p1)
+    send p2.init(ref=p2)
+    
+    # Start the game
+    send p1.start(partner=p2)
+    
+    # Keep main alive long enough for game to finish
+    sleep(6.0)
+    print("Game over.")

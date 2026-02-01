@@ -1,0 +1,6 @@
+// Test shader for K-Factory SPIR-V -> HLSL pipeline
+// Simple vertex shader: transforms position by MVP matrix
+
+shader vertex SimpleVertex(position: Vec4, uv: Vec2) -> Vec4:
+    uniform mvp: Mat4 @0
+    return mvp * position

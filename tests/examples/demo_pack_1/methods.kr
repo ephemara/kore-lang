@@ -1,0 +1,24 @@
+struct Player:
+    x: Float
+    y: Float
+
+impl Player:
+    fn new(x: Float, y: Float) -> Player:
+        Player { x: x, y: y }
+    
+    fn move_by(mut self, dx: Float, dy: Float):
+        self.x = self.x + dx
+        self.y = self.y + dy
+        println("Player moved to: " + self.to_string())
+    
+    fn to_string(self) -> String:
+        "{ x: " + self.x.to_string() + ", y: " + self.y.to_string() + " }"
+
+fn main():
+    let mut p = Player::new(10.0, 20.0)
+    println("Initial: " + p.to_string())
+    
+    p.move_by(5.0, 5.0)
+
+    // Test direct call style (optional, if we want to confirm lowering works)
+    // Player_move_by(p, 1.0, 1.0)

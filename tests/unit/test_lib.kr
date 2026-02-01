@@ -1,0 +1,2 @@
+fn test_lib_func():
+    println("Hello from library!")

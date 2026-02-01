@@ -1,0 +1,3 @@
+use span
+fn main():
+    println("Test")

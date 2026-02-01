@@ -1,0 +1,993 @@
+// ============================================================================
+// KORE Language Server Protocol (LSP) Implementation
+// ============================================================================
+// Ported from legacy_prototype/src/lsp.rs
+//
+// Provides IDE features:
+// - Real-time error diagnostics
+// - Hover information
+// - Go to definition
+// - Autocompletion
+// - Symbol search
+//
+// Implements the Language Server Protocol specification.
+// ============================================================================
+
+use std/io
+use std/collections
+use std/json
+
+// =============================================================================
+// Document Management
+// =============================================================================
+
+/// Represents an open document in the editor
+struct Document:
+    uri: String
+    text: String
+    version: Int
+    analysis: Option<DocumentAnalysis>
+
+/// Document store - manages all open documents
+struct DocumentStore:
+    docs: Map<String, Document>
+
+impl DocumentStore:
+    pub fn new() -> DocumentStore:
+        return DocumentStore {
+            docs: Map::new()
+        }
+    
+    /// Add or update a document
+    pub fn upsert(self, uri: String, text: String, version: Int) -> Unit:
+        self.docs[uri] = Document {
+            uri: uri,
+            text: text,
+            version: version,
+            analysis: None
+        }
+    
+    /// Remove a document
+    pub fn remove(self, uri: String) -> Unit:
+        if contains_key(self.docs, uri):
+            delete(self.docs, uri)
+    
+    /// Get document text
+    pub fn get_text(self, uri: String) -> Option<String>:
+        if contains_key(self.docs, uri):
+            return Some(self.docs[uri].text)
+        return None
+    
+    /// Get document analysis
+    pub fn get_analysis(self, uri: String) -> Option<DocumentAnalysis>:
+        if contains_key(self.docs, uri):
+            return self.docs[uri].analysis
+        return None
+    
+    /// Update document analysis
+    pub fn update_analysis(self, uri: String, analysis: Option<DocumentAnalysis>) -> Unit:
+        if contains_key(self.docs, uri):
+            self.docs[uri].analysis = analysis
+    
+    /// Apply incremental text changes
+    pub fn apply_changes(self, uri: String, version: Int, changes: Array<TextChange>) -> Option<String>:
+        if len(changes) == 0:
+            return self.get_text(uri)
+        
+        if !contains_key(self.docs, uri):
+            // Only allow creating via full sync
+            for change in changes:
+                if change.range == None:
+                    self.upsert(uri, change.text, version)
+                    return Some(change.text)
+            return None
+        
+        var current = self.docs[uri].text
+        
+        for change in changes:
+            match change.range:
+                Some(range) =>
+                    match apply_text_change(current, range, change.text):
+                        Some(updated) => current = updated
+                        None => return None
+                None =>
+                    current = change.text
+        
+        self.docs[uri].text = current
+        self.docs[uri].version = version
+        self.docs[uri].analysis = None
+        
+        return Some(current)
+
+/// Text change from LSP
+struct TextChange:
+    range: Option<Range>
+    text: String
+
+/// Range in the document
+struct Range:
+    start: Position
+    end: Position
+
+/// Position in the document (0-indexed line and character)
+struct Position:
+    line: Int
+    character: Int
+
+/// Apply a single text change to a string
+fn apply_text_change(text: String, range: Range, new_text: String) -> Option<String>:
+    let start_offset = position_to_offset(text, range.start)
+    let end_offset = position_to_offset(text, range.end)
+    
+    match start_offset:
+        None => return None
+        Some(s) =>
+            match end_offset:
+                None => return None
+                Some(e) =>
+                    if s > e or e > len(text):
+                        return None
+                    
+                    var result = ""
+                    result = result + substring(text, 0, s)
+                    result = result + new_text
+                    result = result + substring(text, e, len(text))
+                    return Some(result)
+
+/// Convert Position to byte offset
+fn position_to_offset(text: String, pos: Position) -> Option<Int>:
+    var offset = 0
+    var line = 0
+    var col = 0
+    
+    let chars = to_chars(text)
+    for ch in chars:
+        if line == pos.line and col == pos.character:
+            return Some(offset)
+        
+        offset = offset + char_len(ch)
+        
+        if ch == "\n":
+            if line == pos.line and pos.character >= col:
+                return Some(offset)
+            line = line + 1
+            col = 0
+        else:
+            col = col + 1
+    
+    if line == pos.line and col == pos.character:
+        return Some(offset)
+    else if line == pos.line and pos.character >= col:
+        return Some(offset)
+    
+    return None
+
+/// Convert byte offset to Position
+fn offset_to_position(text: String, offset: Int) -> Position:
+    var line = 0
+    var col = 0
+    var cur = 0
+    
+    let chars = to_chars(text)
+    for ch in chars:
+        if cur >= offset:
+            break
+        
+        if ch == "\n":
+            line = line + 1
+            col = 0
+        else:
+            col = col + 1
+        
+        cur = cur + char_len(ch)
+    
+    return Position { line: line, character: col }
+
+// =============================================================================
+// Document Analysis
+// =============================================================================
+
+/// Analysis result for a document
+struct DocumentAnalysis:
+    symbols: Map<String, Array<SymbolInfo>>
+
+/// Symbol information
+struct SymbolInfo:
+    name: String
+    kind: SymbolKind
+    range: Range
+    detail: Option<String>
+
+/// Symbol kinds
+enum SymbolKind:
+    Function
+    Variable
+    Class
+    Struct
+    Enum
+    Field
+    Method
+    Parameter
+    Constant
+
+impl DocumentAnalysis:
+    /// Create analysis from a parsed program
+    pub fn from_program(text: String, program: Program) -> DocumentAnalysis:
+        var symbols: Map<String, Array<SymbolInfo>> = Map::new()
+        
+        for item in program.items:
+            match item:
+                Item::Function(func) =>
+                    let range = find_identifier_range(text, func.name, func.span)
+                    let detail = format_fn_signature(func)
+                    
+                    if !contains_key(symbols, func.name):
+                        symbols[func.name] = []
+                    
+                    push(symbols[func.name], SymbolInfo {
+                        name: func.name,
+                        kind: SymbolKind::Function,
+                        range: range,
+                        detail: Some(detail)
+                    })
+                    
+                    // Add parameters
+                    for param in func.params:
+                        let param_range = find_identifier_range(text, param.name, param.span)
+                        let param_detail = "param " + param.name + ": " + format_type(param.ty)
+                        
+                        if !contains_key(symbols, param.name):
+                            symbols[param.name] = []
+                        
+                        push(symbols[param.name], SymbolInfo {
+                            name: param.name,
+                            kind: SymbolKind::Parameter,
+                            range: param_range,
+                            detail: Some(param_detail)
+                        })
+                
+                Item::Struct(s) =>
+                    let range = find_identifier_range(text, s.name, s.span)
+                    
+                    if !contains_key(symbols, s.name):
+                        symbols[s.name] = []
+                    
+                    push(symbols[s.name], SymbolInfo {
+                        name: s.name,
+                        kind: SymbolKind::Struct,
+                        range: range,
+                        detail: Some("struct " + s.name)
+                    })
+                    
+                    // Add fields
+                    for field in s.fields:
+                        let field_range = find_identifier_range(text, field.name, field.span)
+                        
+                        if !contains_key(symbols, field.name):
+                            symbols[field.name] = []
+                        
+                        push(symbols[field.name], SymbolInfo {
+                            name: field.name,
+                            kind: SymbolKind::Field,
+                            range: field_range,
+                            detail: Some(s.name + "." + field.name)
+                        })
+                
+                Item::Enum(e) =>
+                    let range = find_identifier_range(text, e.name, e.span)
+                    
+                    if !contains_key(symbols, e.name):
+                        symbols[e.name] = []
+                    
+                    push(symbols[e.name], SymbolInfo {
+                        name: e.name,
+                        kind: SymbolKind::Enum,
+                        range: range,
+                        detail: Some("enum " + e.name)
+                    })
+                
+                _ => pass
+        
+        return DocumentAnalysis { symbols: symbols }
+    
+    /// Look up a symbol by name
+    pub fn lookup(self, name: String) -> Option<Array<SymbolInfo>>:
+        if contains_key(self.symbols, name):
+            return Some(self.symbols[name])
+        return None
+
+/// Find the range of an identifier in text
+fn find_identifier_range(text: String, name: String, span_hint: Span) -> Range:
+    let start = span_hint.start
+    let end = span_hint.end
+    
+    // Try to find the name within the span
+    let window = substring(text, start, end)
+    let idx = index_of(window, name)
+    
+    if idx >= 0:
+        let abs_start = start + idx
+        let abs_end = abs_start + len(name)
+        return Range {
+            start: offset_to_position(text, abs_start),
+            end: offset_to_position(text, abs_end)
+        }
+    
+    // Fallback: search whole text
+    let global_idx = index_of(text, name)
+    if global_idx >= 0:
+        return Range {
+            start: offset_to_position(text, global_idx),
+            end: offset_to_position(text, global_idx + len(name))
+        }
+    
+    // Last resort: use span as-is
+    return Range {
+        start: offset_to_position(text, start),
+        end: offset_to_position(text, end)
+    }
+
+/// Find identifier at a given offset
+fn find_ident_at_offset(text: String, offset: Int) -> Option<(String, Range)>:
+    if offset > len(text):
+        return None
+    
+    var start = offset
+    var end = offset
+    
+    // Expand backwards
+    while start > 0 and is_ident_char(char_at(text, start - 1)):
+        start = start - 1
+    
+    // Expand forwards
+    while end < len(text) and is_ident_char(char_at(text, end)):
+        end = end + 1
+    
+    if start == end:
+        return None
+    
+    let ident = substring(text, start, end)
+    let range = Range {
+        start: offset_to_position(text, start),
+        end: offset_to_position(text, end)
+    }
+    
+    return Some((ident, range))
+
+fn is_ident_char(c: String) -> Bool:
+    return is_alphanumeric(c) or c == "_"
+
+// =============================================================================
+// Type Formatting
+// =============================================================================
+
+fn format_fn_signature(func: Function) -> String:
+    var params_str = ""
+    var first = true
+    for param in func.params:
+        if !first:
+            params_str = params_str + ", "
+        first = false
+        params_str = params_str + param.name + ": " + format_type(param.ty)
+    
+    var ret_str = "()"
+    match func.return_type:
+        Some(ty) => ret_str = format_type(ty)
+        None => pass
+    
+    return "fn " + func.name + "(" + params_str + ") -> " + ret_str
+
+fn format_type(ty: Type) -> String:
+    match ty:
+        Type::Named(name, generics) =>
+            if len(generics) == 0:
+                return name
+            else:
+                var gen_str = ""
+                var first = true
+                for g in generics:
+                    if !first:
+                        gen_str = gen_str + ", "
+                    first = false
+                    gen_str = gen_str + format_type(g)
+                return name + "<" + gen_str + ">"
+        
+        Type::Tuple(items) =>
+            var items_str = ""
+            var first = true
+            for item in items:
+                if !first:
+                    items_str = items_str + ", "
+                first = false
+                items_str = items_str + format_type(item)
+            return "(" + items_str + ")"
+        
+        Type::Array(inner, size) =>
+            return "[" + format_type(inner) + "; " + str(size) + "]"
+        
+        Type::Slice(inner) =>
+            return "[" + format_type(inner) + "]"
+        
+        Type::Ref(mutable, inner) =>
+            if mutable:
+                return "&mut " + format_type(inner)
+            else:
+                return "&" + format_type(inner)
+        
+        Type::Function(params, ret) =>
+            var params_str = ""
+            var first = true
+            for p in params:
+                if !first:
+                    params_str = params_str + ", "
+                first = false
+                params_str = params_str + format_type(p)
+            return "fn(" + params_str + ") -> " + format_type(ret)
+        
+        Type::Option(inner) =>
+            return format_type(inner) + "?"
+        
+        Type::Result(ok, err) =>
+            return format_type(ok) + "!" + format_type(err)
+        
+        Type::Infer =>
+            return "_"
+        
+        Type::Never =>
+            return "!"
+        
+        Type::Unit =>
+            return "()"
+        
+        _ =>
+            return "?"
+
+// =============================================================================
+// Diagnostics
+// =============================================================================
+
+/// Diagnostic severity
+enum DiagnosticSeverity:
+    Error
+    Warning
+    Information
+    Hint
+
+/// A diagnostic message
+struct Diagnostic:
+    range: Range
+    severity: DiagnosticSeverity
+    source: String
+    message: String
+    code: Option<String>
+
+/// Create diagnostics from a Kore error
+fn diagnostic_from_error(text: String, err: KoreError) -> Array<Diagnostic>:
+    let message = err.message
+    let span = err.span
+    let range = Range {
+        start: offset_to_position(text, span.start),
+        end: offset_to_position(text, span.end)
+    }
+    
+    return [Diagnostic {
+        range: range,
+        severity: DiagnosticSeverity::Error,
+        source: "kore",
+        message: message,
+        code: None
+    }]
+
+// =============================================================================
+// LSP Server
+// =============================================================================
+
+/// LSP Server state
+struct LspServer:
+    docs: DocumentStore
+    initialized: Bool
+
+impl LspServer:
+    pub fn new() -> LspServer:
+        return LspServer {
+            docs: DocumentStore::new(),
+            initialized: false
+        }
+    
+    /// Handle incoming JSON-RPC request
+    pub fn handle_request(self, method: String, params: JsonValue) -> Result<JsonValue, String>:
+        if method == "initialize":
+            return self.handle_initialize(params)
+        else if method == "initialized":
+            return self.handle_initialized(params)
+        else if method == "shutdown":
+            return self.handle_shutdown(params)
+        else if method == "textDocument/didOpen":
+            return self.handle_did_open(params)
+        else if method == "textDocument/didChange":
+            return self.handle_did_change(params)
+        else if method == "textDocument/didClose":
+            return self.handle_did_close(params)
+        else if method == "textDocument/hover":
+            return self.handle_hover(params)
+        else if method == "textDocument/definition":
+            return self.handle_goto_definition(params)
+        else if method == "textDocument/completion":
+            return self.handle_completion(params)
+        else:
+            return Err("Method not found: " + method)
+    
+    /// Initialize the server
+    fn handle_initialize(self, params: JsonValue) -> Result<JsonValue, String>:
+        self.initialized = true
+        
+        // Return server capabilities
+        return Ok(json_object([
+            ("capabilities", json_object([
+                ("textDocumentSync", json_object([
+                    ("openClose", json_bool(true)),
+                    ("change", json_int(2))  // Incremental
+                ])),
+                ("hoverProvider", json_bool(true)),
+                ("definitionProvider", json_bool(true)),
+                ("completionProvider", json_object([
+                    ("triggerCharacters", json_array([json_string(".")]))
+                ]))
+            ]))
+        ]))
+    
+    fn handle_initialized(self, params: JsonValue) -> Result<JsonValue, String>:
+        // Server is now fully initialized
+        return Ok(json_null())
+    
+    fn handle_shutdown(self, params: JsonValue) -> Result<JsonValue, String>:
+        return Ok(json_null())
+    
+    /// Handle document open
+    fn handle_did_open(self, params: JsonValue) -> Result<JsonValue, String>:
+        let text_doc = json_get(params, "textDocument")
+        let uri = json_get_string(text_doc, "uri")
+        let text = json_get_string(text_doc, "text")
+        let version = json_get_int(text_doc, "version")
+        
+        self.docs.upsert(uri, text, version)
+        self.validate_document(uri, text)
+        
+        return Ok(json_null())
+    
+    /// Handle document change
+    fn handle_did_change(self, params: JsonValue) -> Result<JsonValue, String>:
+        let text_doc = json_get(params, "textDocument")
+        let uri = json_get_string(text_doc, "uri")
+        let version = json_get_int(text_doc, "version")
+        
+        let changes = json_get_array(params, "contentChanges")
+        var text_changes: Array<TextChange> = []
+        
+        for change in changes:
+            let range = if json_has(change, "range"):
+                let r = json_get(change, "range")
+                let start = json_get(r, "start")
+                let end = json_get(r, "end")
+                Some(Range {
+                    start: Position {
+                        line: json_get_int(start, "line"),
+                        character: json_get_int(start, "character")
+                    },
+                    end: Position {
+                        line: json_get_int(end, "line"),
+                        character: json_get_int(end, "character")
+                    }
+                })
+            else:
+                None
+            
+            push(text_changes, TextChange {
+                range: range,
+                text: json_get_string(change, "text")
+            })
+        
+        match self.docs.apply_changes(uri, version, text_changes):
+            Some(new_text) => self.validate_document(uri, new_text)
+            None => pass
+        
+        return Ok(json_null())
+    
+    /// Handle document close
+    fn handle_did_close(self, params: JsonValue) -> Result<JsonValue, String>:
+        let text_doc = json_get(params, "textDocument")
+        let uri = json_get_string(text_doc, "uri")
+        
+        self.docs.remove(uri)
+        
+        return Ok(json_null())
+    
+    /// Handle hover request
+    fn handle_hover(self, params: JsonValue) -> Result<JsonValue, String>:
+        let text_doc = json_get(params, "textDocument")
+        let uri = json_get_string(text_doc, "uri")
+        let position = json_get(params, "position")
+        let line = json_get_int(position, "line")
+        let character = json_get_int(position, "character")
+        
+        let text = match self.docs.get_text(uri):
+            Some(t) => t
+            None => return Ok(json_null())
+        
+        let analysis = match self.docs.get_analysis(uri):
+            Some(a) => a
+            None => return Ok(json_null())
+        
+        let offset = match position_to_offset(text, Position { line: line, character: character }):
+            Some(o) => o
+            None => return Ok(json_null())
+        
+        let ident_result = match find_ident_at_offset(text, offset):
+            Some(res) => res
+            None => return Ok(json_null())
+        
+        let ident = ident_result.0
+        let range = ident_result.1
+        
+        match analysis.lookup(ident):
+            Some(symbols) =>
+                if len(symbols) > 0:
+                    let info = symbols[0]
+                    let contents = match info.detail:
+                        Some(d) => d
+                        None => ident
+                    
+                    return Ok(json_object([
+                        ("contents", json_object([
+                            ("kind", json_string("markdown")),
+                            ("value", json_string("```kore\n" + contents + "\n```"))
+                        ])),
+                        ("range", range_to_json(info.range))
+                    ]))
+            None => pass
+        
+        return Ok(json_null())
+    
+    /// Handle go to definition
+    fn handle_goto_definition(self, params: JsonValue) -> Result<JsonValue, String>:
+        let text_doc = json_get(params, "textDocument")
+        let uri = json_get_string(text_doc, "uri")
+        let position = json_get(params, "position")
+        let line = json_get_int(position, "line")
+        let character = json_get_int(position, "character")
+        
+        let text = match self.docs.get_text(uri):
+            Some(t) => t
+            None => return Ok(json_null())
+        
+        let analysis = match self.docs.get_analysis(uri):
+            Some(a) => a
+            None => return Ok(json_null())
+        
+        let offset = match position_to_offset(text, Position { line: line, character: character }):
+            Some(o) => o
+            None => return Ok(json_null())
+        
+        let ident_result = match find_ident_at_offset(text, offset):
+            Some(res) => res
+            None => return Ok(json_null())
+        
+        let ident = ident_result.0
+        
+        match analysis.lookup(ident):
+            Some(symbols) =>
+                if len(symbols) > 0:
+                    let info = symbols[0]
+                    return Ok(json_object([
+                        ("uri", json_string(uri)),
+                        ("range", range_to_json(info.range))
+                    ]))
+            None => pass
+        
+        return Ok(json_null())
+    
+    /// Handle completion request
+    fn handle_completion(self, params: JsonValue) -> Result<JsonValue, String>:
+        let text_doc = json_get(params, "textDocument")
+        let uri = json_get_string(text_doc, "uri")
+        let position = json_get(params, "position")
+        let line = json_get_int(position, "line")
+        let character = json_get_int(position, "character")
+        
+        let text = match self.docs.get_text(uri):
+            Some(t) => t
+            None => return Ok(json_array([]))
+        
+        let analysis = match self.docs.get_analysis(uri):
+            Some(a) => a
+            None => return Ok(json_array([]))
+        
+        var items: Array<JsonValue> = []
+        
+        // Get current prefix for filtering
+        let offset = match position_to_offset(text, Position { line: line, character: character }):
+            Some(o) => o
+            None => 0
+        
+        let prefix = match find_ident_at_offset(text, offset):
+            Some(res) => res.0
+            None => ""
+        
+        // Add all matching symbols
+        for name, symbol_list in analysis.symbols:
+            if starts_with(name, prefix) or len(prefix) == 0:
+                if len(symbol_list) > 0:
+                    let info = symbol_list[0]
+                    let kind = match info.kind:
+                        SymbolKind::Function => 3
+                        SymbolKind::Variable => 6
+                        SymbolKind::Class => 7
+                        SymbolKind::Struct => 22
+                        SymbolKind::Enum => 13
+                        SymbolKind::Field => 5
+                        SymbolKind::Method => 2
+                        SymbolKind::Parameter => 6
+                        SymbolKind::Constant => 21
+                    
+                    let detail = match info.detail:
+                        Some(d) => d
+                        None => ""
+                    
+                    push(items, json_object([
+                        ("label", json_string(name)),
+                        ("kind", json_int(kind)),
+                        ("detail", json_string(detail))
+                    ]))
+        
+        return Ok(json_array(items))
+    
+    /// Validate a document and publish diagnostics
+    fn validate_document(self, uri: String, text: String) -> Unit:
+        // Tokenize
+        let lexer = Lexer::new(text)
+        let tokens = match lexer.tokenize():
+            Ok(t) => t
+            Err(e) =>
+                let diags = diagnostic_from_error(text, e)
+                self.publish_diagnostics(uri, diags)
+                self.docs.update_analysis(uri, None)
+                return
+        
+        // Parse
+        let parser = Parser::new(tokens)
+        let program = match parser.parse():
+            Ok(p) => p
+            Err(e) =>
+                let diags = diagnostic_from_error(text, e)
+                self.publish_diagnostics(uri, diags)
+                self.docs.update_analysis(uri, None)
+                return
+        
+        // Type check
+        match type_check(program):
+            Err(e) =>
+                let diags = diagnostic_from_error(text, e)
+                self.publish_diagnostics(uri, diags)
+                self.docs.update_analysis(uri, None)
+                return
+            Ok(_) => pass
+        
+        // Build analysis
+        let analysis = DocumentAnalysis::from_program(text, program)
+        self.docs.update_analysis(uri, Some(analysis))
+        
+        // Clear diagnostics (no errors)
+        self.publish_diagnostics(uri, [])
+    
+    /// Publish diagnostics to the client
+    fn publish_diagnostics(self, uri: String, diags: Array<Diagnostic>) -> Unit:
+        var diag_json: Array<JsonValue> = []
+        for d in diags:
+            push(diag_json, json_object([
+                ("range", range_to_json(d.range)),
+                ("severity", json_int(match d.severity:
+                    DiagnosticSeverity::Error => 1
+                    DiagnosticSeverity::Warning => 2
+                    DiagnosticSeverity::Information => 3
+                    DiagnosticSeverity::Hint => 4
+                )),
+                ("source", json_string(d.source)),
+                ("message", json_string(d.message))
+            ]))
+        
+        // Send notification (would use actual JSON-RPC in real impl)
+        let notification = json_object([
+            ("jsonrpc", json_string("2.0")),
+            ("method", json_string("textDocument/publishDiagnostics")),
+            ("params", json_object([
+                ("uri", json_string(uri)),
+                ("diagnostics", json_array(diag_json))
+            ]))
+        ])
+        
+        // Write to stdout
+        send_message(json_stringify(notification))
+
+/// Convert Range to JSON
+fn range_to_json(range: Range) -> JsonValue:
+    return json_object([
+        ("start", json_object([
+            ("line", json_int(range.start.line)),
+            ("character", json_int(range.start.character))
+        ])),
+        ("end", json_object([
+            ("line", json_int(range.end.line)),
+            ("character", json_int(range.end.character))
+        ]))
+    ])
+
+// =============================================================================
+// JSON-RPC Transport
+// =============================================================================
+
+/// Run the LSP server (main loop)
+pub fn run_server() with IO:
+    var server = LspServer::new()
+    
+    loop:
+        // Read message from stdin
+        let message = read_message()
+        match message:
+            None => break
+            Some(msg) =>
+                // Parse JSON-RPC
+                let json = json_parse(msg)
+                let method = json_get_string(json, "method")
+                let params = json_get(json, "params")
+                let id = json_get_opt(json, "id")
+                
+                // Handle request
+                let result = server.handle_request(method, params)
+                
+                // Send response (only for requests, not notifications)
+                match id:
+                    Some(request_id) =>
+                        match result:
+                            Ok(res) =>
+                                let response = json_object([
+                                    ("jsonrpc", json_string("2.0")),
+                                    ("id", request_id),
+                                    ("result", res)
+                                ])
+                                send_message(json_stringify(response))
+                            Err(err) =>
+                                let response = json_object([
+                                    ("jsonrpc", json_string("2.0")),
+                                    ("id", request_id),
+                                    ("error", json_object([
+                                        ("code", json_int(-32603)),
+                                        ("message", json_string(err))
+                                    ]))
+                                ])
+                                send_message(json_stringify(response))
+                    None => pass  // Notification, no response needed
+
+/// Read a JSON-RPC message from stdin
+fn read_message() -> Option<String> with IO:
+    // Read headers
+    var content_length = 0
+    loop:
+        let line = read_line()
+        if line == "" or line == "\r\n" or line == "\n":
+            break
+        
+        if starts_with(line, "Content-Length:"):
+            let value = trim(substring(line, 15, len(line)))
+            content_length = parse_int(value)
+    
+    if content_length == 0:
+        return None
+    
+    // Read body
+    let body = read_bytes(content_length)
+    return Some(body)
+
+/// Send a JSON-RPC message to stdout
+fn send_message(content: String) with IO:
+    let header = "Content-Length: " + str(len(content)) + "\r\n\r\n"
+    print(header)
+    print(content)
+    flush_stdout()
+
+// =============================================================================
+// External dependencies (stubs)
+// =============================================================================
+
+// These would be imported from other modules
+extern fn type_check(program: Program) -> Result<Unit, KoreError>
+
+// Placeholder types (would import from ast.kr, etc.)
+struct Span:
+    start: Int
+    end: Int
+
+struct KoreError:
+    message: String
+    span: Span
+
+struct Program:
+    items: Array<Item>
+
+enum Item:
+    Function(Function)
+    Struct(StructDef)
+    Enum(EnumDef)
+    Impl(ImplDef)
+    Use(String)
+
+struct Function:
+    name: String
+    params: Array<Param>
+    return_type: Option<Type>
+    span: Span
+
+struct Param:
+    name: String
+    ty: Type
+    span: Span
+
+struct StructDef:
+    name: String
+    fields: Array<Field>
+    span: Span
+
+struct Field:
+    name: String
+    ty: Type
+    span: Span
+
+struct EnumDef:
+    name: String
+    span: Span
+
+struct ImplDef:
+    target: String
+    span: Span
+
+enum Type:
+    Named(String, Array<Type>)
+    Tuple(Array<Type>)
+    Array(Type, Int)
+    Slice(Type)
+    Ref(Bool, Type)
+    Function(Array<Type>, Type)
+    Option(Type)
+    Result(Type, Type)
+    Infer
+    Never
+    Unit
+
+// JSON helpers (would be in std/json)
+struct JsonValue:
+    kind: String
+
+extern fn json_parse(s: String) -> JsonValue
+extern fn json_stringify(v: JsonValue) -> String
+extern fn json_object(pairs: Array<(String, JsonValue)>) -> JsonValue
+extern fn json_array(items: Array<JsonValue>) -> JsonValue
+extern fn json_string(s: String) -> JsonValue
+extern fn json_int(n: Int) -> JsonValue
+extern fn json_bool(b: Bool) -> JsonValue
+extern fn json_null() -> JsonValue
+extern fn json_get(obj: JsonValue, key: String) -> JsonValue
+extern fn json_get_opt(obj: JsonValue, key: String) -> Option<JsonValue>
+extern fn json_get_string(obj: JsonValue, key: String) -> String
+extern fn json_get_int(obj: JsonValue, key: String) -> Int
+extern fn json_get_array(obj: JsonValue, key: String) -> Array<JsonValue>
+extern fn json_has(obj: JsonValue, key: String) -> Bool
+
+// String helpers (would be in std/string)
+extern fn to_chars(s: String) -> Array<String>
+extern fn char_at(s: String, i: Int) -> String
+extern fn char_len(c: String) -> Int
+extern fn is_alphanumeric(c: String) -> Bool
+extern fn index_of(haystack: String, needle: String) -> Int
+extern fn parse_int(s: String) -> Int
+extern fn read_line() -> String
+extern fn read_bytes(n: Int) -> String
+extern fn flush_stdout() -> Unit

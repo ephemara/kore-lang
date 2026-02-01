@@ -1,0 +1,431 @@
+// ============================================================================
+// KORE REPL (Read-Eval-Print Loop)
+// ============================================================================
+// Interactive Kore programming environment.
+// Supports:
+// - Expression evaluation
+// - Statement execution
+// - Persistent environment
+// - Command history
+// - Tab completion
+// - Multi-line input
+// - Special commands (:help, :type, :ast, etc.)
+// ============================================================================
+
+use std/collections
+
+// =============================================================================
+// REPL Configuration
+// =============================================================================
+
+struct ReplConfig:
+    prompt: String              // Main prompt (default: ">>> ")
+    continuation_prompt: String // Multi-line prompt (default: "... ")
+    history_file: Option<String>// Path to save history
+    max_history: Int            // Maximum history entries
+    show_types: Bool            // Show types in output
+    show_timing: Bool           // Show evaluation timing
+    color_output: Bool          // Use ANSI colors
+
+impl ReplConfig:
+    pub fn default() -> ReplConfig:
+        return ReplConfig {
+            prompt: ">>> ",
+            continuation_prompt: "... ",
+            history_file: Some(".kore_history"),
+            max_history: 1000,
+            show_types: false,
+            show_timing: false,
+            color_output: true
+        }
+
+// =============================================================================
+// REPL State
+// =============================================================================
+
+struct ReplState:
+    env: Env                    // Persistent environment
+    history: Array<String>      // Command history
+    defs: Map<String, Item>     // User-defined items
+    line_buffer: String         // Multi-line input buffer
+    last_result: Option<Value>  // Last evaluated result (_)
+
+impl ReplState:
+    pub fn new() -> ReplState:
+        return ReplState {
+            env: Env::new(),
+            history: [],
+            defs: Map::new(),
+            line_buffer: "",
+            last_result: None
+        }
+
+// =============================================================================
+// REPL Commands
+// =============================================================================
+
+enum ReplCommand:
+    Eval(String)                // Evaluate expression/statement
+    Help                        // Show help
+    Type(String)                // Show type of expression
+    Ast(String)                 // Show AST of expression
+    Env                         // Show environment
+    Clear                       // Clear screen
+    Reset                       // Reset environment
+    Load(String)                // Load a file
+    Save(String)                // Save definitions to file
+    History                     // Show history
+    Quit                        // Exit REPL
+
+fn parse_command(input: String) -> ReplCommand:
+    let trimmed = trim(input)
+    
+    if starts_with(trimmed, ":"):
+        let parts = split(trimmed, " ")
+        let cmd = parts[0]
+        let arg = if len(parts) > 1: join(slice(parts, 1, len(parts)), " ") else: ""
+        
+        match cmd:
+            ":help" => return ReplCommand::Help
+            ":h" => return ReplCommand::Help
+            ":?" => return ReplCommand::Help
+            ":type" => return ReplCommand::Type(arg)
+            ":t" => return ReplCommand::Type(arg)
+            ":ast" => return ReplCommand::Ast(arg)
+            ":env" => return ReplCommand::Env
+            ":clear" => return ReplCommand::Clear
+            ":reset" => return ReplCommand::Reset
+            ":load" => return ReplCommand::Load(arg)
+            ":l" => return ReplCommand::Load(arg)
+            ":save" => return ReplCommand::Save(arg)
+            ":history" => return ReplCommand::History
+            ":quit" => return ReplCommand::Quit
+            ":q" => return ReplCommand::Quit
+            ":exit" => return ReplCommand::Quit
+            _ => return ReplCommand::Eval(":unknown command: " + cmd)
+    
+    return ReplCommand::Eval(trimmed)
+
+// =============================================================================
+// REPL Core
+// =============================================================================
+
+struct Repl:
+    config: ReplConfig
+    state: ReplState
+    running: Bool
+
+impl Repl:
+    pub fn new(config: ReplConfig) -> Repl:
+        return Repl {
+            config: config,
+            state: ReplState::new(),
+            running: true
+        }
+    
+    /// Start the REPL
+    pub fn run(self) -> Unit:
+        self.print_banner()
+        
+        while self.running:
+            // Get input
+            let prompt = if len(self.state.line_buffer) > 0:
+                self.config.continuation_prompt
+            else:
+                self.config.prompt
+            
+            print(prompt)
+            let line = read_line()
+            
+            // Handle multi-line input
+            if self.needs_continuation(line):
+                self.state.line_buffer = self.state.line_buffer + line + "\n"
+                continue
+            
+            // Complete input
+            let full_input = self.state.line_buffer + line
+            self.state.line_buffer = ""
+            
+            // Skip empty lines
+            if len(trim(full_input)) == 0:
+                continue
+            
+            // Add to history
+            push(self.state.history, full_input)
+            
+            // Parse and execute
+            let cmd = parse_command(full_input)
+            self.execute(cmd)
+    
+    fn needs_continuation(self, line: String) -> Bool:
+        // Check for unclosed brackets/braces
+        var parens = 0
+        var brackets = 0
+        var braces = 0
+        
+        for ch in chars(line):
+            match ch:
+                "(" => parens = parens + 1
+                ")" => parens = parens - 1
+                "[" => brackets = brackets + 1
+                "]" => brackets = brackets - 1
+                "{" => braces = braces + 1
+                "}" => braces = braces - 1
+                _ => pass
+        
+        // Also continue if line ends with operators
+        let trimmed = trim(line)
+        if ends_with(trimmed, "\\"):
+            return true
+        if ends_with(trimmed, ","):
+            return true
+        if ends_with(trimmed, "+") or ends_with(trimmed, "-"):
+            return true
+        if ends_with(trimmed, "and") or ends_with(trimmed, "or"):
+            return true
+        
+        return parens > 0 or brackets > 0 or braces > 0
+    
+    fn execute(self, cmd: ReplCommand) -> Unit:
+        match cmd:
+            ReplCommand::Eval(code) => self.eval(code)
+            ReplCommand::Help => self.show_help()
+            ReplCommand::Type(expr) => self.show_type(expr)
+            ReplCommand::Ast(expr) => self.show_ast(expr)
+            ReplCommand::Env => self.show_env()
+            ReplCommand::Clear => self.clear_screen()
+            ReplCommand::Reset => self.reset()
+            ReplCommand::Load(path) => self.load_file(path)
+            ReplCommand::Save(path) => self.save_defs(path)
+            ReplCommand::History => self.show_history()
+            ReplCommand::Quit => self.running = false
+    
+    // =========================================================================
+    // Evaluation
+    // =========================================================================
+    
+    fn eval(self, code: String) -> Unit:
+        let start = time_ms()
+        
+        // Try to parse as expression first
+        let result = self.try_eval_expr(code)
+        
+        match result:
+            Ok(value) =>
+                self.state.last_result = Some(value)
+                
+                // Print result
+                let value_str = format_value(value)
+                if self.config.color_output:
+                    println(green(value_str))
+                else:
+                    println(value_str)
+                
+                // Show type if enabled
+                if self.config.show_types:
+                    println(dim("  : " + type_of(value)))
+                
+                // Show timing if enabled
+                if self.config.show_timing:
+                    let elapsed = time_ms() - start
+                    println(dim("  (" + str(elapsed) + "ms)"))
+            
+            Err(e) =>
+                // Try as definition/statement
+                let stmt_result = self.try_eval_stmt(code)
+                
+                match stmt_result:
+                    Ok(_) => pass // Definitions don't print
+                    Err(e2) =>
+                        // Show error
+                        if self.config.color_output:
+                            println(red("Error: " + e2))
+                        else:
+                            println("Error: " + e2)
+    
+    fn try_eval_expr(self, code: String) -> Result<Value, String>:
+        // Would parse and evaluate expression
+        // Placeholder for actual interpreter integration
+        
+        // Check for underscore (last result)
+        if trim(code) == "_":
+            match self.state.last_result:
+                Some(v) => return Ok(v)
+                None => return Err("No previous result")
+        
+        return Err("Expression evaluation not implemented")
+    
+    fn try_eval_stmt(self, code: String) -> Result<Unit, String>:
+        // Would parse and evaluate statement/definition
+        return Err("Statement evaluation not implemented")
+    
+    // =========================================================================
+    // Commands
+    // =========================================================================
+    
+    fn show_help(self) -> Unit:
+        println("")
+        println("Kore REPL - Interactive Programming Environment")
+        println("================================================")
+        println("")
+        println("Commands:")
+        println("  :help, :h, :?    Show this help")
+        println("  :type <expr>     Show type of expression")
+        println("  :ast <expr>      Show AST of expression")
+        println("  :env             Show current environment")
+        println("  :clear           Clear the screen")
+        println("  :reset           Reset the environment")
+        println("  :load <file>     Load a Kore file")
+        println("  :save <file>     Save definitions to file")
+        println("  :history         Show command history")
+        println("  :quit, :q        Exit the REPL")
+        println("")
+        println("Special:")
+        println("  _                Last result")
+        println("  \\                Line continuation")
+        println("")
+    
+    fn show_type(self, expr: String) -> Unit:
+        // Would parse and type-check expression
+        println("Type checking not yet implemented")
+    
+    fn show_ast(self, expr: String) -> Unit:
+        // Would parse and pretty-print AST
+        println("AST display not yet implemented")
+    
+    fn show_env(self) -> Unit:
+        println("")
+        println("Environment:")
+        println("------------")
+        
+        // Show user definitions
+        if len(self.state.defs) == 0:
+            println("  (no definitions)")
+        else:
+            for name, item in self.state.defs:
+                match item:
+                    Item::Function(f) =>
+                        println("  fn " + f.name + "(...)")
+                    Item::Struct(s) =>
+                        println("  struct " + s.name)
+                    Item::Enum(e) =>
+                        println("  enum " + e.name)
+                    _ =>
+                        println("  " + name)
+        println("")
+    
+    fn clear_screen(self) -> Unit:
+        // ANSI escape to clear screen
+        print("\x1b[2J\x1b[H")
+    
+    fn reset(self) -> Unit:
+        self.state = ReplState::new()
+        println("Environment reset.")
+    
+    fn load_file(self, path: String) -> Unit:
+        match read_file(path):
+            Ok(content) =>
+                println("Loading " + path + "...")
+                // Would parse and load definitions
+                println("Loaded successfully.")
+            Err(e) =>
+                println("Error loading file: " + e)
+    
+    fn save_defs(self, path: String) -> Unit:
+        // Would serialize definitions to file
+        println("Save not yet implemented")
+    
+    fn show_history(self) -> Unit:
+        println("")
+        println("History:")
+        println("--------")
+        var i = 1
+        for entry in self.state.history:
+            println("  " + str(i) + ": " + entry)
+            i = i + 1
+        println("")
+    
+    fn print_banner(self) -> Unit:
+        println("")
+        println("╔═══════════════════════════════════════════════╗")
+        println("║     K O R E   I N T E R A C T I V E           ║")
+        println("║        The Omniversal Language                ║")
+        println("╚═══════════════════════════════════════════════╝")
+        println("")
+        println("Type :help for commands, :quit to exit")
+        println("")
+
+// =============================================================================
+// Formatting Helpers
+// =============================================================================
+
+fn format_value(value: Value) -> String:
+    match value:
+        Value::Int(n) => str(n)
+        Value::Float(f) => str(f)
+        Value::Bool(true) => "true"
+        Value::Bool(false) => "false"
+        Value::String(s) => "\"" + s + "\""
+        Value::Unit => "()"
+        Value::None => "None"
+        Value::Array(items) =>
+            "[" + join(map(items, format_value), ", ") + "]"
+        Value::Struct(name, fields) =>
+            var parts: Array<String> = []
+            for k, v in fields:
+                push(parts, k + ": " + format_value(v))
+            name + " { " + join(parts, ", ") + " }"
+        Value::Enum(name, variant, data) =>
+            if len(data) == 0:
+                name + "::" + variant
+            else:
+                name + "::" + variant + "(" + join(map(data, format_value), ", ") + ")"
+        _ => "<?>"
+
+fn type_of(value: Value) -> String:
+    match value:
+        Value::Int(_) => "Int"
+        Value::Float(_) => "Float"
+        Value::Bool(_) => "Bool"
+        Value::String(_) => "String"
+        Value::Unit => "Unit"
+        Value::None => "None"
+        Value::Array(_) => "Array<...>"
+        Value::Struct(name, _) => name
+        Value::Enum(name, _, _) => name
+        _ => "?"
+
+// Color helpers
+fn green(s: String) -> String:
+    return "\x1b[32m" + s + "\x1b[0m"
+
+fn red(s: String) -> String:
+    return "\x1b[31m" + s + "\x1b[0m"
+
+fn dim(s: String) -> String:
+    return "\x1b[2m" + s + "\x1b[0m"
+
+fn chars(s: String) -> Array<String>:
+    var result: Array<String> = []
+    for i in range(0, len(s)):
+        push(result, char_at(s, i))
+    return result
+
+// External functions
+extern fn read_line() -> String
+extern fn time_ms() -> Int
+extern fn read_file(path: String) -> Result<String, String>
+
+// =============================================================================
+// Public API
+// =============================================================================
+
+/// Start a REPL with default configuration
+pub fn start() -> Unit:
+    let repl = Repl::new(ReplConfig::default())
+    repl.run()
+
+/// Start a REPL with custom configuration
+pub fn start_with_config(config: ReplConfig) -> Unit:
+    let repl = Repl::new(config)
+    repl.run()

@@ -1,0 +1,1058 @@
+// ============================================================================
+// KORE Parser
+// ============================================================================
+
+use lexer
+use ast
+use span
+
+struct Parser:
+    tokens: Array<Token>
+    curr_pos: Int
+
+impl Parser:
+    pub fn new(tokens: Array<Token>) -> Parser:
+        return Parser { tokens: tokens, curr_pos: 0 }
+    
+    fn is_eof(self) -> Bool:
+        if self.curr_pos >= array_len(self.tokens):
+            return true
+        let tok = self.tokens[self.curr_pos]
+        return variant_of(tok.type) == "Eof"
+    
+    fn peek(self) -> Token:
+        if self.is_eof():
+            return Token::new(TokenType::Eof, Span::empty(), "")
+        return self.tokens[self.curr_pos]
+    
+    fn advance(self) -> Token:
+        let tok = self.peek()
+        if !self.is_eof():
+            self.curr_pos = self.curr_pos + 1
+        return tok
+    
+    fn expect_keyword(self, kw: String) -> Token:
+        let tok = self.peek()
+        if str_eq(variant_of(tok.type), "Keyword") && str_eq(tok.lexeme, kw):
+            self.advance()
+            return tok
+        
+        let msg = "Expected keyword " + kw + " but found " + tok.lexeme
+        panic(msg)
+        return tok
+    
+    fn expect(self, expected: String) -> Token:
+        let tok = self.peek()
+        if str_eq(tok.lexeme, expected):
+            self.advance()
+            return tok
+        
+        let msg = "Expected " + expected + " but found " + tok.lexeme + " at " + str(tok.span.start)
+        panic(msg)
+        return tok // Unreachable
+    
+    fn skip_newlines_only(self) -> Unit:
+        while !self.is_eof():
+            let tok = self.peek()
+            if variant_of(tok.type) == "Newline":
+                self.advance()
+            else:
+                break
+
+    fn skip_ignored_whitespace(self) -> Unit:
+        // Skip newlines only if they are not significant?
+        // For now, parser handles newlines explicitly in most places
+        // But inside expressions (args, etc), newlines should be skipped
+        while true:
+            let tok = self.peek()
+            // println("DEBUG: skip_ignored_whitespace peek: " + tok.lexeme + " type=" + variant_of(tok.type))
+            // Skip newline, indent, dedent inside parens/brackets/braces
+            if tok.is_newline() || tok.is_indent() || tok.is_dedent():
+                self.advance()
+            else:
+                break
+
+    fn skip_whitespace(self) -> Unit:
+        while !self.is_eof():
+            let tok = self.peek()
+            if tok.is_newline():
+                self.advance()
+            else:
+                break
+
+    fn expect_indent(self):
+        self.skip_newlines_only()
+        if !self.match_token("Indent"):
+            let tok = self.peek()
+            panic("Expected Indent but found [" + tok.lexeme + "] at " + str(tok.span.start))
+    
+    fn skip_newlines(self) -> Unit:
+        while true:
+            let tok = self.peek()
+            if str_eq(variant_of(tok.type), "Newline"):
+                self.advance()
+            else:
+                break
+    
+    fn check(self, expected_variant: String) -> Bool:
+        if self.is_eof():
+            return false
+        return str_eq(variant_of(self.peek().type), expected_variant)
+
+    fn match_token(self, expected_variant: String) -> Bool:
+        if self.check(expected_variant):
+            self.advance()
+            return true
+        return false
+
+    fn match_keyword(self, kw: String) -> Bool:
+        let tok = self.peek()
+        // println("DEBUG: match_keyword checking " + kw + " against " + str(tok))
+        // println("DEBUG: variant=" + variant_of(tok.type) + " lexeme=" + tok.lexeme)
+        if str_eq(variant_of(tok.type), "Keyword") && str_eq(tok.lexeme, kw):
+            self.advance()
+            return true
+        return false
+
+    /// Parse a complete program
+    pub fn parse_program(self) -> Array<Item>:
+        let items = []
+        
+        // println("DEBUG: parse_program start, tokens count=" + str(array_len(self.tokens)))
+        
+        self.skip_newlines()
+        
+        // println("DEBUG: after skip_newlines, pos=" + str(self.curr_pos))
+        
+        while !self.is_eof():
+            // Skip spurious indents at top level
+            while true:
+                if self.is_eof():
+                     break
+                let p = self.tokens[self.curr_pos] // peek directly
+                
+                if p.is_indent() || p.is_dedent():
+                    self.advance()
+                    self.skip_newlines()
+                else:
+                    break
+            
+            if self.is_eof():
+                break
+            
+            // DEBUG: Check progress
+            let count = array_len(items)
+            if count % 1000 == 0:
+                 println("DEBUG: Parsing item " + str(count) + " pos=" + str(self.curr_pos))
+
+            let item = self.parse_item()
+            push(items, item)
+            
+            self.skip_newlines()
+        
+        return items
+        // return Program { items: items, span: Span::empty() }
+    
+    /// Parse a top-level item
+    fn parse_item(self) -> Item:
+        let tok = self.peek()
+        let lexeme = tok.lexeme
+        
+        // Inline checks to avoid method call issues
+        if str_eq(lexeme, "fn"):
+            let f = self.parse_fn_def(false, false)
+            return Item::Function(f)
+        else if str_eq(lexeme, "pub"):
+            self.advance()
+            let next = self.peek()
+            if str_eq(next.lexeme, "fn"):
+                let f = self.parse_fn_def(true, false)
+                return Item::Function(f)
+            else if str_eq(next.lexeme, "struct"):
+                let s = self.parse_struct_def(true)
+                return Item::Struct(s)
+            else:
+                panic("Expected fn or struct after pub")
+        else if str_eq(lexeme, "async"):
+            self.advance()
+            self.expect_keyword("fn")
+            let f = self.parse_fn_def(false, true)
+            return Item::Function(f)
+        else if str_eq(lexeme, "struct"):
+            let s = self.parse_struct_def(false)
+            return Item::Struct(s)
+        else if str_eq(lexeme, "enum"):
+            let e = self.parse_enum_def()
+            return Item::Enum(e)
+        else if str_eq(lexeme, "impl"):
+            let i = self.parse_impl_def()
+            return Item::Impl(i)
+        else if str_eq(lexeme, "use"):
+            let u = self.parse_use()
+            return Item::Use(u)
+        else:
+            panic("Unexpected token at top level: [" + tok.lexeme + "] at " + str(tok.span.start))
+    
+    /// Parse function definition
+    fn parse_fn_def(self, is_pub: Bool, is_async: Bool) -> FnDef:
+        let start_tok = self.peek() // 'fn' or 'async' or 'pub' was already consumed?
+        // Logic above consumed 'pub'/'async', but 'fn' might be next or consumed
+        // Workaround: assume current token is 'fn' if we are here via parse_item's lookahead
+        if self.peek().is_keyword("fn"):
+             self.advance()
+        
+        let name_tok = self.advance()
+        let name = name_tok.lexeme
+        // println("DEBUG: parsing fn " + name)
+        
+        // Parse generics
+        let generics = []
+        if self.peek().lexeme == "<":
+            self.advance()
+            // TODO: Parse generics
+            while self.peek().lexeme != ">":
+                self.advance()
+            self.advance()
+        
+        // Parse parameters
+        // self.expect("(")
+        let params = self.parse_params()
+        self.expect(")")
+        
+        // Parse return type if present
+        let return_type = None
+        if str_eq(self.peek().lexeme, "->"):
+            self.advance() // consume ->
+            return_type = Some(self.parse_type())
+        
+        // Skip 'with Effect' if present
+        let effects = []
+        if self.peek().is_keyword("with"):
+            self.advance()  // consume 'with'
+            let eff = self.advance().lexeme
+            push(effects, eff)
+        
+        // Parse body
+        self.expect(":")
+        self.skip_newlines()
+        let body = self.parse_block()
+        
+        return FnDef {
+            name: name,
+            generics: [], // TODO
+            params: params,
+            return_type: return_type,
+            body: body,
+            is_pub: is_pub,
+            is_async: is_async,
+            effects: effects,
+            span: Span::empty()
+        }
+    
+    fn parse_params(self) -> Array<Param>:
+        self.expect("(")
+        let params = []
+        while !self.is_eof():
+            // Skip newlines (and indents? No, params usually inline or newline)
+            // But we need to skip indents if params are multi-line indented
+            self.skip_whitespace()
+            
+            let tok = self.peek()
+            
+            // Stop at closing paren
+            if tok.lexeme == ")":
+                break
+            
+            // Handle 'self' parameter
+            if tok.is_keyword("self"):
+                self.advance()
+                push(params, Param { name: "self", ty: Some("Self"), default: None, is_mut: false, span: Span::empty() })
+                if self.peek().lexeme == ",":
+                    self.advance()
+                continue
+            
+            // Check if it's an identifier
+            if tok.is_ident():
+                self.advance()
+                let param_name = tok.lexeme
+                let param_type = None
+                
+                // Check for type annotation
+                if self.peek().lexeme == ":":
+                    self.advance()  // consume ':'
+                    
+                    self.skip_whitespace()
+                    
+                    param_type = Some(self.parse_type())
+                
+                push(params, Param { name: param_name, ty: param_type, default: None, is_mut: false, span: Span::empty() })
+                
+                // Check for comma
+                if self.peek().lexeme == ",":
+                    self.advance()
+                
+                self.skip_whitespace()
+            else:
+                break
+        
+        return params
+    
+    /// Parse a type
+    fn parse_type(self) -> String:
+        // Handle tuple types (T, U)
+        if self.peek().lexeme == "(":
+            self.advance() // consume '('
+            let t = "("
+            
+            // Handle empty tuple ()
+            if self.peek().lexeme == ")":
+                self.advance()
+                return "()"
+            
+            t = t + self.parse_type()
+            
+            while self.peek().lexeme == ",":
+                self.advance()
+                t = t + ", " + self.parse_type()
+            
+            self.expect(")")
+            return t + ")"
+
+        let base = self.advance().lexeme
+        
+        // Check for generic parameters
+        if str_eq(self.peek().lexeme, "<"):
+            self.advance()  // consume '<'
+            let inner = self.parse_type()
+            
+            // Handle nested generics like Option<Box<Expr>>
+            while str_eq(self.peek().lexeme, ","):
+                self.advance()
+                inner = inner + ", " + self.parse_type()
+            
+            self.advance()  // consume '>'
+            return base + "<" + inner + ">"
+        
+        return base
+    
+    fn parse_block(self) -> Array<Stmt>:
+        let stmts = []
+        let max_stmts = 10000  // Safety limit
+        
+        // Skip any leading newlines
+        self.skip_newlines()
+        
+        // Check for Indent token
+        let has_indent = false
+        let peek_tok = self.peek()
+
+        if peek_tok.is_indent():
+            self.advance()  // consume Indent
+            has_indent = true
+        
+        while !self.is_eof() && array_len(stmts) < max_stmts:
+            let tok = self.peek()
+            
+            // Check for Dedent - end of indented block
+            if has_indent && tok.is_dedent():
+                self.advance()  // consume Dedent
+                break
+            
+            // Check for newlines - skip them
+            if tok.is_newline():
+                self.advance()
+                continue
+            
+            // If NOT indented, top-level keywords end the block
+            if !has_indent:
+                if tok.is_keyword("fn") || tok.is_keyword("pub") || tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use"):
+                    break
+            
+            // Parse a statement
+            let start_pos = self.curr_pos
+            let stmt = self.parse_stmt()
+            push(stmts, stmt)
+            
+            // Safety: if position didn't advance, break to prevent infinite loop
+            if self.curr_pos == start_pos:
+                break
+            
+            // If not indented, only parse one statement (inline block like: if x: return y)
+            if !has_indent:
+                break
+        
+        return stmts
+    
+    fn parse_stmt(self) -> Stmt:
+        let tok = self.peek()
+        
+        if tok.is_error():
+            self.advance()
+            return Stmt::Expr(Expr::None)
+        
+        if tok.is_keyword("let"):
+            return self.parse_let()
+        
+        if tok.is_keyword("var"):
+            return self.parse_var()
+        
+        if tok.is_keyword("return"):
+            return self.parse_return()
+        
+        if str_eq(tok.lexeme, "pass"):
+            self.advance()
+            return Stmt::Expr(Expr::Ident("pass"))
+            
+        if tok.is_keyword("if"):
+            return self.parse_if()
+        
+        if tok.is_keyword("while"):
+            return self.parse_while()
+        
+        if tok.is_keyword("for"):
+            return self.parse_for()
+        
+        if tok.is_keyword("match"):
+            return self.parse_match()
+        
+        if tok.is_keyword("break"):
+            self.advance()
+            return Stmt::Break
+        
+        if tok.is_keyword("continue"):
+            self.advance()
+            return Stmt::Continue
+        
+        if tok.is_keyword("loop"):
+            return self.parse_loop()
+        
+        // If we get here, it's an expression statement
+        let expr = self.parse_expr()
+        
+        // Check for assignment
+        if str_eq(self.peek().lexeme, "="):
+            self.advance()
+            let value = self.parse_expr()
+            return Stmt::Assign(expr, value)
+        
+        return Stmt::Expr(expr)
+    
+    fn parse_let(self) -> Stmt:
+        self.expect_keyword("let")
+        let name_tok = self.advance()
+        let name = name_tok.lexeme
+        self.expect("=")
+        let value = self.parse_expr()
+        return Stmt::Let(name, None, value)
+    
+    fn parse_var(self) -> Stmt:
+        self.expect_keyword("var")
+        let name_tok = self.advance()
+        let name = name_tok.lexeme
+        self.expect("=")
+        let value = self.parse_expr()
+        return Stmt::Var(name, None, value)
+    
+    fn parse_return(self) -> Stmt:
+        self.expect_keyword("return")
+        if str_eq(self.peek().lexeme, "\n") || str_eq(variant_of(self.peek().type), "Newline"):
+            return Stmt::Return(None)
+        let expr = self.parse_expr()
+        return Stmt::Return(Some(expr))
+    
+    fn parse_if(self) -> Stmt:
+        self.expect_keyword("if")
+        let cond = self.parse_expr()
+        self.expect(":")
+        self.skip_newlines()
+        let then_block = self.parse_block()
+        
+        self.skip_newlines()
+        let else_block = None
+        if self.peek().is_keyword("else"):
+            self.advance()
+            
+            if self.peek().is_keyword("if"):
+                let if_stmt = self.parse_if()
+                else_block = Some([if_stmt])
+            else:
+                self.expect(":")
+                self.skip_newlines()
+                else_block = Some(self.parse_block())
+        
+        return Stmt::If(cond, then_block, else_block)
+    
+    fn parse_while(self) -> Stmt:
+        self.expect_keyword("while")
+        let cond = self.parse_expr()
+        self.expect(":")
+        self.skip_newlines()
+        let body = self.parse_block()
+        return Stmt::While(cond, body)
+    
+    fn parse_for(self) -> Stmt:
+        self.expect_keyword("for")
+        let var_tok = self.advance()
+        let var_name = var_tok.lexeme
+        self.expect_keyword("in")
+        let iter = self.parse_expr()
+        self.expect(":")
+        self.skip_newlines()
+        let body = self.parse_block()
+        return Stmt::For(var_name, iter, body)
+    
+    fn parse_loop(self) -> Stmt:
+        self.expect_keyword("loop")
+        self.expect(":")
+        self.skip_newlines()
+        let body = self.parse_block()
+        return Stmt::Loop(body)
+    
+    fn parse_match(self) -> Stmt:
+        self.expect_keyword("match")
+        let scrutinee = self.parse_expr()
+        self.expect(":")
+        
+        // Match arms block
+        self.expect_indent()
+        
+        let arms = []
+        // println("DEBUG: Entering parse_match loop")
+        
+        // Parse match arms until we hit a dedent
+        while !self.match_token("Dedent"):
+            if self.is_eof():
+                panic("Unexpected EOF inside match expression")
+                
+            let tok = self.peek()
+            
+            // Skip newlines
+            if str_eq(variant_of(tok.type), "Newline"):
+                self.advance()
+                continue
+            
+            // Parse pattern => body
+            let pattern = self.parse_pattern()
+            
+            // Skip any whitespace before =>
+            self.skip_ignored_whitespace()
+            
+            // Check for guard: if expr
+            self.expect("=>")
+            
+            let body = []
+            
+            self.skip_newlines_only()
+            
+            // Check if body is a block (indented)
+            if self.check("Indent"):
+                body = self.parse_block()
+            else:
+                // Single statement/expression
+                let stmt = self.parse_stmt()
+                push(body, stmt)
+            
+            push(arms, MatchArm { pattern: pattern, guard: None, body: body, span: Span::empty() })
+        
+        // println("DEBUG: Exiting parse_match loop")
+        return Stmt::Match(scrutinee, arms)
+    
+    fn parse_pattern(self) -> Pattern:
+        println("DEBUG: parse_pattern")
+        let tok = self.peek()
+        // if tok.span.start >= 87670 && tok.span.start <= 87680:
+        
+        // Wildcard pattern
+        if tok.lexeme == "_":
+            self.advance()
+            return Pattern::Wildcard
+        
+        // Identifier or variant pattern
+        if tok.is_ident():
+            self.advance()
+            let name = tok.lexeme
+            
+            // Check for namespaced variant: Enum::Variant
+            if self.peek().lexeme == "::":
+                self.advance() // consume ::
+                let variant = self.advance().lexeme
+                
+                if self.peek().lexeme == "(":
+                    self.advance()  // consume '('
+                    let bindings = []
+                    while self.peek().lexeme != ")":
+                        push(bindings, self.parse_pattern())
+                        if self.peek().lexeme == ",":
+                            self.advance()
+                    self.advance()  // consume ')'
+                    return Pattern::Variant(name, variant, bindings)
+                
+                return Pattern::Variant(name, variant, [])
+
+            // Check for variant with bindings: Variant(x, y)
+            if self.peek().lexeme == "(":
+                self.advance()  // consume '('
+                let bindings = []
+                while self.peek().lexeme != ")":
+                    push(bindings, self.parse_pattern())
+                    if self.peek().lexeme == ",":
+                        self.advance()
+                self.advance()  // consume ')'
+                return Pattern::Variant(name, "", bindings) // TODO: Handle Enum::Variant syntax properly
+            
+            return Pattern::Ident(name)
+        
+        // Literal pattern (numbers, strings)
+        if tok.span.start >= 87670 && tok.span.start <= 87680:
+             println("DEBUG: parse_pattern calling parse_primary for " + tok.lexeme)
+        let expr = self.parse_primary()
+        return Pattern::Literal(expr)
+    
+    // Expression parser with operator precedence
+    fn parse_expr(self) -> Expr:
+        return self.parse_or()
+    
+    fn parse_or(self) -> Expr:
+        let left = self.parse_and()
+        while str_eq(self.peek().lexeme, "||"):
+            self.advance()
+            let right = self.parse_and()
+            left = Expr::Binary(left, "||", right)
+        return left
+    
+    fn parse_and(self) -> Expr:
+        let left = self.parse_equality()
+        while str_eq(self.peek().lexeme, "&&"):
+            self.advance()
+            let right = self.parse_equality()
+            left = Expr::Binary(left, "&&", right)
+        return left
+    
+    fn parse_equality(self) -> Expr:
+        let left = self.parse_comparison()
+        while (str_eq(self.peek().lexeme, "==") || str_eq(self.peek().lexeme, "!=")) && !str_eq(variant_of(self.peek().type), "String"):
+            let op = self.advance().lexeme
+            let right = self.parse_comparison()
+            left = Expr::Binary(left, op, right)
+        return left
+    
+    fn parse_comparison(self) -> Expr:
+        let left = self.parse_term()
+        while (str_eq(self.peek().lexeme, "<") || str_eq(self.peek().lexeme, ">") || str_eq(self.peek().lexeme, "<=") || str_eq(self.peek().lexeme, ">=")) && !str_eq(variant_of(self.peek().type), "String"):
+            let op = self.advance().lexeme
+            let right = self.parse_term()
+            left = Expr::Binary(left, op, right)
+        return left
+    
+    fn parse_term(self) -> Expr:
+        let left = self.parse_factor()
+        // Check for + or - operators, BUT NOT if the token is a String type!
+        let peek_tok = self.peek()
+        let peek_lex = peek_tok.lexeme
+        let peek_type = variant_of(peek_tok.type)
+        
+        while (str_eq(self.peek().lexeme, "+") || str_eq(self.peek().lexeme, "-")) && !str_eq(variant_of(self.peek().type), "String"):
+            let op = self.advance().lexeme
+            let right = self.parse_factor()
+            left = Expr::Binary(left, op, right)
+        return left
+    
+    fn parse_factor(self) -> Expr:
+        let left = self.parse_unary()
+        // Don't treat String tokens as operators
+        while (str_eq(self.peek().lexeme, "*") || str_eq(self.peek().lexeme, "/") || str_eq(self.peek().lexeme, "%")) && !str_eq(variant_of(self.peek().type), "String"):
+            let op = self.advance().lexeme
+            let right = self.parse_unary()
+            left = Expr::Binary(left, op, right)
+        return left
+    
+    fn parse_unary(self) -> Expr:
+        // Don't treat String tokens as operators!
+        if (str_eq(self.peek().lexeme, "!") || str_eq(self.peek().lexeme, "-")) && !str_eq(variant_of(self.peek().type), "String"):
+            let op = self.advance().lexeme
+            let operand = self.parse_unary()
+            return Expr::Unary(op, operand)
+        return self.parse_postfix()
+    
+    fn parse_postfix(self) -> Expr:
+        let expr = self.parse_primary()
+        
+        // Handle postfix operations: field access, method calls, indexing
+        loop:
+            let next_tok = self.peek()
+            let next = next_tok.lexeme
+            let next_variant = variant_of(next_tok.type)
+            
+            if str_eq(next, ".") && !str_eq(next_variant, "String"):
+                self.advance()  // consume '.'
+                let field = self.advance().lexeme
+                
+                // Check if it's a method call
+                if str_eq(self.peek().lexeme, "(") && !str_eq(variant_of(self.peek().type), "String"):
+                    self.advance()  // consume '('
+                    let args = self.parse_args()
+                    // self.advance()  // consume ')' - moved to parse_args
+                    expr = Expr::MethodCall(expr, field, args)
+                else:
+                    expr = Expr::Field(expr, field)
+                continue
+            
+            if str_eq(next, "[") && !str_eq(next_variant, "String"):
+                self.advance()  // consume '['
+                let index = self.parse_expr()
+                self.expect("]")
+                expr = Expr::Index(expr, index)
+                continue
+            
+            if str_eq(next, "(") && !str_eq(next_variant, "String"):
+                // Direct function call on expression
+                self.advance()  // consume '('
+                let args = self.parse_args()
+                // self.advance()  // consume ')' - moved to parse_args
+                expr = Expr::Call(expr, args)
+                continue
+            
+            // None of the above - break out
+            break
+        
+        return expr
+    
+    fn parse_args(self) -> Array<Expr>:
+        let args = []
+        while variant_of(self.peek().type) != "RParen":
+            // Skip whitespace inside args
+            self.skip_ignored_whitespace()
+            
+            if variant_of(self.peek().type) == "RParen":
+                break
+
+            let arg = self.parse_expr()
+            push(args, arg)
+            
+            // Skip whitespace after expr
+            self.skip_ignored_whitespace()
+            
+            if str_eq(self.peek().lexeme, ","):
+                self.advance()
+        
+        // Consume the closing parenthesis
+        self.expect(")")
+        return args
+    
+    fn parse_primary(self) -> Expr:
+        let tok = self.peek()
+        
+        if tok.is_eof():
+            panic("Unexpected EOF in expression")
+            
+        if tok.is_dedent():
+            panic("Unexpected Dedent in expression at " + str(tok.span.start) + " lexeme=[" + tok.lexeme + "]")
+            
+        if tok.is_indent():
+            // println("DEBUG: parse_primary panic on Indent at " + str(tok.span.start))
+            // println("DEBUG: is_indent=" + str(tok.is_indent()) + " type=" + str(tok.type))
+            panic("Unexpected Indent in expression at " + str(tok.span.start) + " lexeme=[" + tok.lexeme + "]")
+        
+        // Parenthesized expression
+        if str_eq(tok.lexeme, "(") && !str_eq(variant_of(tok.type), "String"):
+            self.advance()  // consume '('
+            
+            // Check for empty tuple
+            if str_eq(variant_of(self.peek().type), "RParen"):
+                self.advance() // consume ')'
+                return Expr::Tuple([])
+            
+            let expr = self.parse_expr()
+            self.expect(")")
+            return expr
+        
+        // Array literal
+        if str_eq(tok.lexeme, "[") && !str_eq(variant_of(tok.type), "String"):
+            self.advance()  // consume '['
+            let elements = []
+            
+            self.skip_ignored_whitespace()
+            
+            while !str_eq(self.peek().lexeme, "]"):
+                let elem = self.parse_expr()
+                push(elements, elem)
+                
+                self.skip_ignored_whitespace()
+                
+                if str_eq(self.peek().lexeme, ","):
+                    self.advance()
+                    self.skip_ignored_whitespace()
+            
+            self.expect("]")
+            return Expr::Array(elements)
+        
+        // Now consume the token
+        self.advance()
+        
+        // Check for integer literal (digits only)
+        if str_len(tok.lexeme) > 0:
+            let first_char = ord(tok.lexeme)
+            let is_digit = first_char >= 48 && first_char <= 57
+            if is_digit:
+                return Expr::Int(to_int(tok.lexeme))
+        
+        // Check for float (contains .)
+        if contains(split(tok.lexeme, ""), "."):
+            let first_char = ord(tok.lexeme)
+            let is_digit = first_char >= 48 && first_char <= 57
+            if is_digit:
+                return Expr::Float(to_float(tok.lexeme))
+        
+        // Check for string literal by token type
+        let tok_variant = variant_of(tok.type)
+        if str_eq(tok_variant, "String"):
+            // Get the string value from the token
+            let val = variant_field(tok.type, 0)
+            return Expr::String(val)
+        
+        // Check for bool/keywords
+        if str_eq(tok.lexeme, "true"):
+            return Expr::Bool(true)
+        if str_eq(tok.lexeme, "false"):
+            return Expr::Bool(false)
+        if str_eq(tok.lexeme, "none") || str_eq(tok.lexeme, "None"):
+            return Expr::None
+        
+        // Check for struct/enum construction: Name { ... } or Name::Variant
+        if tok.is_ident():
+            let name = tok.lexeme
+            
+            // Enum variant: Name::Variant or Name::Variant(...)
+            if str_eq(self.peek().lexeme, "::"):
+                self.advance()  // consume '::'
+                let variant = self.advance().lexeme
+                
+                // Check for variant with data
+                if str_eq(self.peek().lexeme, "("):
+                    self.advance()  // consume '('
+                    let args = self.parse_args()
+                    // self.advance()  // consume ')' - moved to parse_args
+                    return Expr::EnumVariant(name, variant, args)
+                
+                return Expr::EnumVariant(name, variant, [])
+            
+            // Struct literal: Name { field: value, ... }
+            if str_eq(self.peek().lexeme, "{") && !str_eq(variant_of(self.peek().type), "String"):
+                self.advance()  // consume '{'
+                let fields = []
+                while !str_eq(self.peek().lexeme, "}"):
+                    // Skip newlines inside struct literal
+                    self.skip_ignored_whitespace()
+                    if str_eq(self.peek().lexeme, "}"):
+                         break
+                    
+                    let field_name = self.advance().lexeme
+                    // println("DEBUG: parsing struct field: " + field_name)
+                    self.expect(":")
+                    self.skip_ignored_whitespace()
+                    let field_value = self.parse_expr()
+                    push(fields, FieldInit { name: field_name, value: field_value, span: Span::empty() })
+                    
+                    self.skip_ignored_whitespace()
+                    
+                    if str_eq(self.peek().lexeme, ","):
+                        self.advance()
+                self.advance()  // consume '}'
+                return Expr::Struct(name, fields)
+            
+            return Expr::Ident(name)
+        
+        // Fallback - check for keywords
+        if str_eq(variant_of(tok.type), "Keyword"):
+             if str_eq(tok.lexeme, "self"):
+                 return Expr::Ident("self")
+             panic("Unexpected keyword in expression: " + tok.lexeme + " at " + str(tok.span.start))
+        
+        // Check if it is actually an identifier
+        if !tok.is_ident():
+             panic("Unexpected token in expression: " + tok.lexeme + " type=" + variant_of(tok.type) + " at " + str(tok.span.start))
+
+        return Expr::Ident(tok.lexeme)
+    
+    /// Helper for lookahead
+    fn lookahead(self, n: Int) -> Token:
+        let idx = self.curr_pos + n
+        if idx >= array_len(self.tokens):
+            return Token::new(TokenType::Eof, Span::empty(), "")
+        return self.tokens[idx]
+    
+    // =========================================================================
+    // Struct/Enum/Impl parsing
+    // =========================================================================
+    
+    fn parse_struct_def(self, is_pub: Bool) -> StructDef:
+        self.expect_keyword("struct")
+        let name = self.advance().lexeme
+        println("DEBUG: parsing struct " + name)
+        // Parse generics
+        let generics = []
+        if str_eq(self.peek().lexeme, "<") && !str_eq(variant_of(self.peek().type), "String"):
+            self.advance()
+            while !str_eq(self.peek().lexeme, ">") || str_eq(variant_of(self.peek().type), "String"):
+                if str_eq(self.peek().lexeme, ">"): break
+                
+                let gen_name = self.advance().lexeme
+                push(generics, gen_name)
+                
+                if str_eq(self.peek().lexeme, ","):
+                    self.advance()
+            self.advance() // consume >
+        
+        self.expect(":")
+        self.skip_newlines()
+        
+        // Handle indentation
+        let has_indent = false
+        if self.peek().is_indent():
+            self.advance()
+            has_indent = true
+        
+        let fields = []
+        // Parse fields until we hit a dedent (new top-level item)
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Check for Dedent
+            if has_indent && tok.is_dedent():
+                self.advance()
+                break
+            
+            // Stop at new top-level items if not indented
+            if !has_indent:
+                if tok.is_keyword("fn") || tok.is_keyword("pub") || tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use"):
+                    break
+            
+            // Skip newlines
+            if variant_of(tok.type) == "Newline":
+                self.advance()
+                continue
+            
+            // Parse field: name: Type
+            if tok.is_ident():
+                let field_name = self.advance().lexeme
+                println("DEBUG: parsing field " + field_name)
+                self.expect(":")
+                let field_type = self.parse_type()
+                push(fields, FieldDef { name: field_name, ty: field_type, default: None, is_pub: true, span: Span::empty() })
+            else:
+                break
+        
+        return StructDef { name: name, generics: generics, fields: fields, is_pub: is_pub, span: Span::empty() }
+    
+    fn parse_enum_def(self) -> EnumDef:
+        self.expect_keyword("enum")
+        let name = self.advance().lexeme
+        println("DEBUG: parsing enum " + name)
+        self.expect(":")
+        self.skip_newlines()
+        
+        // Handle indentation
+        let has_indent = false
+        if self.peek().is_indent():
+            self.advance()
+            has_indent = true
+        
+        let variants = []
+        // Parse variants until we hit a dedent
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Check for Dedent
+            if has_indent && tok.is_dedent():
+                self.advance()
+                break
+            
+            // Stop at new top-level items if not indented
+            if !has_indent:
+                if tok.is_keyword("fn") || tok.is_keyword("pub") || tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use"):
+                    break
+            
+            // Skip newlines and comments
+            if str_eq(variant_of(tok.type), "Newline"):
+                self.advance()
+                continue
+            
+            // Parse variant: Name or Name(Type1, Type2)
+            if tok.is_ident():
+                let variant_name = self.advance().lexeme
+                println("DEBUG: parsing variant " + variant_name)
+                let variant_fields = VariantFields::Unit
+                
+                // Check for variant data
+                if str_eq(self.peek().lexeme, "("):
+                    self.advance()  // consume '('
+                    let types = []
+                    while !str_eq(self.peek().lexeme, ")"):
+                        push(types, self.parse_type())
+                        if str_eq(self.peek().lexeme, ","):
+                            self.advance()
+                    self.advance()  // consume ')'
+                    variant_fields = VariantFields::Tuple(types)
+                
+                push(variants, VariantDef { name: variant_name, fields: variant_fields, span: Span::empty() })
+            else:
+                break
+        
+        return EnumDef { name: name, generics: [], variants: variants, is_pub: true, span: Span::empty() }
+    
+    fn parse_impl_def(self) -> ImplDef:
+        self.expect_keyword("impl")
+        let target = self.advance().lexeme
+        println("DEBUG: parsing impl " + target)
+        self.expect(":")
+        self.skip_newlines()
+        
+        // Handle indentation
+        let has_indent = false
+        let peek_tok = self.peek()
+        if peek_tok.is_indent():
+            self.advance()
+            has_indent = true
+        
+        let methods = []
+        // Parse methods until we hit a dedent
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Check for Dedent
+            if has_indent && tok.is_dedent():
+                self.advance()
+                break
+            
+
+            // Stop at new top-level items
+            if !has_indent:
+                if tok.is_keyword("struct") || tok.is_keyword("enum") || tok.is_keyword("impl") || tok.is_keyword("use"):
+                    break
+            
+            // Skip newlines
+            if variant_of(tok.type) == "Newline":
+                self.advance()
+                continue
+            
+            // Parse method
+            if tok.is_keyword("pub"):
+                self.advance()
+                if self.peek().is_keyword("fn"):
+                    let method = self.parse_fn_def(true, false)
+                    push(methods, method)
+                else:
+                    break
+            else if tok.is_keyword("fn"):
+                let method = self.parse_fn_def(false, false)
+                push(methods, method)
+            else:
+                break
+        
+        return ImplDef { target: target, generics: [], trait_name: None, methods: methods, span: Span::empty() }
+    
+    fn parse_use(self) -> String:
+        self.expect_keyword("use")
+        let path = self.advance().lexeme
+        return path
+

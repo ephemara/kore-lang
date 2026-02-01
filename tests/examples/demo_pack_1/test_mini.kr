@@ -1,0 +1,29 @@
+// Minimal Bootstrap Test
+use compiler/lexer
+use compiler/parser
+
+fn main():
+    println("=== Minimal Bootstrap Test ===")
+    
+    let source = "struct Token:
+    kind: TokenKind
+    line: Int
+    col: Int
+    lexeme: String
+
+fn main():
+    println(42)
+"
+    
+    println("Source:")
+    println(source)
+    println("")
+    
+    let lexer = Lexer::new(source)
+    let tokens = lexer.tokenize()
+    println("Tokens: " + str(len(tokens)))
+    
+    let parser = Parser::new(tokens)
+    let program = parser.parse_program()
+    println("Items: " + str(len(program.items)))
+    println("Done!")

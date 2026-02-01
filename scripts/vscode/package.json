@@ -1,0 +1,35 @@
+{
+  "name": "kore",
+  "displayName": "KORE Language",
+  "description": "Language support for KORE - The Alloy of Rust, Python, and Lisp",
+  "version": "0.1.0",
+  "publisher": "k-os",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "icon": "icon.png",
+  "contributes": {
+    "languages": [
+      {
+        "id": "kore",
+        "aliases": ["Kore", "kore"],
+        "extensions": [".kr", ".kor"],
+        "icon": {
+          "light": "./icon.png",
+          "dark": "./icon.png"
+        },
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kore",
+        "scopeName": "source.kore",
+        "path": "./syntaxes/kore.tmLanguage.json"
+      }
+    ]
+  }
+}

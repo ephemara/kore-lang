@@ -1,0 +1,12 @@
+// Simple struct test - no comments with #
+struct Point:
+    x: Int
+    y: Int
+
+fn add(a: Int, b: Int) -> Int:
+    return a + b
+
+fn main():
+    let p = Point { x: 10, y: 20 }
+    let sum = add(p.x, p.y)
+    println(sum)

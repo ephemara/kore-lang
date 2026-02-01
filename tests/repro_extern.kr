@@ -1,0 +1,4 @@
+extern fn my_external_func() -> Unit
+
+fn main():
+    println("Hello")

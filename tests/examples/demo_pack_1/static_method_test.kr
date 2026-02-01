@@ -1,0 +1,12 @@
+// Debug static method test
+struct Box:
+    value: Int
+
+impl Box:
+    fn create(v: Int) -> Box:
+        return Box { value: v }
+
+
+fn main():
+    let b = Box::create(42)
+    println(42)

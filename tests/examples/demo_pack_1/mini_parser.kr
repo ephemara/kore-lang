@@ -1,0 +1,79 @@
+// Minimal parser test
+
+use compiler/lexer
+
+struct Program:
+    items: Array<String>
+
+struct Parser:
+    tokens: Array<Token>
+    pos: Int
+
+impl Parser:
+    pub fn new(tokens: Array<Token>) -> Parser:
+        return Parser { tokens: tokens, pos: 0 }
+    
+    fn is_eof(self) -> Bool:
+        return self.pos >= len(self.tokens)
+    
+    fn peek(self) -> Token:
+        if self.is_eof():
+            return Token::new(TokenKind::Eof, 0, 0, "")
+        return self.tokens[self.pos]
+    
+    fn advance(self) -> Token:
+        let tok = self.peek()
+        self.pos = self.pos + 1
+        return tok
+    
+    fn skip_newlines(self) -> Unit:
+        while !self.is_eof():
+            let tok = self.peek()
+            if tok.lexeme == "\n" || tok.lexeme == "\r\n":
+                self.advance()
+            else:
+                break
+    
+    pub fn parse_program(self) -> Int:
+        let count = 0
+        
+        self.skip_newlines()
+        
+        while !self.is_eof():
+            let tok = self.peek()
+            
+            // Skip newlines
+            if tok.lexeme == "\n":
+                self.advance()
+                continue
+            
+            // Check for fn keyword
+            if tok.is_keyword("fn"):
+                count = count + 1
+                println("Found function definition!")
+                // Skip the whole function for now
+                while !self.is_eof() && self.peek().lexeme != "\n":
+                    self.advance()
+            else:
+                self.advance()
+        
+        return count
+
+fn main():
+    println("=== Mini Parser Test ===")
+    
+    let source = "fn main():
+    let x = 42"
+    
+    println("Source: '" + source + "'")
+    
+    let lexer = Lexer::new(source)
+    let tokens = lexer.tokenize()
+    
+    println("Got " + str(len(tokens)) + " tokens")
+    
+    let parser = Parser::new(tokens)
+    let count = parser.parse_program()
+    
+    println("Found " + str(count) + " functions")
+    println("Done!")

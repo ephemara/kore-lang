@@ -1,0 +1,479 @@
+// ============================================================================
+// KORE Lexer
+// ============================================================================
+
+use span
+
+// =============================================================================
+// Token Types
+// =============================================================================
+
+/// All possible token types in KORE
+enum TokenType:
+    // Literals
+    Int(Int)
+    Float(Float)
+    String(String)
+    Bool(Bool)
+    
+    // Identifiers and Keywords
+    Ident(String)
+    Keyword(String)
+    
+    // Operators
+    Plus
+    Minus
+    Star
+    Slash
+    Percent
+    Eq
+    EqEq
+    NotEq
+    Lt
+    LtEq
+    Gt
+    GtEq
+    And
+    Or
+    Not
+    Arrow      // ->
+    FatArrow   // =>
+    Dot
+    DotDot     // ..
+    Colon
+    ColonColon // ::
+    Comma
+    Semicolon
+    Pipe       // |
+    Ampersand  // &
+    
+    // Brackets
+    LParen
+    RParen
+    LBracket
+    RBracket
+    LBrace
+    RBrace
+    LAngle     // <
+    RAngle     // >
+    
+    // Whitespace (significant in KORE!)
+    Newline
+    Indent
+    Dedent
+    
+    // Special
+    Eof
+    Error(String)
+
+// =============================================================================
+// Token
+// =============================================================================
+
+/// A token with its kind and source location
+struct Token:
+    type: TokenType
+    span: Span
+    lexeme: String
+
+impl Token:
+    pub fn new(type: TokenType, span: Span, lexeme: String) -> Token:
+        return Token { type: type, span: span, lexeme: lexeme }
+    
+    pub fn is_keyword(self, kw: String) -> Bool:
+        if !str_eq(variant_of(self.type), "Keyword"):
+            return false
+        return str_eq(self.lexeme, kw)
+    
+    pub fn is_ident(self) -> Bool:
+        return str_eq(variant_of(self.type), "Ident")
+
+    pub fn is_error(self) -> Bool:
+        let v = variant_of(self.type)
+        return str_eq(v, "Error")
+    
+    pub fn is_indent(self) -> Bool:
+        let v = variant_of(self.type)
+        return str_eq(v, "Indent")
+    
+    pub fn is_dedent(self) -> Bool:
+        let v = variant_of(self.type)
+        return str_eq(v, "Dedent")
+    
+    pub fn is_newline(self) -> Bool:
+        let v = variant_of(self.type)
+        return str_eq(v, "Newline")
+
+    pub fn is_eof(self) -> Bool:
+        let v = variant_of(self.type)
+        return str_eq(v, "Eof")
+
+// Check if a string is a Kore keyword (no array allocation)
+fn is_kore_keyword(s: String) -> Bool:
+    // Direct string comparisons - no array allocation per call
+    if str_eq(s, "fn"): return true
+    if str_eq(s, "let"): return true
+    if str_eq(s, "var"): return true
+    if str_eq(s, "if"): return true
+    if str_eq(s, "else"): return true
+    if str_eq(s, "while"): return true
+    if str_eq(s, "for"): return true
+    if str_eq(s, "in"): return true
+    if str_eq(s, "return"): return true
+    if str_eq(s, "match"): return true
+    if str_eq(s, "struct"): return true
+    if str_eq(s, "enum"): return true
+    if str_eq(s, "impl"): return true
+    if str_eq(s, "use"): return true
+    if str_eq(s, "pub"): return true
+    if str_eq(s, "async"): return true
+    if str_eq(s, "await"): return true
+    if str_eq(s, "spawn"): return true
+    if str_eq(s, "actor"): return true
+    if str_eq(s, "on"): return true
+    if str_eq(s, "send"): return true
+    if str_eq(s, "true"): return true
+    if str_eq(s, "false"): return true
+    if str_eq(s, "none"): return true
+    if str_eq(s, "self"): return true
+    if str_eq(s, "test"): return true
+    if str_eq(s, "comptime"): return true
+    if str_eq(s, "with"): return true
+    if str_eq(s, "break"): return true
+    if str_eq(s, "continue"): return true
+    if str_eq(s, "loop"): return true
+    if str_eq(s, "trait"): return true
+    if str_eq(s, "const"): return true
+    return false
+
+// =============================================================================
+// Lexer
+// =============================================================================
+
+/// The KORE lexer - converts source text to tokens
+struct Lexer:
+    source: String
+    chars: Array<String>
+    pos: Int
+    line: Int
+    column: Int
+    indent_stack: Array<Int>
+
+impl Lexer:
+    /// Create a new lexer for the given source code
+    pub fn new(source: String) -> Lexer:
+        let chars = split(source, "")
+        
+        let l = Lexer {
+            source: source,
+            chars: chars,
+            pos: 0,
+            line: 1,
+            column: 1,
+            indent_stack: [0]
+        }
+        return l
+    
+    // fn test_method(self):
+    //     println("DEBUG: test_method called")
+    //     println("DEBUG: self.pos=" + str(self.pos))
+    //     let arr = [1, 2]
+    //     println("DEBUG: test_method arr len=" + str(array_len(arr)))
+    
+    /// Check if we've reached end of input
+    fn is_eof(self) -> Bool:
+        // println("DEBUG: checking EOF")
+        let len = array_len(self.chars)
+        // let len = 250
+        // println("DEBUG: len=" + str(len))
+        return self.pos >= len
+    
+    /// Get current character without advancing
+    fn peek(self) -> String:
+        if self.is_eof():
+            return ""
+        // println("DEBUG: Peeking")
+        return self.chars[self.pos]
+    
+    /// Get character at offset without advancing
+    fn peek_n(self, n: Int) -> String:
+        let idx = self.pos + n
+        if idx >= array_len(self.chars):
+            return ""
+        return self.chars[idx]
+    
+    /// Advance and return current character
+    fn advance(self) -> String:
+        if self.is_eof():
+            return ""
+        let c = self.chars[self.pos]
+        self.pos = self.pos + 1
+        if c == "\n":
+            self.line = self.line + 1
+            self.column = 1
+        else:
+            self.column = self.column + 1
+        return c
+    
+    fn match_char(self, expected: String) -> Bool:
+        if self.is_eof(): return false
+        if !str_eq(self.chars[self.pos], expected): return false
+        self.pos = self.pos + 1
+        return true
+    
+    /// Skip whitespace (not newlines - those are significant!)
+    fn skip_spaces(self) -> Unit:
+        while !self.is_eof():
+            let c = self.peek()
+            let code = ord(c)
+            if code == 32 || code == 13:
+                self.advance()
+            else:
+                break
+    
+    /// Make a token at current position
+    fn make_token(self, type: TokenType, lexeme: String) -> Token:
+        let len = str_len(lexeme)
+        let end = self.pos
+        let start = end - len
+        if start < 0: start = 0
+        
+        let span = Span::new(start, end)
+        return Token::new(type, span, lexeme)
+    
+    /// Tokenize a number literal
+    fn lex_number(self) -> Token:
+        let start = self.pos
+        
+        while !self.is_eof() && is_digit(self.peek()):
+            self.advance()
+        
+        // Check for float
+        if str_eq(self.peek(), ".") && is_digit(self.peek_n(1)):
+            self.advance() // consume '.'
+            while !self.is_eof() && is_digit(self.peek()):
+                self.advance()
+            let lexeme = substring(self.source, start, self.pos)
+            return self.make_token(TokenType::Float(to_float(lexeme)), lexeme)
+        
+        let lexeme = substring(self.source, start, self.pos)
+        return self.make_token(TokenType::Int(to_int(lexeme)), lexeme)
+    
+    /// Tokenize a string literal
+    fn lex_string(self) -> Token:
+        let quote = self.advance() // consume opening quote
+        let start = self.pos - 1 // include quote
+        let pieces = []
+        
+        while !self.is_eof() && !str_eq(self.peek(), quote):
+            let c = self.advance()
+            if str_eq(c, "\\"):
+                // Escape sequence
+                let next = self.advance()
+                if str_eq(next, "n"):
+                    push(pieces, "\n")
+                else if str_eq(next, "t"):
+                    push(pieces, "\t")
+                else if str_eq(next, "\\"):
+                    push(pieces, "\\")
+                else if str_eq(next, "\""):
+                    push(pieces, "\"")
+                else:
+                    push(pieces, next)
+            else:
+                push(pieces, c)
+        
+        let value = join(pieces, "")
+        // println("DEBUG: Lexed string: [" + value + "] len=" + str(str_len(value)))
+        
+        if !self.is_eof():
+            self.advance() // consume closing quote
+        
+        // Reconstruct lexeme for span calculation (approximate if escapes used)
+        let end = self.pos
+        let lexeme = substring_range(self.source, start, end)
+        
+        return self.make_token(TokenType::String(value), lexeme)
+    
+    /// Tokenize an identifier or keyword
+    fn lex_ident(self) -> Token:
+        let start = self.pos
+        
+        while !self.is_eof() && is_ident_char(self.peek()):
+            self.advance()
+        
+        let lexeme = substring(self.source, start, self.pos)
+        
+        // Check for keywords using the shared function (no allocation)
+        if is_kore_keyword(lexeme):
+            if str_eq(lexeme, "true"):
+                return self.make_token(TokenType::Bool(true), lexeme)
+            else if str_eq(lexeme, "false"):
+                return self.make_token(TokenType::Bool(false), lexeme)
+            else if str_eq(lexeme, "none"):
+                return self.make_token(TokenType::None, lexeme)
+            return self.make_token(TokenType::Keyword(lexeme), lexeme)
+        
+        return self.make_token(TokenType::Ident(lexeme), lexeme)
+    
+    /// Get the next token
+    pub fn next_token(self) -> Token:
+        self.skip_spaces()
+        
+        if self.is_eof():
+            return self.make_token(TokenType::Eof, "")
+        
+        let c = self.peek()
+        
+        // Single-line comment
+        if str_eq(c, "#") || (str_eq(c, "/") && str_eq(self.peek_n(1), "/")):
+            while !self.is_eof() && !str_eq(self.peek(), "\n"):
+                self.advance()
+            return self.next_token()
+        
+        // Skip carriage return (Windows CRLF line endings)
+        if ord(c) == 13:
+            self.advance()
+            return self.next_token()  // Skip it, get next real token
+        
+        // Newline (significant!)
+        if ord(c) == 10:
+            self.advance()
+            return self.make_token(TokenType::Newline, "\n")
+        
+        // Numbers
+        if is_digit(c):
+            return self.lex_number()
+        
+        // Strings
+        let code = ord(c)
+        if code == 34 || code == 39: // " or '
+            return self.lex_string()
+        
+        // Identifiers and keywords
+        if is_ident_start(c):
+            return self.lex_ident()
+        
+        // Operators and punctuation
+        self.advance()
+        
+        if str_eq(c, "+"): return self.make_token(TokenType::Plus, "+")
+        if str_eq(c, "-"):
+            if str_eq(self.peek(), ">"):
+                self.advance()
+                return self.make_token(TokenType::Arrow, "->")
+            return self.make_token(TokenType::Minus, "-")
+        if str_eq(c, "*"): return self.make_token(TokenType::Star, "*")
+        if str_eq(c, "/"): return self.make_token(TokenType::Slash, "/")
+        if str_eq(c, "%"): return self.make_token(TokenType::Percent, "%")
+        if str_eq(c, "="):
+            if str_eq(self.peek(), "="):
+                self.advance()
+                return self.make_token(TokenType::EqEq, "==")
+            if str_eq(self.peek(), ">"):
+                self.advance()
+                return self.make_token(TokenType::FatArrow, "=>")
+            return self.make_token(TokenType::Eq, "=")
+        if str_eq(c, "!"):
+            if str_eq(self.peek(), "="):
+                self.advance()
+                return self.make_token(TokenType::NotEq, "!=")
+            return self.make_token(TokenType::Not, "!")
+        if str_eq(c, "<"):
+            if str_eq(self.peek(), "="):
+                self.advance()
+                return self.make_token(TokenType::LtEq, "<=")
+            return self.make_token(TokenType::Lt, "<")
+        if str_eq(c, ">"):
+            if str_eq(self.peek(), "="):
+                self.advance()
+                return self.make_token(TokenType::GtEq, ">=")
+            return self.make_token(TokenType::Gt, ">")
+        if str_eq(c, "&"):
+            if str_eq(self.peek(), "&"):
+                self.advance()
+                return self.make_token(TokenType::And, "&&")
+            return self.make_token(TokenType::Ampersand, "&")
+        if str_eq(c, "|"):
+            if str_eq(self.peek(), "|"):
+                self.advance()
+                return self.make_token(TokenType::Or, "||")
+            return self.make_token(TokenType::Pipe, "|")
+        if str_eq(c, "."):
+            if str_eq(self.peek(), "."):
+                self.advance()
+                return self.make_token(TokenType::DotDot, "..")
+            return self.make_token(TokenType::Dot, ".")
+        if str_eq(c, ":"):
+            if str_eq(self.peek(), ":"):
+                self.advance()
+                return self.make_token(TokenType::ColonColon, "::")
+            return self.make_token(TokenType::Colon, ":")
+        if ord(c) == 10: return self.make_token(TokenType::Newline, "\n")
+        if str_eq(c, ","): return self.make_token(TokenType::Comma, ",")
+        if str_eq(c, ";"): return self.make_token(TokenType::Semicolon, ";")
+        if str_eq(c, "("): return self.make_token(TokenType::LParen, "(")
+        if str_eq(c, ")"): return self.make_token(TokenType::RParen, ")")
+        if str_eq(c, "["): return self.make_token(TokenType::LBracket, "[")
+        if str_eq(c, "]"): return self.make_token(TokenType::RBracket, "]")
+        if str_eq(c, "{"): return self.make_token(TokenType::LBrace, "{")
+        if str_eq(c, "}"): return self.make_token(TokenType::RBrace, "}")
+        
+        // Debug fallback
+        // println("DEBUG: next_token fallback char code=" + str(ord(c)))
+        
+        return self.make_token(TokenType::Error("Unknown character: " + c), c)
+    
+    /// Tokenize entire source into array of tokens with Indent/Dedent injection
+    pub fn tokenize(self) -> Array<Token>:
+        println("DEBUG: tokenize (method) called - deprecated")
+        return []
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+fn is_digit(c: String) -> Bool:
+    if str_len(c) == 0:
+        return false
+    let code = ord(c)
+    return code >= 48 && code <= 57  // '0' = 48, '9' = 57
+
+fn substring_range(s: String, start: Int, end: Int) -> String:
+    let chars = split(s, "")
+    let pieces = []
+    let i = start
+    let max = array_len(chars)
+    while i < end:
+        if i < max:
+            push(pieces, chars[i])
+        i = i + 1
+    return join(pieces, "")
+
+fn is_alpha(c: String) -> Bool:
+    if str_len(c) == 0:
+        return false
+    let code = ord(c)
+    let lower = code >= 97 && code <= 122
+    let upper = code >= 65 && code <= 90
+    let result = lower || upper
+    // 'a' = 97, 'z' = 122, 'A' = 65, 'Z' = 90
+    return result
+
+fn is_ident_start(c: String) -> Bool:
+    if str_len(c) == 0:
+        return false
+    return is_alpha(c) || str_eq(c, "_")
+
+fn is_ident_char(c: String) -> Bool:
+    if str_len(c) == 0:
+        return false
+    if str_eq(c, "("): return false
+    if str_eq(c, ")"): return false
+    if str_eq(c, "{"): return false
+    if str_eq(c, "}"): return false
+    if str_eq(c, "["): return false
+    if str_eq(c, "]"): return false
+    return is_alpha(c) || is_digit(c) || str_eq(c, "_")
+
+

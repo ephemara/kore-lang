@@ -1,0 +1,30 @@
+# crazy_demo.god - GODCODE Visual Showcase (simplified)
+
+component Card(icon, title, desc):
+    <div class="card"><div class="icon">{icon}</div><h3>{title}</h3><p>{desc}</p></div>
+
+component Stat(num, label):
+    <div class="stat"><div class="num">{num}</div><div class="label">{label}</div></div>
+
+component App():
+    <div class="app">
+        <div class="hero"><h1 class="title">GODCODE</h1><p class="sub">The Ultimate Programming Language</p></div>
+        <div class="cards">
+            <Card icon="*" title="Lightning Fast" desc="WASM, SPIR-V, native compilation" />
+            <Card icon="%" title="JSX Components" desc="React-style UI components" />
+            <Card icon="#" title="GPU Shaders" desc="Compile shaders to SPIR-V" />
+            <Card icon="@" title="Actors" desc="Erlang-style concurrency" />
+            <Card icon="!" title="Rust Safety" desc="Ownership, no null, Result types" />
+            <Card icon="~" title="Python Syntax" desc="Clean, readable code" />
+        </div>
+        <div class="stats">
+            <Stat num="95+" label="STDLIB FUNCTIONS" />
+            <Stat num="10" label="BUILT-IN MACROS" />
+            <Stat num="12" label="EXAMPLES" />
+            <Stat num="85%" label="COMPLETE" />
+        </div>
+    </div>
+
+fn main() with IO:
+    let html = <App />
+    print(html)

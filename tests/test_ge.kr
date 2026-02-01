@@ -1,0 +1,15 @@
+fn main():
+    if 1 >= 1:
+        println("GE PASS")
+    else:
+        println("GE FAIL")
+
+    if 1 > 1:
+        println("GT FAIL")
+    else:
+        println("GT PASS")
+
+    if 2 >= 1:
+        println("GE2 PASS")
+    else:
+        println("GE2 FAIL")

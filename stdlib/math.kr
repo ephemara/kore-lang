@@ -1,0 +1,116 @@
+# math.god - Standard Math Library for Game Development
+
+# Constants
+pub const PI: Float = 3.14159265359
+pub const TAU: Float = 6.28318530718
+pub const EPSILON: Float = 0.000001
+
+# ==========================================
+# Vector 2
+# ==========================================
+pub struct Vec2:
+    x: Float
+    y: Float
+
+impl Vec2:
+    pub fn new(x: Float, y: Float) -> Vec2:
+        return Vec2(x, y)
+
+    pub fn zero() -> Vec2:
+        return Vec2(0.0, 0.0)
+
+    pub fn one() -> Vec2:
+        return Vec2(1.0, 1.0)
+
+    pub fn len(self) -> Float:
+        return sqrt(self.x * self.x + self.y * self.y)
+
+    pub fn normalize(self) -> Vec2:
+        let l = self.len()
+        if l < EPSILON:
+            return Vec2(0.0, 0.0)
+        return Vec2(self.x / l, self.y / l)
+
+    pub fn dot(self, other: Vec2) -> Float:
+        return self.x * other.x + self.y * other.y
+
+    pub fn add(self, other: Vec2) -> Vec2:
+        return Vec2(self.x + other.x, self.y + other.y)
+
+    pub fn sub(self, other: Vec2) -> Vec2:
+        return Vec2(self.x - other.x, self.y - other.y)
+
+    pub fn scale(self, s: Float) -> Vec2:
+        return Vec2(self.x * s, self.y * s)
+
+# ==========================================
+# Vector 3
+# ==========================================
+pub struct Vec3:
+    x: Float
+    y: Float
+    z: Float
+
+impl Vec3:
+    pub fn new(x: Float, y: Float, z: Float) -> Vec3:
+        return Vec3(x, y, z)
+
+    pub fn zero() -> Vec3:
+        return Vec3(0.0, 0.0, 0.0)
+
+    pub fn one() -> Vec3:
+        return Vec3(1.0, 1.0, 1.0)
+        
+    pub fn up() -> Vec3:
+        return Vec3(0.0, 1.0, 0.0)
+
+    pub fn right() -> Vec3:
+        return Vec3(1.0, 0.0, 0.0)
+
+    pub fn forward() -> Vec3:
+        return Vec3(0.0, 0.0, 1.0)
+
+    pub fn len(self) -> Float:
+        return sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
+
+    pub fn normalize(self) -> Vec3:
+        let l = self.len()
+        if l < EPSILON:
+            return Vec3(0.0, 0.0, 0.0)
+        return Vec3(self.x / l, self.y / l, self.z / l)
+
+    pub fn dot(self, other: Vec3) -> Float:
+        return self.x * other.x + self.y * other.y + self.z * other.z
+
+    pub fn cross(self, other: Vec3) -> Vec3:
+        return Vec3(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x
+        )
+
+    pub fn add(self, other: Vec3) -> Vec3:
+        return Vec3(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    pub fn sub(self, other: Vec3) -> Vec3:
+        return Vec3(self.x - other.x, self.y - other.y, self.z - other.z)
+
+    pub fn scale(self, s: Float) -> Vec3:
+        return Vec3(self.x * s, self.y * s, self.z * s)
+
+# ==========================================
+# Math Helpers
+# ==========================================
+pub fn lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * clamp(t, 0.0, 1.0)
+
+pub fn clamp(val: Float, min: Float, max: Float) -> Float:
+    if val < min: return min
+    if val > max: return max
+    return val
+
+pub fn deg_to_rad(deg: Float) -> Float:
+    return deg * PI / 180.0
+
+pub fn rad_to_deg(rad: Float) -> Float:
+    return rad * 180.0 / PI

@@ -1,0 +1,24 @@
+fn main():
+    let a = 10
+    let b = 20
+    let c = a + b
+    println("10 + 20 = " + str(c))
+    
+    let d = b - a
+    println("20 - 10 = " + str(d))
+    
+    let e = a * 5
+    println("10 * 5 = " + str(e))
+    
+    let f = b / 2
+    println("20 / 2 = " + str(f))
+    
+    if a < b:
+        println("10 < 20 is true")
+    else:
+        println("10 < 20 is false (ERROR)")
+    
+    if b > a:
+        println("20 > 10 is true")
+    else:
+        println("20 > 10 is false (ERROR)")
