@@ -1518,10 +1518,22 @@ fn parse_use_v2(p: ParserV2) -> String:
 // =============================================================================
 
 pub fn parse_program_v2(p: ParserV2) -> Array<Item>:
-    // println("DEBUG: parse_program_v2 starting for " + p.file)
+    println("DEBUG: parse_program_v2 start")
+    println("DEBUG: file=" + p.file)
+    let count = array_len(p.tokens)
+    let s_count = str(count)
+    println("DEBUG: count=" + s_count)
+    
+    if count > 0:
+         let t = p.tokens[0]
+         println("DEBUG: first token lexeme: " + t.lexeme)
+
+    // println("DEBUG: parse_program_v2 starting for " + p.file + " with " + str(array_len(p.tokens)) + " tokens")
     let items = []
     
+    println("DEBUG: calling parser_skip_newlines")
     parser_skip_newlines(p)
+    println("DEBUG: parser_skip_newlines done")
     
     while !parser_is_eof(p):
         // Skip spurious indents at top level
