@@ -12,9 +12,10 @@ This repository contains **two compiler implementations**:
 | Version | Location | Status | Best For |
 |---------|----------|--------|----------|
 | **V2 Self-Hosting** | `/` (root) | Experimental | Next-gen compiler development, LLVM native |
-| **V1 Production** | `/kore-v1-stable/` | Production-Ready | WASM, SPIR-V shaders, Actor runtime, UE5 integration | (Now on crates.io! cargo install kore-lang@0.1.1)
+| **V1 Production** | `/kore-v1-stable/` | Production-Ready | WASM, SPIR-V shaders, Actor runtime, UE5 integration |
 
-**New users**: Start with **V1** (`/kore-v1-stable/`) for production work, especially for shaders and WASM.  
+**New users**: Start with **V1** (`/kore-v1-stable/`) for production work, especially for shaders and WASM. (Now on crates.io! cargo install kore-lang@0.1.1)
+
 **Contributors**: V2 (root) is where the self-hosting magic happens - help us make it production-ready!
 
 **Detailed comparison**: See [WHICH_VERSION.md](WHICH_VERSION.md) for a complete feature matrix and use case guide.
