@@ -83,19 +83,23 @@ fn main():
 ╚═════════════════════════════════════════╝
 ```
 
-### Prerequisites
+### Install V1 (Production)
 
-* **Windows**: PowerShell 5.1+, Clang/LLVM 17+
-* **Rust**: 1.70+ (for bootstrap compiler)
+```bash
+cargo install kore-lang
+```
 
-### Build and Run
+Done. The `kore` command is now available. Use this for WASM, shaders, and production work.
+
+### Build V2 (Self-Hosting, Experimental)
+
+For compiler development or contributing to the self-hosting effort:
 
 ``` powershell
-# Clone the repository
 git clone https://github.com/ephemara/Kore-lang.git
 cd Kore
 
-# Build native compiler (recommended for development)
+# Build native compiler
 .\build.ps1 -SkipSelfHosted
 
 # Compile a KORE file
@@ -105,6 +109,11 @@ cd Kore
 clang hello.ll build\kore_runtime.o -o hello.exe
 .\hello.exe
 ```
+
+### Prerequisites (V2 only)
+
+* **Windows**: PowerShell 5.1+, Clang/LLVM 17+
+* **Rust**: 1.70+ (for bootstrap compiler)
 
 - - -
 

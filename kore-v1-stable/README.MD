@@ -31,7 +31,15 @@ The bootstrap compiler includes the **Rust transpiler** - KORE code can be compi
 
 ## Quick Start
 
-### Build the Main V1 Compiler
+```bash
+cargo install kore-lang
+```
+
+That's it. You now have the `kore` command available system-wide.
+
+### Build from Source
+
+If you prefer building from source:
 
 ```bash
 cd kore-v1-stable
@@ -39,15 +47,6 @@ cargo build --release
 ```
 
 **Binary**: `target/release/kore` (or `kore.exe` on Windows)
-
-### Build the Bootstrap Compiler
-
-```bash
-cd kore-v1-stable/bootstrap
-cargo build --release
-```
-
-**Binary**: `bootstrap/target/release/korec` (or `korec.exe` on Windows)
 
 ---
 
