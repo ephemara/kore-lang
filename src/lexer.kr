@@ -259,6 +259,7 @@ fn is_keyword(s: String) -> Bool:
 // =============================================================================
 
 pub fn tokenize(lexer: Lexer) -> Array<Token>:
+    println("DEBUG: tokenize start")
     let tokens = []
     let at_line_start = true
     var loop_count = 0
@@ -478,6 +479,7 @@ pub fn tokenize(lexer: Lexer) -> Array<Token>:
         push(tokens, lexer_make_simple_token(lexer, TokenType::Dedent, ""))
     
     push(tokens, lexer_make_simple_token(lexer, TokenType::Eof, ""))
+    println("DEBUG: tokenize done, count=" + to_string(array_len(tokens)))
     return tokens
 
 // =============================================================================

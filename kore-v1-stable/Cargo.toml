@@ -1,11 +1,15 @@
 [package]
-name = "kore"
+name = "kore-lang"
 version = "0.1.0"
 edition = "2021"
 authors = ["Kipp <kipp@k-os.dev>"]
-description = "The Ultimate Programming Language - Rust safety + Python syntax + Lisp macros + Zig comptime"
+description = "A self-hosting programming language with Rust's safety, Python's syntax, and Lisp's metaprogramming"
 license = "MIT"
 repository = "https://github.com/kippsterr/kore"
+readme = "README.MD"
+keywords = ["compiler", "language", "wasm", "spirv", "actor"]
+categories = ["compilers", "development-tools", "wasm"]
+exclude = ["target/", "test/", "shaders/", "*.kr"]
 
 [workspace]
 

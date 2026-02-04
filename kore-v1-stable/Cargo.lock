@@ -966,7 +966,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kore"
+name = "kore-lang"
 version = "0.1.0"
 dependencies = [
  "ariadne",

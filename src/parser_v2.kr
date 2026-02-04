@@ -111,6 +111,7 @@ struct ParserV2:
 
 // impl ParserV2:
 pub fn parser_new(tokens: Array, source: String, file: String) -> ParserV2:
+    println("DEBUG: parser_new tokens len=" + str(array_len(tokens)))
     return ParserV2 {
         tokens: tokens,
         pos: 0,
@@ -346,7 +347,11 @@ fn parser_skip_ws(p: ParserV2, ctx: ParseContext) -> Unit:
                     break
 
 fn parser_skip_newlines(p: ParserV2) -> Unit:
+    println("DEBUG: parser_skip_newlines entered")
+    // let ctx = ParseContext::Block
+    // println("DEBUG: ctx created")
     parser_skip_ws(p, ParseContext::Block)
+    println("DEBUG: parser_skip_newlines done")
 
 // =============================================================================
 // Type Parsing - Returns TypeExpr instead of String
@@ -1521,7 +1526,7 @@ pub fn parse_program_v2(p: ParserV2) -> Array<Item>:
     println("DEBUG: parse_program_v2 start")
     println("DEBUG: file=" + p.file)
     let count = array_len(p.tokens)
-    let s_count = str(count)
+    let s_count = to_string(count)
     println("DEBUG: count=" + s_count)
     
     if count > 0:
