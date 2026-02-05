@@ -21,11 +21,30 @@ This repository contains **two compiler implementations**:
 **Detailed comparison**: See [WHICH_VERSION.md](WHICH_VERSION.md) for a complete feature matrix and use case guide.
 
 - - -
-Kore has been a private repo for years, and you may be asking where did these 337~ files spawn from? My old repo had way too much personal info in the git commits so for the public release the only option was to start fresh and host it in a new repo.
 
-If you're curious about what this language is designed to power, head over to [Greeble.co](https://www.greeble.co/). You can find a sample of my in-progress 3D DCC (1/14 modules) and a preview of a new Unreal Engine 5 plugin featuring effectors, cloners, and MoGraph tools in the style of C4D.
+## The Motivation: Project Ouroboros
+
+You might ask: *Why another language?*
+
+1.  **Unified Graphics Pipeline**: Authoring shaders in GLSL/HLSL and binding them to C++ logic is friction-heavy. Kore treats shaders as first-class citizens.
+2.  **Solving Architectural Glue**: I am currently building a massive, professional-grade 3D DCC suite. Think **Blender meets Houdini, ZBrush, Substance, and C4D**. It handles everything from PBR painting and GPU sculpting to real-time particle simulations with 64+ million particles. The prototype was glued together using Rust, React, Tauri, TypeScript, Python, and C++ via a complex IPC system. It became a maintenance nightmare.
+3.  **The "Dogfooding" Strategy**: It turned out to be more efficient to design a language that unifies these domains (UI, Logic, GPU) than to maintain the "cobweb" of legacy stacks.
+
+**Kore is being built to power this DCC.** The ultimate way to stress-test a language is to build complex 3D architecture with it. I am currently porting the DCC to Kore to ensure the language handles real-world production edge cases.
+
+>> **Funding & Roadmap**: To support this development, I am releasing modules of the DCC as **Unreal Engine 5 Plugins** (powered by Kore's V1 compiler).
+>
+>> **Status Update:** Active work on the Kore compiler core will be minimal until these plugins are released. I am currently developing on a legacy mobile workstation (i7 9th Gen, RTX 2060, 32GB RAM) which has become a hard bottleneck; compiler memory spikes during self-hosting frequently crash the machine. **Revenue from these plugins will directly fund the hardware upgrade needed to finish Project Ouroboros.**
 
 - - -
+
+## The Origin
+
+Kore has been under active private development for years. You might ask: *Where did these ~337 files suddenly spawn from?*
+
+The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate.
+
+Curious what this language is designed to power? Head over to **[Greeble.co](https://www.greeble.co/)**. There you can find a sample of the in-progress 3D DCC (1/14 modules) and previews of Unreal Engine 5 plugins—featuring C4D-style effectors, cloners, and MoGraph tools. Next plugin is going to be GPU based image to PBR generation. It is currently ~95% done. More info soon! 
 
 ## What is KORE?
 
