@@ -72,8 +72,9 @@ cargo build --release
 |--------|---------|--------|
 | WASM | `-t wasm`, `-t w` | `.wasm` |
 | LLVM/Native | `-t llvm`, `-t native`, `-t n` | `.ll` |
-| SPIR-V | `-t spirv`, `-t gpu`, `-t shader`, `-t s` | `.spv` |
-| **Rust** | `-t rust`, `-t rs` | `.rs` |
+| SPIR-V | `-t spirv`, `-t gpu`, `-t s` | `.spv` |
+| **HLSL** | `-t hlsl` | `.hlsl` |
+| Rust | `-t rust`, `-t rs` | `.rs` |
 | Interpret | `-t run`, `-t interpret`, `-t i` | stdout |
 | Test | `-t test`, `-t t` | stdout |
 
@@ -104,27 +105,34 @@ kore run <file>                   # Execute via interpreter
 
 ## Shader Pipeline (KORE → HLSL)
 
-KORE can compile shaders to SPIR-V, which can then be converted to HLSL/GLSL/WGSL using `naga`.
+KORE includes a **direct HLSL codegen backend** - no intermediate SPIR-V or external tools required.
 
-### Full Pipeline
+### Direct HLSL Compilation (Recommended)
 
 ```bash
-# Step 1: Compile KORE shader to SPIR-V
-./target/release/kore shader.kr --target spirv -o shader.spv
-
-# Step 2: Convert SPIR-V to HLSL (using naga)
-naga shader.spv shader.hlsl
-
-# Step 3: (Optional) Convert to other formats
-naga shader.spv shader.wgsl    # WebGPU
-naga shader.spv shader.glsl    # OpenGL
-naga shader.spv shader.metal   # Apple Metal
+# One command - KORE shader to production HLSL
+kore shader.kr --target hlsl -o shader.hlsl
 ```
 
-### Install Naga
+The generated HLSL includes:
+- Proper `cbuffer` for uniforms with register bindings
+- `Texture2D` and `SamplerState` declarations
+- Correct `VSInput`/`PSOutput` structs with semantics
+- Full PBR math, tonemapping, post-processing
+
+### Alternative: SPIR-V Pipeline
+
+For cross-platform shader compilation, you can still use the SPIR-V path:
 
 ```bash
-cargo install naga-cli
+# Compile to SPIR-V
+kore shader.kr --target spirv -o shader.spv
+
+# Convert with naga (cargo install naga-cli)
+naga shader.spv shader.hlsl   # DirectX
+naga shader.spv shader.wgsl   # WebGPU
+naga shader.spv shader.glsl   # OpenGL
+naga shader.spv shader.metal  # Apple Metal
 ```
 
 ---
