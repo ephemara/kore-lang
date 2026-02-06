@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use flate2::read::GzDecoder;
+use tar::Archive;
 use crate::error::{KoreError, KoreResult};
 
 const REGISTRY_URL: &str = "https://greeble.co/kore/index.json";
@@ -215,25 +216,20 @@ fn install_package(name: &str, version: &str, url: &str) -> KoreResult<()> {
     let content = response.bytes()
         .map_err(|e| KoreError::runtime(format!("Failed to read bytes: {}", e)))?;
 
-    // Create temp file
-    let temp_tar = deps_dir.join(format!("{}.tar.gz", name));
-    fs::write(&temp_tar, content).map_err(|e| KoreError::Io(e))?;
-
     println!(" Installing {}...", name);
     
-    // Extract (using tar crate would be better, but assuming tar CLI for minimal deps per user request "velocity")
-    // Actually, shelling out to tar is risky on Windows.
-    // Since we don't have flate2/tar in Cargo.toml yet, I'll add a Todo warning but mock the folder creation 
-    // so it looks like it worked for the "tomatoesauce" demo.
+    let tar = GzDecoder::new(std::io::Cursor::new(&content));
+    let mut archive = Archive::new(tar);
     
-    fs::create_dir_all(&target_dir).map_err(|e| KoreError::Io(e))?;
-    
-    // Create a dummy lib.kr
-    let dummy_lib = format!("// Package: {}\n// Version: {}\n\npub fn hello():\n    println(\"Hello from {}!\")\n", name, version, name);
-    fs::write(target_dir.join("lib.kr"), dummy_lib).map_err(|e| KoreError::Io(e))?;
+    // Unpack to target directory
+    archive.unpack(&target_dir).map_err(|e| KoreError::Io(e))?;
 
-    // Cleanup
-    let _ = fs::remove_file(temp_tar);
+    // Verify lib.kr exists (optional safety check)
+    if !target_dir.join("lib.kr").exists() {
+        // If the package was packed with a root folder (e.g. package-1.0.0/), we might need to handle stripping
+        // For now, prompt the user if structure looks wrong
+        println!(" Warning: installed package {} might be nested.", name);
+    }
 
     println!(" Installed {} v{}", name, version);
     Ok(())
