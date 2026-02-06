@@ -34,7 +34,7 @@ This repository contains **two compiler implementations**:
 | **V2 Self-Hosting** | `/` (root) | Experimental | Next-gen compiler development, LLVM native |
 | **V1 Production** | `/KAIN-v1-stable/` | Production-Ready | WASM, SPIR-V shaders, Actor runtime, UE5 integration |
 
-**New users**: Start with **V1** (`/KAIN-v1-stable/`) for production work, especially for shaders and WASM. (Now on crates.io! cargo install KAIN-lang@0.1.1)
+**New users**: Start with **V1** (`/KAIN-v1-stable/`) for production work, especially for shaders and WASM.
 
 **Contributors**: V2 (root) is where the self-hosting magic happens - help us make it production-ready!
 
@@ -47,7 +47,7 @@ This repository contains **two compiler implementations**:
 You might ask: *Why another language?*
 
 1.  **Unified Graphics Pipeline**: Authoring shaders in GLSL/HLSL and binding them to C++ logic is friction-heavy. KAIN treats shaders as first-class citizens.
-2.  **Solving Architectural Glue**: I am currently building a massive, professional-grade 3D DCC suite. Think **Blender meets Houdini, ZBrush, Substance, and C4D**. It handles everything from PBR painting and GPU sculpting to real-time particle simulations with 64+ million particles. The prototype was glued together using Rust, React, Tauri, TypeScript, Python, and C++ via a complex IPC system. It became a maintenance nightmare.
+2.  **Solving Architectural Glue**: In progress is a professional-grade 3D DCC suite. It handles everything from PBR painting and GPU sculpting to real-time particle simulations with 64+ million particles. The prototype was glued together using Rust, React, Tauri, TypeScript, Python, and C++ via a complex IPC system. It became a maintenance nightmare.
 3.  **The "Dogfooding" Strategy**: It turned out to be more efficient to design a language that unifies these domains (UI, Logic, GPU) than to maintain the "cobweb" of legacy stacks.
 
 ## The Origin
