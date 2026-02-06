@@ -1,5 +1,26 @@
-<img src="assets/KAIN_timeline_final.gif" alt="KAIN - Timeline Animation" width="1041">
+<div align="center">
 
+<pre>
+                                                                            
+           ▄█   ▄█▄          ▄████████  ▄█  ███▄▄▄▄                         
+           ███ ▄███▀        ███    ███ ███  ███▀▀▀██▄                       
+           ███▐███▀         ███    ███ ███▌ ███   ███                       
+          ▄█████▀           ███    ███ ███▌ ███   ███                       
+         ▀▀█████▄           ██████████ ███▌ ███   ███                       
+           ███▐███▄         ███    ███ ███  ███   ███                       
+           ███ ▀███▄        ███    ███ █▀   ███   ███                       
+           ███   ▀█▀        ███    ███      ▀█   █▀                         
+           ▀                ▀      ▀                                        
+                                                                            
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   
+         T H E   D R A G O O N ' S   B L A D E   ─   V 0 . 1 . 0            
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   
+                                                                            
+          Rust's Safety  ·  Python's Syntax  ·  Lisp's Power                
+              WASM  ·  LLVM  ·  SPIR-V  ·  HLSL  ·  USF                     
+</pre>
+
+</div>
 
 <a href="#quick-start">Quick Start</a> • <a href="#features">Features</a> • <a href="#architecture">Architecture</a> • <a href="#building">Building</a> • <a href="#cli-reference">CLI</a> • <a href="#contributing">Contributing</a>
 
@@ -83,24 +104,6 @@ actor Counter:
 fn main():
     let result = factorial(5)
     println("5! = " + str(result))
-```
-
-- - -
-
-## Quick Start
-
-```
-╔═════════════════════════════════════════╗
-║                                         ║
-║   ██╗  ██╗ ██████╗ ██████╗ ███████╗     ║
-║   ██║ ██╔╝██╔═══██╗██╔══██╗██╔════╝     ║
-║   █████╔╝ ██║   ██║██████╔╝█████╗       ║
-║   ██╔═██╗ ██║   ██║██╔══██╗██╔══╝       ║
-║   ██║  ██╗╚██████╔╝██║  ██║███████╗     ║
-║   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝     ║
-║                                         ║
-║                                         ║
-╚═════════════════════════════════════════╝
 ```
 
 ### Install V1 (Production)
