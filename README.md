@@ -12,7 +12,7 @@
                              
 
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-         T H E   D R A G O O N ' S   B L A D E   ─   V 0 . 1 . 0
+     THE UNIFIED COMPUTING LANGUAGE - Write once. Deploy to CPU, GPU, and Web.
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
           Rust's Safety  ·  Python's Syntax  ·  Lisp's Power
