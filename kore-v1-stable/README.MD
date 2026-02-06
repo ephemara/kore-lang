@@ -1,3 +1,5 @@
+HUGE UPDATE:2/5/25- HLSL shader pipeline is now fully functional. See /shaders for the full pipeline. 
+
 # KORE V1 - Production Compiler
 
 > **Production-Ready Release**: This is the stable, feature-complete V1 compiler with Actor runtime, UE5 shader pipeline, Python FFI, and multiple compilation targets. While the V2 self-hosting compiler (in the root directory) is under active development, V1 is battle-tested and ready for production use.
