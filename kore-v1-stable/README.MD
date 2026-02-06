@@ -1,4 +1,4 @@
-HUGE UPDATE:2/5/25- HLSL shader pipeline is now fully functional. See /shaders for the full pipeline. 
+HUGE UPDATE: 2/6/25 - Direct USF (Unreal Shader Format) backend is now live! Compile KORE shaders directly to production UE5 code with `-t usf`. HLSL backend also fully functional.
 
 # KORE V1 - Production Compiler
 
@@ -68,15 +68,16 @@ cargo build --release
 
 ### Compilation Targets
 
-| Target | Flag(s) | Output |
-|--------|---------|--------|
-| WASM | `-t wasm`, `-t w` | `.wasm` |
-| LLVM/Native | `-t llvm`, `-t native`, `-t n` | `.ll` |
-| SPIR-V | `-t spirv`, `-t gpu`, `-t s` | `.spv` |
-| **HLSL** | `-t hlsl` | `.hlsl` |
-| Rust | `-t rust`, `-t rs` | `.rs` |
-| Interpret | `-t run`, `-t interpret`, `-t i` | stdout |
-| Test | `-t test`, `-t t` | stdout |
+| Target | Flag(s) | Output | Notes |
+|--------|---------|--------|-------|
+| WASM | `-t wasm`, `-t w` | `.wasm` | Web applications |
+| LLVM/Native | `-t llvm`, `-t native`, `-t n` | `.ll` | Native binaries |
+| SPIR-V | `-t spirv`, `-t gpu`, `-t s` | `.spv` | Cross-platform shaders |
+| **HLSL** | `-t hlsl`, `-t h` | `.hlsl` | DirectX (direct codegen, no middleman) |
+| **USF** | `-t usf`, `-t ue5` | `.usf` | Unreal Engine 5 (direct codegen) |
+| Rust | `-t rust`, `-t rs` | `.rs` | Rust transpilation |
+| Interpret | `-t run`, `-t interpret`, `-t i` | stdout | Instant execution |
+| Test | `-t test`, `-t t` | stdout | Unit tests |
 
 ### CLI Options
 
@@ -103,83 +104,91 @@ kore run <file>                   # Execute via interpreter
 
 ---
 
-## Shader Pipeline (KORE → HLSL)
+## Shader Pipeline
 
-KORE includes a **direct HLSL codegen backend** - no intermediate SPIR-V or external tools required.
+KORE includes **two direct shader backends** - no intermediate SPIR-V or external tools required.
 
-### Direct HLSL Compilation (Recommended)
+### HLSL Backend (DirectX)
 
 ```bash
-# One command - KORE shader to production HLSL
+# Direct KORE → HLSL (no middleman)
 kore shader.kr --target hlsl -o shader.hlsl
 ```
 
-The generated HLSL includes:
-- Proper `cbuffer` for uniforms with register bindings
-- `Texture2D` and `SamplerState` declarations
-- Correct `VSInput`/`PSOutput` structs with semantics
-- Full PBR math, tonemapping, post-processing
+**Generated output:**
+- `cbuffer` with register bindings
+- `Texture2D` + `SamplerState` pairs
+- `VSInput`/`PSOutput` structs with semantics
+- Full PBR, tonemapping, post-processing
 
-### Alternative: SPIR-V Pipeline
-
-For cross-platform shader compilation, you can still use the SPIR-V path:
+### USF Backend (Unreal Engine 5)
 
 ```bash
-# Compile to SPIR-V
-kore shader.kr --target spirv -o shader.spv
+# Direct KORE → USF (production UE5 shaders)
+kore shader.kr --target usf -o shader.usf
+```
 
-# Convert with naga (cargo install naga-cli)
-naga shader.spv shader.hlsl   # DirectX
+**Generated output:**
+- `#include "/Engine/Public/Platform.ush"`
+- Scalar parameters (C++ bindable via `SHADER_PARAMETER_STRUCT`)
+- `Texture2D<float4>` + `SamplerState` pairs with registers
+- `FPSInput`/`FPSOutput` UE5-style structs
+- `[numthreads]` compute shader support
+
+### Alternative: SPIR-V → Cross-Platform
+
+For multi-platform output, use SPIR-V with naga:
+
+```bash
+kore shader.kr --target spirv -o shader.spv
 naga shader.spv shader.wgsl   # WebGPU
 naga shader.spv shader.glsl   # OpenGL
-naga shader.spv shader.metal  # Apple Metal
+naga shader.spv shader.metal  # Metal
 ```
 
 ---
 
-## Unreal Engine 5 Shader Integration
+## Unreal Engine 5 Integration
 
-KORE includes an automated `ue5-shader` target that compiles shaders directly for Unreal Engine plugins.
+Two approaches for UE5 shaders:
 
-### One-Command UE5 Pipeline
+### Direct USF (Recommended)
 
 ```bash
-# Compile KORE shader and generate UE5-ready files
-./target/release/kore shader.kr --target ue5-shader
-
-# Deploy directly to a UE5 plugin
-./target/release/kore shader.kr --target ue5-shader --plugin MyRenderPlugin
+# One command - production UE5 shader
+kore shader.kr --target usf -o MyShader.usf
 ```
 
-### What Gets Generated
+Drop the `.usf` file directly into your plugin's `Shaders/` directory.
 
-| File | Description |
-|------|-------------|
-| `shader.spv` | SPIR-V bytecode (validated with spirv-val if available) |
-| `shader.hlsl` | HLSL source (transpiled via naga) |
-| `shader.usf` | Unreal Shader File wrapper (`#include "shader.hlsl"`) |
+**Example generated output:**
+```hlsl
+#include "/Engine/Public/Platform.ush"
 
-### Pipeline Steps
+float NormalStrength;   // C++ bindable
+Texture2D<float4> albedo_map : register(t0);
+SamplerState albedo_mapSampler : register(s0);
 
-1. **Compile** - KORE source → SPIR-V binary
-2. **Validate** - Optional `spirv-val` check
-3. **Transpile** - SPIR-V → HLSL via `naga`
-4. **Wrap** - Generate `.usf` include wrapper
-5. **Deploy** - Copy to plugin's `Shaders/` directory
+struct FPSInput { float2 uv : TEXCOORD0; };
+struct FPSOutput { float4 Color : SV_Target0; };
 
-### Using in UE5
+FPSOutput ShaderNamePS(FPSInput Input) { ... }
+```
 
-Once deployed, reference your shader in C++:
+**Using in C++:**
 ```cpp
-// In your plugin's module
-IMPLEMENT_GLOBAL_SHADER(FMyEffectPS, "/Plugin/MyRenderPlugin/Shaders/my_effect.usf", "MainPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FMyEffectPS, "/Plugin/MyPlugin/Shaders/MyShader.usf", "ShaderNamePS", SF_Pixel);
 ```
 
-Or in a material:
+### Legacy: ue5-shader Pipeline
+
+For SPIR-V workflow with naga conversion:
+
+```bash
+kore shader.kr --target ue5-shader --plugin MyPlugin
 ```
-// Custom node
-#include "/Plugin/MyRenderPlugin/Shaders/my_effect.usf"
-```
+
+Generates `.spv`, `.hlsl`, and `.usf` wrapper.
 
 ---
 
@@ -277,7 +286,26 @@ GPU shader compilation:
 - Input/Output location decorations
 - BuiltIn position handling
 
-### Rust Backend (`bootstrap/src/compiler/codegen_rust.rs` - 23KB)
+### HLSL Backend (`codegen/hlsl.rs` - 25KB)
+
+Direct DirectX shader generation (no intermediate step):
+- `cbuffer` with register bindings
+- `Texture2D` + `SamplerState` pairs
+- `VSInput`/`PSOutput` structs with semantics
+- Full PBR math, tonemapping, post-processing
+- SM5.0 compatible output
+
+### USF Backend (`codegen/usf.rs` - 20KB)
+
+Direct Unreal Engine 5 shader generation:
+- `#include "/Engine/Public/Platform.ush"`
+- Scalar parameters (C++ bindable via `SHADER_PARAMETER_STRUCT`)
+- `Texture2D<float4>` + `SamplerState` pairs with registers
+- `FPSInput`/`FPSOutput` UE5-style structs
+- `[numthreads]` compute shader support
+- `RWTexture2D` UAV bindings
+
+### Rust Backend (`codegen/rust.rs` - 28KB)
 
 Transpilation to Rust source:
 - Full AST transformation
@@ -498,7 +526,9 @@ actor ChatRoom:
 | WASM Codegen | Production | Full feature support |
 | LLVM Codegen | Stable | Requires feature flag |
 | SPIR-V Codegen | Stable | Shader pipeline functional |
-| **Rust Transpiler** | Stable | Bootstrap compiler |
+| **HLSL Codegen** | Production | Direct DirectX output |
+| **USF Codegen** | Production | Direct UE5 shader output |
+| Rust Transpiler | Stable | Bootstrap compiler |
 | Self-hosted Compiler | See V2 | Project Ouroboros (root dir) |
 | LSP | Working | Basic features |
 | Actor System | Production | Channel-based |

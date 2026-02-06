@@ -6,14 +6,16 @@
 
 ## Overview
 
-The KORE V1 compiler (`kore`) is a single unified binary that supports **6 compilation targets**:
+The KORE V1 compiler (`kore`) is a single unified binary that supports **8 compilation targets**:
 
 | Target | Output | Use Case |
 |--------|--------|----------|
 | WASM | `.wasm` | Web applications |
 | LLVM | `.ll` | Native binaries |
-| SPIR-V | `.spv` | GPU shaders |
-| **Rust** | `.rs` | Rust interop |
+| SPIR-V | `.spv` | Cross-platform GPU shaders |
+| **HLSL** | `.hlsl` | DirectX shaders (direct, no middleman) |
+| **USF** | `.usf` | Unreal Engine 5 shaders (direct) |
+| Rust | `.rs` | Rust interop |
 | Interpret | stdout | Quick testing |
 | Test | stdout | Unit tests |
 
@@ -50,16 +52,31 @@ cargo build --release
 
 ---
 
-## 3. Compiling GPU Shaders (SPIR-V)
+## 3. Compiling GPU Shaders
+
+### Direct HLSL (DirectX)
 
 ```bash
-# Basic compile
-./target/release/kore shaders/pbr_material.kr --target spirv -o pbr.spv
+# KORE → HLSL (direct codegen, no intermediate step)
+./target/release/kore shaders/pbr.kr --target hlsl -o pbr.hlsl
+```
 
-# Convert to HLSL (using naga)
-naga pbr.spv pbr.hlsl
+### Direct USF (Unreal Engine 5)
 
-# Convert to other formats
+```bash
+# KORE → USF (production UE5 shader)
+./target/release/kore shaders/pbr.kr --target usf -o pbr.usf
+```
+
+Drop the `.usf` file directly into your UE5 plugin's `Shaders/` folder.
+
+### SPIR-V (Cross-Platform)
+
+```bash
+# Compile to SPIR-V (for naga cross-compilation)
+./target/release/kore shaders/pbr.kr --target spirv -o pbr.spv
+
+# Convert with naga
 naga pbr.spv pbr.wgsl   # WebGPU
 naga pbr.spv pbr.glsl   # OpenGL
 naga pbr.spv pbr.metal  # Metal
@@ -81,13 +98,18 @@ rustc runtime.rs -o runtime
 
 ## 5. UE5 Shader Pipeline
 
-Automated compilation from KORE to UE5-ready shaders:
+### Direct USF (Recommended)
 
 ```bash
-# Generate UE5 shader files
-./target/release/kore shaders/effect.kr --target ue5-shader
+# Direct compilation to UE5-ready shader
+./target/release/kore shaders/effect.kr --target usf -o effect.usf
+```
 
-# Deploy directly to plugin
+### Legacy: ue5-shader Target
+
+For SPIR-V workflow with naga conversion:
+
+```bash
 ./target/release/kore shaders/effect.kr --target ue5-shader --plugin MyPlugin
 ```
 
@@ -115,14 +137,16 @@ Automated compilation from KORE to UE5-ready shaders:
 
 ## 7. Target Aliases
 
-| Target | Aliases |
-|--------|---------|
-| WASM | `wasm`, `w` |
-| LLVM | `llvm`, `native`, `n` |
-| SPIR-V | `spirv`, `gpu`, `shader`, `s` |
-| Rust | `rust`, `rs` |
-| Interpret | `run`, `interpret`, `i`, `r` |
-| Test | `test`, `t` |
+| Target | Aliases | Notes |
+|--------|---------|-------|
+| WASM | `wasm`, `w` | Web applications |
+| LLVM | `llvm`, `native`, `n` | Native binaries |
+| SPIR-V | `spirv`, `gpu`, `shader`, `s` | Cross-platform shaders |
+| **HLSL** | `hlsl`, `h` | DirectX (direct) |
+| **USF** | `usf`, `ue5` | Unreal Engine 5 (direct) |
+| Rust | `rust`, `rs` | Rust transpilation |
+| Interpret | `run`, `interpret`, `i`, `r` | Quick testing |
+| Test | `test`, `t` | Unit tests |
 
 ---
 
@@ -148,9 +172,14 @@ kore-v1-stable/
 ./target/release/kore examples/test.kr --target run
 ```
 
-### Compile Shader for UE5
+### Compile UE5 Shader (Direct)
 ```bash
-./target/release/kore shaders/pbr_material.kr --target ue5-shader --plugin MyPlugin -v
+./target/release/kore shaders/pbr.kr --target usf -o MyPlugin/Shaders/pbr.usf
+```
+
+### Compile UE5 Shader (Legacy Pipeline)
+```bash
+./target/release/kore shaders/pbr.kr --target ue5-shader --plugin MyPlugin -v
 ```
 
 ### Generate Rust Library

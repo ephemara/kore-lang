@@ -79,6 +79,10 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<Vec<u8>, KoreError
             let hlsl_code = codegen::hlsl::generate(&typed_ast)?;
             Ok(hlsl_code.into_bytes())
         },
+        CompileTarget::Usf => {
+            let usf_code = codegen::usf::generate(&typed_ast)?;
+            Ok(usf_code.into_bytes())
+        },
         CompileTarget::Interpret => {
             runtime::interpret(&typed_ast)?;
             Ok(vec![])
@@ -96,6 +100,7 @@ pub enum CompileTarget {
     Llvm,
     SpirV,
     Hlsl,
+    Usf,
     Interpret,
     Test,
 }
