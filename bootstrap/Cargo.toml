@@ -1,11 +1,11 @@
 [package]
-name = "korec"
+name = "KAINc"
 version = "0.1.0"
 edition = "2021"
-description = "The Kore Compiler - Self-Hosted Bootstrap Edition"
+description = "The KAIN Compiler - Self-Hosted Bootstrap Edition"
 
 # Project Ouroboros - The snake that eats its own tail
-# This compiler was generated from Kore source code!
+# This compiler was generated from KAIN source code!
 
 [workspace]
 

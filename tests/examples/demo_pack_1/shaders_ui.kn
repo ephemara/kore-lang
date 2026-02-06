@@ -1,0 +1,126 @@
+# kain - Shaders + UI in One File
+# This is the killer feature: GPU code and UI in the same language
+
+println!("=== kain: Shaders + UI Demo ===")
+println!()
+
+# ==========================================
+# SECTION 1: UI Components (JSX)
+# ==========================================
+
+let app_name = "Shader Gallery"
+let current_shader = "Glow Effect"
+
+let header = <header class="app-header">
+    <h1>{app_name}</h1>
+    <nav>
+        <a href="#shaders">Shaders</a>
+        <a href="#about">About</a>
+    </nav>
+</header>
+
+println!("Header UI:")
+println!(header)
+println!()
+
+# A card component showing shader info
+fn shader_card(name, description, preview_color):
+    return <div class="shader-card">
+        <div class="preview" style={f"background: {preview_color};"} />
+        <h3>{name}</h3>
+        <p>{description}</p>
+        <button class="btn-primary">Apply Shader</button>
+    </div>
+
+let card1 = shader_card("Glow", "Adds a soft glow effect", "#ff6b6b")
+let card2 = shader_card("Blur", "Gaussian blur filter", "#4ecdc4")
+let card3 = shader_card("Wave", "Animated wave distortion", "#45b7d1")
+
+let gallery = <div class="shader-gallery">
+    {card1}
+    {card2}
+    {card3}
+</div>
+
+println!("Shader Gallery UI:")
+println!(gallery)
+println!()
+
+# ==========================================
+# SECTION 2: Interactive UI with State
+# ==========================================
+
+let intensity = 0.75
+let resolution = [1920, 1080]
+let (width, height) = (resolution[0], resolution[1])
+
+let controls = <div class="shader-controls">
+    <h2>Shader Settings</h2>
+    
+    <div class="control-group">
+        <label>Intensity</label>
+        <input inputType="range" min="0" max="1" value={intensity} />
+        <span class="value">{intensity}</span>
+    </div>
+    
+    <div class="control-group">
+        <label>Resolution</label>
+        <span>{width}x{height}</span>
+    </div>
+    
+    <div class="actions">
+        <button class="btn-apply">Apply</button>
+        <button class="btn-reset">Reset</button>
+    </div>
+</div>
+
+println!("Shader Controls UI:")
+println!(controls)
+println!()
+
+# ==========================================
+# SECTION 3: Full Application Layout
+# ==========================================
+
+let sidebar = <aside class="sidebar">
+    <h3>Layers</h3>
+    <ul class="layer-list">
+        <li class="active">Background</li>
+        <li>Foreground</li>
+        <li>Effects</li>
+    </ul>
+</aside>
+
+let viewport = <div class="viewport">
+    <canvas id="main-canvas" width={width} height={height} />
+    <div class="overlay">
+        <span class="fps">60 FPS</span>
+        <span class="shader-name">{current_shader}</span>
+    </div>
+</div>
+
+let app = <div class="app-container">
+    {header}
+    <main class="app-content">
+        {sidebar}
+        {viewport}
+        {controls}
+    </main>
+    <footer class="app-footer">
+        <p>GODCODE Shader Editor v0.3</p>
+    </footer>
+</div>
+
+println!()
+println!("=== Complete Application Layout ===")
+println!(app)
+
+println!()
+println!(" Shaders + UI integration complete!")
+println!()
+println!("This demonstrates:")
+println!("  - JSX components with props")
+println!("  - Component functions")
+println!("  - Expression interpolation {}")
+println!("  - Nested components")
+println!("  - Full application layout")

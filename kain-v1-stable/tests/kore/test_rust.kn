@@ -1,0 +1,33 @@
+// Test file for Kain -> Rust transpilation
+// Simple math functions that would be used in K-Sample plugin
+
+struct PBRParams:
+    normal_strength: Float
+    roughness_base: Float
+    metallic_base: Float
+    ao_intensity: Float
+
+fn lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+fn clamp(value: Float, min: Float, max: Float) -> Float:
+    if value < min:
+        return min
+    if value > max:
+        return max
+    return value
+
+fn compute_roughness(base: Float, variation: Float, noise: Float) -> Float:
+    let adjusted = base + variation * noise
+    return clamp(adjusted, 0.0, 1.0)
+
+fn main():
+    let params = PBRParams {
+        normal_strength: 1.0,
+        roughness_base: 0.5,
+        metallic_base: 0.0,
+        ao_intensity: 1.0
+    }
+    
+    let roughness = compute_roughness(params.roughness_base, 0.2, 0.75)
+    println("Roughness:", roughness)

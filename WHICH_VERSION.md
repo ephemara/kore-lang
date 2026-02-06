@@ -1,4 +1,4 @@
-# Which KORE Compiler Should I Use?
+# Which KAIN Compiler Should I Use?
 
 This repository contains two compiler implementations. Here's how to choose:
 
@@ -6,7 +6,7 @@ This repository contains two compiler implementations. Here's how to choose:
 
 ```
 Are you building production software?
-├─ YES → Use V1 (/kore-v1-stable/)
+├─ YES → Use V1 (/KAIN-v1-stable/)
 │
 └─ NO → Are you contributing to compiler development?
     ├─ YES → Use V2 (root directory)
@@ -15,39 +15,39 @@ Are you building production software?
 
 ## Detailed Comparison
 
-### V1 Production Compiler (`/kore-v1-stable/`)
+### V1 Production Compiler (`/KAIN-v1-stable/`)
 
 **Status**: Production-Ready  
-**Location**: `/kore-v1-stable/`  
+**Location**: `/KAIN-v1-stable/`  
 **Best For**: Real projects, shaders, WASM apps, actor systems
 
 #### Features
 - WASM Codegen - Full WebAssembly support
 - SPIR-V Shaders - GPU shader compilation with UE5 pipeline
 - Actor Runtime - Erlang-style concurrency
-- Python FFI - Call Python from KORE
+- Python FFI - Call Python from KAIN
 - Interpreter - Instant execution without compilation
 - LSP - Language Server Protocol support
-- Rust Transpiler - Compile KORE to Rust source
+- Rust Transpiler - Compile KAIN to Rust source
 
 #### Build & Run
 ```bash
-cd kore-v1-stable
+cd KAIN-v1-stable
 cargo build --release
 
 # Compile to WASM
-./target/release/kore program.kr --target wasm -o program.wasm
+./target/release/KAIN program.kn --target wasm -o program.wasm
 
 # Compile shader to SPIR-V
-./target/release/kore shader.kr --target spirv -o shader.spv
+./target/release/KAIN shader.kn --target spirv -o shader.spv
 
 # Run in interpreter
-./target/release/kore program.kr --target run
+./target/release/KAIN program.kn --target run
 ```
 
 #### Documentation
-- [V1 README](kore-v1-stable/README.MD)
-- [V1 Commands Reference](kore-v1-stable/commands.md)
+- [V1 README](KAIN-v1-stable/README.MD)
+- [V1 Commands Reference](KAIN-v1-stable/commands.md)
 
 ---
 
@@ -58,7 +58,7 @@ cargo build --release
 **Best For**: Compiler development, self-hosting research
 
 #### Features
-- Self-Hosting - KORE compiler written in KORE
+- Self-Hosting - KAIN compiler written in KAIN
 - LLVM Native - Native code generation via LLVM IR
 - NaN-Boxing Runtime - Efficient value representation
 - Generics - Type parameter support (in progress)
@@ -70,11 +70,11 @@ cargo build --release
 ./build.ps1 -SkipSelfHosted    # Windows
 ./build.sh                      # Linux/macOS
 
-# Compile KORE to LLVM IR
-./build/artifacts/latest/kore_native.exe program.kr -o program.ll
+# Compile KAIN to LLVM IR
+./build/artifacts/latest/KAIN_native.exe program.kn -o program.ll
 
 # Link and run
-clang program.ll build/kore_runtime.o -o program.exe
+clang program.ll build/KAIN_runtime.o -o program.exe
 ./program.exe
 ```
 
@@ -122,7 +122,7 @@ Legend:
 ### Use V2 If You Need:
 - **Native Performance** - V2's LLVM backend generates optimized native code
 - **Generics** - V2 has full generic type support
-- **Compiler Development** - V2 is self-hosting and written in KORE
+- **Compiler Development** - V2 is self-hosting and written in KAIN
 - **Cutting Edge** - V2 has the latest language features
 - **Contributing** - V2 is where active development happens
 
@@ -143,6 +143,6 @@ Legend:
 
 ## Still Unsure?
 
-**Default recommendation**: Start with **V1** (`/kore-v1-stable/`) unless you specifically need V2's self-hosting or native LLVM features.
+**Default recommendation**: Start with **V1** (`/KAIN-v1-stable/`) unless you specifically need V2's self-hosting or native LLVM features.
 
 **Questions?** See [CONTRIBUTING.md](CONTRIBUTING.md) or open a GitHub issue.

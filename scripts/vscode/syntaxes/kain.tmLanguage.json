@@ -1,0 +1,79 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Kain",
+    "patterns": [
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#functions"
+        },
+        {
+            "include": "#types"
+        }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.number-sign.kain",
+                    "match": "#.*$"
+                }
+            ]
+        },
+        "strings": {
+            "name": "string.quoted.double.kain",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "name": "constant.character.escape.kain",
+                    "match": "\\\\."
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.kain",
+                    "match": "\\b(if|else|while|for|return|match|break|continue|in)\\b"
+                },
+                {
+                    "name": "storage.type.kain",
+                    "match": "\\b(let|const|fn|struct|enum|actor|shader|impl|trait|mod|use|type)\\b"
+                },
+                {
+                    "name": "keyword.other.kain",
+                    "match": "\\b(pub|mut|comptime|with|async|await|spawn|send|on|state)\\b"
+                },
+                {
+                    "name": "constant.language.kain",
+                    "match": "\\b(true|false|null|None)\\b"
+                }
+            ]
+        },
+        "types": {
+            "patterns": [
+                {
+                    "name": "support.type.kain",
+                    "match": "\\b(Int|Float|String|Bool|Vec[2-4]|Mat[2-4]|Result|Option)\\b"
+                }
+            ]
+        },
+        "functions": {
+            "patterns": [
+                {
+                    "name": "entity.name.function.kain",
+                    "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\()"
+                }
+            ]
+        }
+    },
+    "scopeName": "source.kain"
+}

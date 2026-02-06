@@ -1,5 +1,5 @@
 """
-KORE Timeline Animation Generator
+KAIN Timeline Animation Generator
 ==================================
 Creates an animated PNG showing the evolution of computing from 1978 to 2026.
 """
@@ -11,14 +11,14 @@ from apng import APNG, PNG
 
 # --- CONFIG ---
 DESKTOP = os.path.join(os.path.expanduser("~"), "Desktop")
-OUTPUT_FOLDER = os.path.join(DESKTOP, "Kore_Branding")
-OUTPUT_APNG = os.path.join(OUTPUT_FOLDER, "kore_timeline.png")
-OUTPUT_GIF = os.path.join(OUTPUT_FOLDER, "kore_timeline.gif")
+OUTPUT_FOLDER = os.path.join(DESKTOP, "Kain_Branding")
+OUTPUT_APNG = os.path.join(OUTPUT_FOLDER, "kain_timeline.png")
+OUTPUT_GIF = os.path.join(OUTPUT_FOLDER, "kain_timeline.gif")
 
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 W, H = 600, 200
-TEXT_MAIN = "KORE"
+TEXT_MAIN = "KAIN"
 FONT_SIZE = 90
 
 # Timing (ms)
@@ -135,7 +135,7 @@ def create_frame(content, show_cursor, era_idx):
     return img
 
 print("=" * 60)
-print("KORE TIMELINE ANIMATION GENERATOR")
+print("KAIN TIMELINE ANIMATION GENERATOR")
 print("=" * 60)
 
 all_frames = []

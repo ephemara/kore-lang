@@ -1,0 +1,364 @@
+// ============================================================================
+// KAIN Import Resolver & Module System
+// ============================================================================
+// Handles module resolution, import paths, and dependency tracking.
+// Supports:
+// - Relative imports (use ./foo)
+// - Package imports (use std/collections)
+// - Aliased imports (use foo as bar)
+// - Circular dependency detection
+// - Module caching
+// ============================================================================
+
+use std/collections
+
+// =============================================================================
+// Module Paths
+// =============================================================================
+
+enum ModulePath:
+    Relative(Array<String>)     // ./foo/bar -> [".", "foo", "bar"]
+    Absolute(Array<String>)     // std/collections -> ["std", "collections"]
+    Package(String, Array<String>) // pkg::foo/bar -> "pkg", ["foo", "bar"]
+
+impl ModulePath:
+    pub fn parse(path: String) -> ModulePath:
+        let parts = split(path, "/")
+        
+        // Check for relative path
+        if starts_with(path, "./") or starts_with(path, "../"):
+            return ModulePath::Relative(parts)
+        
+        // Check for package path (pkg::path)
+        if contains(path, "::"):
+            let pkg_parts = split(path, "::")
+            let pkg_name = pkg_parts[0]
+            let rest = if len(pkg_parts) > 1: split(pkg_parts[1], "/") else: []
+            return ModulePath::Package(pkg_name, rest)
+        
+        // Default to absolute (std or project-local)
+        return ModulePath::Absolute(parts)
+    
+    pub fn to_string(self) -> String:
+        match self:
+            ModulePath::Relative(parts) => join(parts, "/")
+            ModulePath::Absolute(parts) => join(parts, "/")
+            ModulePath::Package(pkg, parts) =>
+                if len(parts) == 0:
+                    pkg
+                else:
+                    pkg + "::" + join(parts, "/")
+
+// =============================================================================
+// Resolved Module
+// =============================================================================
+
+struct ResolvedModule:
+    path: ModulePath            // Original import path
+    file_path: String           // Actual file system path
+    source: String              // Source code content
+    ast: Option<Program>        // Parsed AST (if parsed)
+    dependencies: Array<ModulePath> // This module's imports
+    exports: Array<String>      // Exported names
+
+// =============================================================================
+// Import Resolver
+// =============================================================================
+
+struct ImportResolver:
+    root_path: String           // Project root directory
+    search_paths: Array<String> // Additional search directories
+    cache: Map<String, ResolvedModule>  // Module cache (path -> module)
+    loading: Set<String>        // Currently loading (for cycle detection)
+
+impl ImportResolver:
+    pub fn new(root_path: String) -> ImportResolver:
+        return ImportResolver {
+            root_path: root_path,
+            search_paths: [],
+            cache: Map::new(),
+            loading: Set::new()
+        }
+    
+    /// Add a search path for modules
+    pub fn add_search_path(self, path: String) -> Unit:
+        push(self.search_paths, path)
+    
+    /// Resolve a module path to a file
+    pub fn resolve(self, from_file: String, import_path: String) -> Result<ResolvedModule, String>:
+        let module_path = ModulePath::parse(import_path)
+        let file_path = self.find_file(from_file, module_path)
+        
+        match file_path:
+            Ok(path) =>
+                // Check cache
+                match map_get(self.cache, path):
+                    Some(cached) => return Ok(cached)
+                    None => pass
+                
+                // Check for circular import
+                if set_contains(self.loading, path):
+                    return Err("Circular import detected: " + path)
+                
+                // Mark as loading
+                set_insert(self.loading, path)
+                
+                // Load the module
+                let module = self.load_module(module_path, path)?
+                
+                // Cache it
+                map_set(self.cache, path, module)
+                set_remove(self.loading, path)
+                
+                return Ok(module)
+            
+            Err(e) => return Err(e)
+    
+    fn find_file(self, from_file: String, path: ModulePath) -> Result<String, String>:
+        match path:
+            ModulePath::Relative(parts) =>
+                // Resolve relative to the importing file
+                let dir = parent_dir(from_file)
+                let resolved = join_path(dir, join(parts, "/") + ".kn")
+                if file_exists(resolved):
+                    return Ok(resolved)
+                
+                // Try without extension (directory with mod.kn)
+                let dir_path = join_path(dir, join(parts, "/"))
+                let mod_file = join_path(dir_path, "mod.kn")
+                if file_exists(mod_file):
+                    return Ok(mod_file)
+                
+                return Err("Module not found: " + join(parts, "/"))
+            
+            ModulePath::Absolute(parts) =>
+                // Try project root first
+                let in_root = join_path(self.root_path, "src/" + join(parts, "/") + ".kn")
+                if file_exists(in_root):
+                    return Ok(in_root)
+                
+                // Try stdlib
+                let in_std = join_path(self.root_path, "stdlib/" + join(parts, "/") + ".kn")
+                if file_exists(in_std):
+                    return Ok(in_std)
+                
+                // Try search paths
+                for search_path in self.search_paths:
+                    let candidate = join_path(search_path, join(parts, "/") + ".kn")
+                    if file_exists(candidate):
+                        return Ok(candidate)
+                
+                return Err("Module not found: " + join(parts, "/"))
+            
+            ModulePath::Package(pkg_name, parts) =>
+                // Look in packages directory
+                let pkg_base = join_path(self.root_path, "packages/" + pkg_name + "/src")
+                let in_pkg = join_path(pkg_base, join(parts, "/") + ".kn")
+                if file_exists(in_pkg):
+                    return Ok(in_pkg)
+                
+                return Err("Package module not found: " + pkg_name + "::" + join(parts, "/"))
+    
+    fn load_module(self, path: ModulePath, file_path: String) -> Result<ResolvedModule, String>:
+        // Read file
+        let source = read_file(file_path)?
+        
+        // Find imports in source (simple scan for now)
+        let deps = self.scan_imports(source)
+        
+        return Ok(ResolvedModule {
+            path: path,
+            file_path: file_path,
+            source: source,
+            ast: None,
+            dependencies: deps,
+            exports: []
+        })
+    
+    fn scan_imports(self, source: String) -> Array<ModulePath>:
+        var imports: Array<ModulePath> = []
+        let lines = split(source, "\n")
+        
+        for line in lines:
+            let trimmed = trim(line)
+            if starts_with(trimmed, "use "):
+                let path_str = trim(substring(trimmed, 4, len(trimmed)))
+                // Remove trailing comments
+                let comment_idx = find(path_str, "//")
+                if comment_idx >= 0:
+                    path_str = trim(substring(path_str, 0, comment_idx))
+                // Remove alias if present
+                let as_idx = find(path_str, " as ")
+                if as_idx >= 0:
+                    path_str = trim(substring(path_str, 0, as_idx))
+                
+                push(imports, ModulePath::parse(path_str))
+        
+        return imports
+    
+    /// Get all modules in dependency order (topological sort)
+    pub fn get_all_modules(self) -> Array<ResolvedModule>:
+        var result: Array<ResolvedModule> = []
+        var visited: Set<String> = Set::new()
+        
+        for path, module in self.cache:
+            self.visit_module(module, visited, result)
+        
+        return result
+    
+    fn visit_module(self, module: ResolvedModule, visited: Set<String>, result: Array<ResolvedModule>) -> Unit:
+        if set_contains(visited, module.file_path):
+            return
+        
+        set_insert(visited, module.file_path)
+        
+        // Visit dependencies first
+        for dep_path in module.dependencies:
+            let dep_key = dep_path.to_string()
+            match map_get(self.cache, dep_key):
+                Some(dep) => self.visit_module(dep, visited, result)
+                None => pass
+        
+        push(result, module)
+
+// =============================================================================
+// Module Graph
+// =============================================================================
+
+struct ModuleGraph:
+    nodes: Map<String, ResolvedModule>
+    edges: Map<String, Array<String>>  // module -> dependencies
+
+impl ModuleGraph:
+    pub fn new() -> ModuleGraph:
+        return ModuleGraph {
+            nodes: Map::new(),
+            edges: Map::new()
+        }
+    
+    pub fn add_module(self, module: ResolvedModule) -> Unit:
+        let key = module.file_path
+        map_set(self.nodes, key, module)
+        
+        var dep_paths: Array<String> = []
+        for dep in module.dependencies:
+            push(dep_paths, dep.to_string())
+        map_set(self.edges, key, dep_paths)
+    
+    /// Check for circular dependencies
+    pub fn find_cycles(self) -> Array<Array<String>>:
+        var cycles: Array<Array<String>> = []
+        var visited: Set<String> = Set::new()
+        var rec_stack: Array<String> = []
+        
+        for path, _ in self.nodes:
+            if !set_contains(visited, path):
+                self.dfs_cycle(path, visited, rec_stack, cycles)
+        
+        return cycles
+    
+    fn dfs_cycle(self, node: String, visited: Set<String>, stack: Array<String>, cycles: Array<Array<String>>) -> Unit:
+        set_insert(visited, node)
+        push(stack, node)
+        
+        match map_get(self.edges, node):
+            Some(deps) =>
+                for dep in deps:
+                    // Check if dep is in current stack (cycle)
+                    var cycle_start = -1
+                    for i in range(0, len(stack)):
+                        if stack[i] == dep:
+                            cycle_start = i
+                            break
+                    
+                    if cycle_start >= 0:
+                        // Found a cycle
+                        var cycle: Array<String> = []
+                        for i in range(cycle_start, len(stack)):
+                            push(cycle, stack[i])
+                        push(cycle, dep)
+                        push(cycles, cycle)
+                    else if !set_contains(visited, dep):
+                        self.dfs_cycle(dep, visited, stack, cycles)
+            None => pass
+        
+        pop(stack)
+    
+    /// Get modules in topological order (for compilation)
+    pub fn topological_order(self) -> Result<Array<String>, String>:
+        var in_degree: Map<String, Int> = Map::new()
+        var order: Array<String> = []
+        var queue: Array<String> = []
+        
+        // Initialize in-degrees
+        for path, _ in self.nodes:
+            map_set(in_degree, path, 0)
+        
+        for path, deps in self.edges:
+            for dep in deps:
+                let current = map_get(in_degree, dep)
+                match current:
+                    Some(n) => map_set(in_degree, dep, n + 1)
+                    None => map_set(in_degree, dep, 1)
+        
+        // Find nodes with 0 in-degree
+        for path, degree in in_degree:
+            if degree == 0:
+                push(queue, path)
+        
+        // Process queue
+        while len(queue) > 0:
+            let node = pop_front(queue)
+            push(order, node)
+            
+            match map_get(self.edges, node):
+                Some(deps) =>
+                    for dep in deps:
+                        let current = map_get(in_degree, dep)
+                        match current:
+                            Some(n) =>
+                                map_set(in_degree, dep, n - 1)
+                                if n - 1 == 0:
+                                    push(queue, dep)
+                            None => pass
+                None => pass
+        
+        // Check for cycles
+        if len(order) != len(self.nodes):
+            return Err("Cycle detected in module dependencies")
+        
+        return Ok(order)
+
+// =============================================================================
+// Utility Functions (stubs)
+// =============================================================================
+
+extern fn parent_dir(path: String) -> String
+extern fn join_path(a: String, b: String) -> String
+extern fn file_exists(path: String) -> Bool
+extern fn read_file(path: String) -> Result<String, String>
+
+// Stub implementations for sets
+struct Set<T>:
+    items: Array<T>
+
+fn Set::new<T>() -> Set<T>:
+    return Set { items: [] }
+
+fn set_contains<T>(s: Set<T>, item: T) -> Bool:
+    for i in s.items:
+        if i == item:
+            return true
+    return false
+
+fn set_insert<T>(s: Set<T>, item: T) -> Unit:
+    if !set_contains(s, item):
+        push(s.items, item)
+
+fn set_remove<T>(s: Set<T>, item: T) -> Unit:
+    var i = 0
+    for elem in s.items:
+        if elem == item:
+            remove_at(s.items, i)
+            return
+        i = i + 1

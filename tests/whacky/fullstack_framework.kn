@@ -1,0 +1,656 @@
+# KAIN WHACKY TEST: Full-Stack Web Framework
+# React-like UI + Express-like backend + GraphQL + WebSockets + ORM
+# All in one file, all in KAIN
+
+println!("=== FULL-STACK WEB FRAMEWORK ===")
+println!()
+
+# ==========================================
+# JSX COMPONENT SYSTEM
+# ==========================================
+
+effect Render:
+    fn render(component: Component) -> Html
+    fn hydrate(html: Html, data: Json) -> Component
+
+struct Component:
+    tag: String
+    props: Map<String, Any>
+    children: Array<Component>
+    state: Option<State>
+    effects: Array<Effect>
+
+struct State:
+    values: Map<String, Any>
+    dispatch: fn(Action) -> ()
+
+struct Effect:
+    deps: Array<String>
+    cleanup: Option<fn() -> ()>
+    effect: fn() -> Option<fn() -> ()>
+
+# Hooks
+fn use_state<T>(initial: T) -> (T, fn(T) -> ()):
+    let state_id = get_current_component_state_slot()
+    
+    let current = match get_state(state_id):
+        Some(v) => v as T
+        None => 
+            set_state(state_id, initial)
+            initial
+    
+    let setter = fn(new_value: T):
+        set_state(state_id, new_value)
+        trigger_rerender()
+    
+    return (current, setter)
+
+fn use_effect(effect: fn() -> Option<fn() -> ()>, deps: Array<Any>):
+    let effect_id = get_current_effect_slot()
+    
+    let prev_deps = get_effect_deps(effect_id)
+    let should_run = match prev_deps:
+        None => true
+        Some(prev) => not array_shallow_equal(prev, deps)
+    
+    if should_run:
+        # Run cleanup from previous effect
+        match get_effect_cleanup(effect_id):
+            Some(cleanup) => cleanup()
+            None => ()
+        
+        # Run new effect
+        let cleanup = effect()
+        set_effect_cleanup(effect_id, cleanup)
+        set_effect_deps(effect_id, deps)
+
+fn use_context<T>(context: Context<T>) -> T:
+    return get_context_value(context.id)
+
+fn use_memo<T>(compute: fn() -> T, deps: Array<Any>) -> T:
+    let memo_id = get_current_memo_slot()
+    
+    let (prev_deps, prev_value) = get_memo(memo_id)
+    if not array_shallow_equal(prev_deps, deps):
+        let new_value = compute()
+        set_memo(memo_id, deps, new_value)
+        return new_value
+    
+    return prev_value
+
+fn use_callback<F>(callback: F, deps: Array<Any>) -> F:
+    return use_memo(fn() => callback, deps)
+
+fn use_reducer<S, A>(reducer: fn(S, A) -> S, initial: S) -> (S, fn(A) -> ()):
+    let (state, set_state) = use_state(initial)
+    
+    let dispatch = fn(action: A):
+        let new_state = reducer(state, action)
+        set_state(new_state)
+    
+    return (state, dispatch)
+
+# ==========================================
+# EXAMPLE COMPONENTS
+# ==========================================
+
+fn App() -> Component:
+    let (user, set_user) = use_state<Option<User>>(None)
+    let (theme, set_theme) = use_state("dark")
+    
+    use_effect(fn():
+        # Fetch user on mount
+        spawn async:
+            let response = await fetch("/api/me")
+            let user = await response.json()
+            set_user(Some(user))
+        return None
+    , [])
+    
+    return <div class={f"app theme-{theme}"}>
+        <ThemeContext.Provider value={theme}>
+            <UserContext.Provider value={user}>
+                <Navbar on_theme_toggle={fn(): set_theme(if theme == "dark": "light" else: "dark")} />
+                <Router>
+                    <Route path="/" component={HomePage} />
+                    <Route path="/dashboard" component={Dashboard} />
+                    <Route path="/profile/:id" component={Profile} />
+                    <Route path="/settings" component={Settings} />
+                </Router>
+                <Footer />
+            </UserContext.Provider>
+        </ThemeContext.Provider>
+    </div>
+
+fn Dashboard() -> Component:
+    let user = use_context(UserContext)
+    let (data, set_data) = use_state<Array<DashboardItem>>([])
+    let (loading, set_loading) = use_state(true)
+    
+    use_effect(fn():
+        set_loading(true)
+        spawn async:
+            let items = await graphql_query("""
+                query {
+                    dashboardItems {
+                        id
+                        title
+                        value
+                        trend
+                    }
+                }
+            """)
+            set_data(items)
+            set_loading(false)
+        return None
+    , [user])
+    
+    if loading:
+        return <div class="loading">
+            <Spinner size="large" />
+            <p>Loading dashboard...</p>
+        </div>
+    
+    return <div class="dashboard">
+        <h1>Welcome, {user.unwrap().name}</h1>
+        
+        <div class="stats-grid">
+            {data.map(item =>
+                <StatCard 
+                    key={item.id}
+                    title={item.title}
+                    value={item.value}
+                    trend={item.trend}
+                />
+            )}
+        </div>
+        
+        <div class="charts">
+            <LineChart data={get_chart_data(data)} />
+            <PieChart data={get_pie_data(data)} />
+        </div>
+    </div>
+
+fn StatCard(props: { title: String, value: Int, trend: Float }) -> Component:
+    let trend_class = if props.trend > 0: "positive" else if props.trend < 0: "negative" else: "neutral"
+    let trend_icon = if props.trend > 0: "arrow-up" else if props.trend < 0: "arrow-down" else: "minus"
+    
+    return <div class="stat-card">
+        <h3>{props.title}</h3>
+        <div class="value">{format_number(props.value)}</div>
+        <div class={f"trend {trend_class}"}>
+            <Icon name={trend_icon} />
+            <span>{f"{abs(props.trend):.1}%"}</span>
+        </div>
+    </div>
+
+# ==========================================
+# SERVER-SIDE ROUTING
+# ==========================================
+
+effect Http:
+    fn get(path: String, body: Bytes) -> Response
+    fn post(path: String, body: Bytes) -> Response
+    fn put(path: String, body: Bytes) -> Response
+    fn delete(path: String) -> Response
+
+struct Request:
+    method: HttpMethod
+    path: String
+    headers: Map<String, String>
+    query: Map<String, String>
+    params: Map<String, String>
+    body: Bytes
+    session: Option<Session>
+
+struct Response:
+    status: Int
+    headers: Map<String, String>
+    body: Bytes
+
+enum HttpMethod:
+    GET
+    POST
+    PUT
+    DELETE
+    PATCH
+    OPTIONS
+
+struct Router:
+    routes: Array<Route>
+    middleware: Array<Middleware>
+
+struct Route:
+    method: HttpMethod
+    pattern: String
+    handler: fn(Request) -> Response with Async
+
+type Middleware = fn(Request, fn(Request) -> Response) -> Response
+
+fn router() -> Router:
+    return Router { routes: [], middleware: [] }
+
+impl Router:
+    fn use(self, mw: Middleware) -> Router:
+        self.middleware.push(mw)
+        return self
+    
+    fn get(self, path: String, handler: fn(Request) -> Response) -> Router:
+        self.routes.push(Route { method: HttpMethod.GET, pattern: path, handler: handler })
+        return self
+    
+    fn post(self, path: String, handler: fn(Request) -> Response) -> Router:
+        self.routes.push(Route { method: HttpMethod.POST, pattern: path, handler: handler })
+        return self
+    
+    fn put(self, path: String, handler: fn(Request) -> Response) -> Router:
+        self.routes.push(Route { method: HttpMethod.PUT, pattern: path, handler: handler })
+        return self
+    
+    fn delete(self, path: String, handler: fn(Request) -> Response) -> Router:
+        self.routes.push(Route { method: HttpMethod.DELETE, pattern: path, handler: handler })
+        return self
+    
+    fn handle(self, req: Request) -> Response with Async:
+        # Find matching route
+        for route in self.routes:
+            if route.method == req.method:
+                match match_pattern(route.pattern, req.path):
+                    Some(params) =>
+                        let req_with_params = Request { params: params, ..req }
+                        
+                        # Apply middleware chain
+                        let handler = self.middleware.fold(route.handler, (h, mw) =>
+                            fn(r: Request) => mw(r, h)
+                        )
+                        
+                        return handler(req_with_params)
+                    None => ()
+        
+        return Response { status: 404, headers: Map.new(), body: b"Not Found" }
+
+# ==========================================
+# GRAPHQL
+# ==========================================
+
+struct GraphQLSchema:
+    types: Map<String, TypeDef>
+    queries: Map<String, Resolver>
+    mutations: Map<String, Resolver>
+    subscriptions: Map<String, Resolver>
+
+struct TypeDef:
+    name: String
+    fields: Map<String, FieldDef>
+
+struct FieldDef:
+    type_name: String
+    nullable: Bool
+    resolver: Option<Resolver>
+
+type Resolver = fn(parent: Any, args: Map<String, Any>, context: Context) -> Any with Async
+
+fn define_schema() -> GraphQLSchema:
+    return schema! {
+        type User {
+            id: ID!
+            name: String!
+            email: String!
+            posts: [Post!]!
+            createdAt: DateTime!
+        }
+        
+        type Post {
+            id: ID!
+            title: String!
+            content: String!
+            author: User!
+            comments: [Comment!]!
+            likes: Int!
+            createdAt: DateTime!
+        }
+        
+        type Comment {
+            id: ID!
+            content: String!
+            author: User!
+            post: Post!
+            createdAt: DateTime!
+        }
+        
+        type Query {
+            me: User
+            user(id: ID!): User
+            users(limit: Int, offset: Int): [User!]!
+            post(id: ID!): Post
+            posts(authorId: ID, limit: Int): [Post!]!
+        }
+        
+        type Mutation {
+            createUser(name: String!, email: String!): User!
+            updateUser(id: ID!, name: String): User!
+            deleteUser(id: ID!): Boolean!
+            
+            createPost(title: String!, content: String!): Post!
+            updatePost(id: ID!, title: String, content: String): Post!
+            deletePost(id: ID!): Boolean!
+            
+            likePost(id: ID!): Post!
+            createComment(postId: ID!, content: String!): Comment!
+        }
+        
+        type Subscription {
+            postCreated: Post!
+            commentAdded(postId: ID!): Comment!
+            userOnline: User!
+        }
+    }
+
+fn graphql_resolvers() -> Map<String, Resolver>:
+    return {
+        "Query.me": fn(_, _, ctx) with Async:
+            return await ctx.db.users.find_one({ id: ctx.user_id })
+        
+        "Query.user": fn(_, args, ctx) with Async:
+            return await ctx.db.users.find_one({ id: args["id"] })
+        
+        "Query.posts": fn(_, args, ctx) with Async:
+            var query = ctx.db.posts
+            if args.contains("authorId"):
+                query = query.where("author_id", "=", args["authorId"])
+            if args.contains("limit"):
+                query = query.limit(args["limit"])
+            return await query.find_many()
+        
+        "User.posts": fn(parent, _, ctx) with Async:
+            return await ctx.db.posts.where("author_id", "=", parent.id).find_many()
+        
+        "Mutation.createPost": fn(_, args, ctx) with Async:
+            let post = await ctx.db.posts.create({
+                title: args["title"],
+                content: args["content"],
+                author_id: ctx.user_id,
+                likes: 0,
+                created_at: now()
+            })
+            
+            # Publish to subscribers
+            ctx.pubsub.publish("postCreated", post)
+            
+            return post
+        
+        "Mutation.likePost": fn(_, args, ctx) with Async:
+            return await ctx.db.posts.update(
+                { id: args["id"] },
+                { $inc: { likes: 1 } }
+            )
+        
+        "Subscription.postCreated": fn(_, _, ctx):
+            return ctx.pubsub.subscribe("postCreated")
+    }
+
+# ==========================================
+# ORM
+# ==========================================
+
+effect Database:
+    fn query(sql: String, params: Array<Any>) -> Array<Row>
+    fn execute(sql: String, params: Array<Any>) -> Int
+    fn transaction<T>(f: fn() -> T) -> T
+
+struct Model<T>:
+    table: String
+    fields: Map<String, FieldType>
+    relations: Map<String, Relation>
+
+struct QueryBuilder<T>:
+    model: Model<T>
+    conditions: Array<Condition>
+    orders: Array<(String, Order)>
+    limit_val: Option<Int>
+    offset_val: Option<Int>
+    includes: Array<String>
+
+enum FieldType:
+    Int
+    String
+    Bool
+    Float
+    DateTime
+    Json
+
+enum Order:
+    Asc
+    Desc
+
+struct Condition:
+    field: String
+    op: String
+    value: Any
+
+impl QueryBuilder<T>:
+    fn where(self, field: String, op: String, value: Any) -> QueryBuilder<T>:
+        self.conditions.push(Condition { field: field, op: op, value: value })
+        return self
+    
+    fn order_by(self, field: String, order: Order) -> QueryBuilder<T>:
+        self.orders.push((field, order))
+        return self
+    
+    fn limit(self, n: Int) -> QueryBuilder<T>:
+        self.limit_val = Some(n)
+        return self
+    
+    fn offset(self, n: Int) -> QueryBuilder<T>:
+        self.offset_val = Some(n)
+        return self
+    
+    fn include(self, relation: String) -> QueryBuilder<T>:
+        self.includes.push(relation)
+        return self
+    
+    fn find_one(self) -> Option<T> with Database, Async:
+        let sql = build_select_sql(self, limit: 1)
+        let rows = await query(sql, get_params(self.conditions))
+        match rows.first():
+            Some(row) => Some(hydrate(self.model, row))
+            None => None
+    
+    fn find_many(self) -> Array<T> with Database, Async:
+        let sql = build_select_sql(self, self.limit_val)
+        let rows = await query(sql, get_params(self.conditions))
+        let results = rows.map(row => hydrate(self.model, row))
+        
+        # Load relations
+        for include in self.includes:
+            let relation = self.model.relations.get(include).unwrap()
+            load_relation(results, relation)
+        
+        return results
+    
+    fn create(self, data: Map<String, Any>) -> T with Database, Async:
+        let sql = build_insert_sql(self.model.table, data)
+        let id = await execute(sql, data.values().collect())
+        return await self.where("id", "=", id).find_one().unwrap()
+    
+    fn update(self, data: Map<String, Any>) -> T with Database, Async:
+        let sql = build_update_sql(self.model.table, self.conditions, data)
+        await execute(sql, get_params(self.conditions) + data.values().collect())
+        return await self.find_one().unwrap()
+    
+    fn delete(self) -> Int with Database, Async:
+        let sql = build_delete_sql(self.model.table, self.conditions)
+        return await execute(sql, get_params(self.conditions))
+
+# Define models
+let User = model! {
+    table "users"
+    
+    field id: Int @primary @auto_increment
+    field name: String @length(100)
+    field email: String @unique
+    field password_hash: String
+    field created_at: DateTime @default(now())
+    
+    has_many posts: Post
+    has_many comments: Comment
+}
+
+let Post = model! {
+    table "posts"
+    
+    field id: Int @primary @auto_increment
+    field title: String @length(200)
+    field content: String @type("TEXT")
+    field author_id: Int @foreign_key(User.id)
+    field likes: Int @default(0)
+    field created_at: DateTime @default(now())
+    
+    belongs_to author: User
+    has_many comments: Comment
+}
+
+# ==========================================
+# WEBSOCKETS
+# ==========================================
+
+effect WebSocket:
+    fn send(client: ClientId, message: Bytes) -> ()
+    fn broadcast(room: String, message: Bytes) -> ()
+    fn join_room(client: ClientId, room: String) -> ()
+    fn leave_room(client: ClientId, room: String) -> ()
+
+actor WebSocketServer with WebSocket:
+    var clients: Map<ClientId, Connection>
+    var rooms: Map<String, Set<ClientId>>
+    
+    on Connect(client_id: ClientId, conn: Connection):
+        clients.insert(client_id, conn)
+        println!(f"[WS] Client {client_id} connected")
+    
+    on Disconnect(client_id: ClientId):
+        clients.remove(client_id)
+        for (room, members) in rooms:
+            members.remove(client_id)
+        println!(f"[WS] Client {client_id} disconnected")
+    
+    on Message(client_id: ClientId, data: Bytes):
+        let msg = parse_message(data)
+        
+        match msg.type:
+            "join" =>
+                join_room(client_id, msg.room)
+                send(client_id, encode({ type: "joined", room: msg.room }))
+            
+            "leave" =>
+                leave_room(client_id, msg.room)
+                send(client_id, encode({ type: "left", room: msg.room }))
+            
+            "message" =>
+                broadcast(msg.room, encode({
+                    type: "message",
+                    from: client_id,
+                    content: msg.content,
+                    timestamp: now()
+                }))
+            
+            "typing" =>
+                broadcast(msg.room, encode({
+                    type: "typing",
+                    user: client_id
+                }))
+            
+            _ =>
+                send(client_id, encode({ type: "error", message: "Unknown message type" }))
+    
+    on send(client: ClientId, message: Bytes):
+        match clients.get(client):
+            Some(conn) => conn.send(message)
+            None => ()
+    
+    on broadcast(room: String, message: Bytes):
+        match rooms.get(room):
+            Some(members) =>
+                for client_id in members:
+                    send(client_id, message)
+            None => ()
+    
+    on join_room(client: ClientId, room: String):
+        if not rooms.contains(room):
+            rooms.insert(room, Set.new())
+        rooms.get_mut(room).unwrap().insert(client)
+    
+    on leave_room(client: ClientId, room: String):
+        match rooms.get_mut(room):
+            Some(members) => members.remove(client)
+            None => ()
+
+# ==========================================
+# PUTTING IT ALL TOGETHER
+# ==========================================
+
+fn create_server() -> App with IO:
+    let db = connect_database("postgres://localhost/myapp")
+    let schema = define_schema()
+    let resolvers = graphql_resolvers()
+    let ws_server = spawn WebSocketServer()
+    
+    let api = router()
+        .use(cors())
+        .use(json_body_parser())
+        .use(session_middleware())
+        .use(auth_middleware())
+        
+        # API routes
+        .get("/api/health", fn(req): 
+            json({ status: "ok", timestamp: now() })
+        )
+        
+        .post("/api/auth/login", fn(req) with Async:
+            let { email, password } = req.body.parse()
+            let user = await db.users.where("email", "=", email).find_one()
+            
+            match user:
+                Some(u) if verify_password(password, u.password_hash) =>
+                    let token = create_jwt(u.id)
+                    json({ token: token, user: u })
+                _ =>
+                    Response { status: 401, body: json({ error: "Invalid credentials" }) }
+        )
+        
+        .post("/api/auth/register", fn(req) with Async:
+            let { name, email, password } = req.body.parse()
+            let hash = hash_password(password)
+            let user = await db.users.create({ name: name, email: email, password_hash: hash })
+            json({ user: user })
+        )
+        
+        # GraphQL endpoint
+        .post("/graphql", fn(req) with Async:
+            let { query, variables } = req.body.parse()
+            let result = await execute_graphql(schema, resolvers, query, variables, req.session)
+            json(result)
+        )
+        
+        # WebSocket upgrade
+        .get("/ws", fn(req):
+            upgrade_websocket(req, ws_server)
+        )
+        
+        # Serve static files
+        .get("/*", fn(req):
+            serve_static("./public", req.path)
+        )
+    
+    return api
+
+fn main() with IO, Async:
+    println!("Starting full-stack KAIN server...")
+    
+    let app = create_server()
+    
+    let server = listen(app, port: 3000)
+    println!("Server listening on http://localhost:3000")
+    
+    # Keep running
+    await server.wait()

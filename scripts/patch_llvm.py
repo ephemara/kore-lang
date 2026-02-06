@@ -13,13 +13,13 @@ def patch(filename):
     for line in lines:
         # Insert declarations early
         if not inserted and line.strip() == "":
-            new_lines.append("declare i64 @kore_create_token_simple(i64)\n")
-            new_lines.append("declare i64 @kore_create_token_payload(i64, i64)\n")
+            new_lines.append("declare i64 @kain_create_token_simple(i64)\n")
+            new_lines.append("declare i64 @kain_create_token_payload(i64, i64)\n")
             inserted = True
             
-        if line.startswith("define i64 @kore_create_token_simple"):
+        if line.startswith("define i64 @kain_create_token_simple"):
             skip = True
-        elif line.startswith("define i64 @kore_create_token_payload"):
+        elif line.startswith("define i64 @kain_create_token_payload"):
             skip = True
         
         if skip:

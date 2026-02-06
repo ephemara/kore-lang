@@ -1,7 +1,7 @@
 
 import re
 
-file_path = 'K:/KORE/src/codegen.kr'
+file_path = 'K:/KAIN/src/codegen.kn'
 
 with open(file_path, 'r', encoding='utf-8') as f:
     content = f.read()

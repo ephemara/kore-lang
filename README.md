@@ -1,4 +1,4 @@
-<img src="assets/kore_timeline_final.gif" alt="KORE - Timeline Animation" width="1041">
+<img src="assets/KAIN_timeline_final.gif" alt="KAIN - Timeline Animation" width="1041">
 
 
 <a href="#quick-start">Quick Start</a> • <a href="#features">Features</a> • <a href="#architecture">Architecture</a> • <a href="#building">Building</a> • <a href="#cli-reference">CLI</a> • <a href="#contributing">Contributing</a>
@@ -12,9 +12,9 @@ This repository contains **two compiler implementations**:
 | Version | Location | Status | Best For |
 |---------|----------|--------|----------|
 | **V2 Self-Hosting** | `/` (root) | Experimental | Next-gen compiler development, LLVM native |
-| **V1 Production** | `/kore-v1-stable/` | Production-Ready | WASM, SPIR-V shaders, Actor runtime, UE5 integration |
+| **V1 Production** | `/KAIN-v1-stable/` | Production-Ready | WASM, SPIR-V shaders, Actor runtime, UE5 integration |
 
-**New users**: Start with **V1** (`/kore-v1-stable/`) for production work, especially for shaders and WASM. (Now on crates.io! cargo install kore-lang@0.1.1)
+**New users**: Start with **V1** (`/KAIN-v1-stable/`) for production work, especially for shaders and WASM. (Now on crates.io! cargo install KAIN-lang@0.1.1)
 
 **Contributors**: V2 (root) is where the self-hosting magic happens - help us make it production-ready!
 
@@ -26,31 +26,31 @@ This repository contains **two compiler implementations**:
 
 You might ask: *Why another language?*
 
-1.  **Unified Graphics Pipeline**: Authoring shaders in GLSL/HLSL and binding them to C++ logic is friction-heavy. Kore treats shaders as first-class citizens.
+1.  **Unified Graphics Pipeline**: Authoring shaders in GLSL/HLSL and binding them to C++ logic is friction-heavy. KAIN treats shaders as first-class citizens.
 2.  **Solving Architectural Glue**: I am currently building a massive, professional-grade 3D DCC suite. Think **Blender meets Houdini, ZBrush, Substance, and C4D**. It handles everything from PBR painting and GPU sculpting to real-time particle simulations with 64+ million particles. The prototype was glued together using Rust, React, Tauri, TypeScript, Python, and C++ via a complex IPC system. It became a maintenance nightmare.
 3.  **The "Dogfooding" Strategy**: It turned out to be more efficient to design a language that unifies these domains (UI, Logic, GPU) than to maintain the "cobweb" of legacy stacks.
 
-**Kore is being built to power this DCC.** The ultimate way to stress-test a language is to build complex 3D architecture with it. I am currently porting the DCC to Kore to ensure the language handles real-world production edge cases.
+**KAIN is being built to power this DCC.** The ultimate way to stress-test a language is to build complex 3D architecture with it. I am currently porting the DCC to KAIN to ensure the language handles real-world production edge cases.
 
->> **Funding & Roadmap**: To support this development, I am releasing modules of the DCC as **Unreal Engine 5 Plugins** (powered by Kore's V1 compiler).
+>> **Funding & Roadmap**: To support this development, I am releasing modules of the DCC as **Unreal Engine 5 Plugins** (powered by KAIN's V1 compiler).
 >
->> **Status Update:** Active work on the Kore compiler core will be minimal until these plugins are released. I am currently developing on a legacy mobile workstation (i7 9th Gen, RTX 2060, 32GB RAM) which has become a hard bottleneck; compiler memory spikes during self-hosting frequently crash the machine. **Revenue from these plugins will directly fund the hardware upgrade needed to finish Project Ouroboros.**
+>> **Status Update:** Active work on the KAIN compiler core will be minimal until these plugins are released. I am currently developing on a legacy mobile workstation (i7 9th Gen, RTX 2060, 32GB RAM) which has become a hard bottleneck; compiler memory spikes during self-hosting frequently crash the machine. **Revenue from these plugins will directly fund the hardware upgrade needed to finish Project Ouroboros.**
 
 - - -
 
 ## The Origin
 
-Kore has been under active private development for years. You might ask: *Where did these ~337 files suddenly spawn from?*
+KAIN has been under active private development for years. You might ask: *Where did these ~337 files suddenly spawn from?*
 
-The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate. FURTHERMORE, I prefer using the classic version of git (zipping folders and using that for backup instead of github). Only recently have I started using github for version control. In the scripts folder, you can find a robust Python GUI script that handled backups for me along with dozens of other features kore-main\scripts\ilovebuttons.pyw. I would love if other people got the same use out of the script as I did. (IT EVEN HAS A BUILT IN TODO LIST, CLIPBOARD HISTORY, SCREENSHOT MANAGING, PRESET TERMINAL COMMANDS, AND MUCH MORE.)
+The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate. FURTHERMORE, I prefer using the classic version of git (zipping folders and using that for backup instead of github). Only recently have I started using github for version control. In the scripts folder, you can find a robust Python GUI script that handled backups for me along with dozens of other features KAIN-main\scripts\ilovebuttons.pyw. I would love if other people got the same use out of the script as I did. (IT EVEN HAS A BUILT IN TODO LIST, CLIPBOARD HISTORY, SCREENSHOT MANAGING, PRESET TERMINAL COMMANDS, AND MUCH MORE.)
 
 Curious what this language is designed to power? Head over to **[Greeble.co](https://www.greeble.co/)**. There you can find a sample of the in-progress 3D DCC (1/14 modules) and previews of Unreal Engine 5 plugins—featuring C4D-style effectors, cloners, and MoGraph tools. Next plugin is going to be GPU based image to PBR generation. It is currently ~95% done. More info soon! 
 
-## What is KORE?
+## What is KAIN?
 
-KORE is a **self-hosting programming language** that combines the best ideas from multiple paradigms:
+KAIN is a **self-hosting programming language** that combines the best ideas from multiple paradigms:
 
-| Paradigm | Inspiration | KORE Implementation |
+| Paradigm | Inspiration | KAIN Implementation |
 | -------- | ----------- | ------------------- |
 | **Safety** | Rust | Ownership, borrowing, no null, no data races |
 | **Syntax** | Python | Significant whitespace, minimal ceremony |
@@ -63,7 +63,7 @@ KORE is a **self-hosting programming language** that combines the best ideas fro
 
 ### Example
 
-``` kore
+``` KAIN
 // Define a function with effect tracking
 fn factorial(n: Int) -> Int with Pure:
     match n:
@@ -106,27 +106,27 @@ fn main():
 ### Install V1 (Production)
 
 ```bash
-cargo install kore-lang
+cargo install KAIN-lang
 ```
 
-Done. The `kore` command is now available. Use this for WASM, shaders, and production work.
+Done. The `KAIN` command is now available. Use this for WASM, shaders, and production work.
 
 ### Build V2 (Self-Hosting, Experimental)
 
 For compiler development or contributing to the self-hosting effort:
 
 ``` powershell
-git clone https://github.com/ephemara/Kore-lang.git
-cd Kore
+git clone https://github.com/ephemara/KAIN-lang.git
+cd KAIN
 
 # Build native compiler
 .\build.ps1 -SkipSelfHosted
 
-# Compile a KORE file
-.\build\artifacts\latest\kore_native.exe examples/hello.kr -o hello.ll
+# Compile a KAIN file
+.\build\artifacts\latest\KAIN_native.exe examples/hello.kn -o hello.ll
 
 # Link with runtime and execute
-clang hello.ll build\kore_runtime.o -o hello.exe
+clang hello.ll build\KAIN_runtime.o -o hello.exe
 .\hello.exe
 ```
 
@@ -153,15 +153,15 @@ clang hello.ll build\kore_runtime.o -o hello.exe
 | Target | Status | Output |
 | ------ | ------ | ------ |
 | **LLVM IR** | Stable | Native executables via Clang |
-| **WASM** | V1 Stable | WebAssembly modules (see kore-v1-stable/) |
-| **SPIR-V** | V1 Stable | GPU shader bytecode (see kore-v1-stable/) |
+| **WASM** | V1 Stable | WebAssembly modules (see KAIN-v1-stable/) |
+| **SPIR-V** | V1 Stable | GPU shader bytecode (see KAIN-v1-stable/) |
 | **Rust** | Bootstrap | Transpiled Rust source |
 
 ### Unreal Engine 5 Integration
 
-KORE features a specialized `ue5-shader` pipeline that compiles KORE source directly into validated SPIR-V and transpiled HLSL/USF files, ready for seamless use in UE5 plugins.
+KAIN features a specialized `ue5-shader` pipeline that compiles KAIN source directly into validated SPIR-V and transpiled HLSL/USF files, ready for seamless use in UE5 plugins.
 
-KORE was born from a love for Unreal Engine - it's the foundation that made this language possible. The production-ready V1 compiler with full UE5 shader support is available in `/kore-v1-stable/`.
+KAIN was born from a love for Unreal Engine - it's the foundation that made this language possible. The production-ready V1 compiler with full UE5 shader support is available in `/KAIN-v1-stable/`.
 
 ### Current Limitations
 
@@ -173,17 +173,17 @@ KORE was born from a love for Unreal Engine - it's the foundation that made this
 
 ## Architecture
 
-KORE uses a **three-stage bootstrap architecture**:
+KAIN uses a **three-stage bootstrap architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     KORE COMPILER PIPELINE                      │
+│                     KAIN COMPILER PIPELINE                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
 │  │   STAGE 0    │    │   STAGE 1    │    │   STAGE 2    │       │
 │  │  Bootstrap   │───>│    Native    │───>│ Self-Hosted  │       │
-│  │   (Rust)     │    │  (kore.exe)  │    │  (kore_v2)   │       │
+│  │   (Rust)     │    │  (KAIN.exe)  │    │  (KAIN_v2)   │       │
 │  └──────────────┘    └──────────────┘    └──────────────┘       │
 │        │                    │                    │              │
 │        v                    v                    v              │
@@ -196,31 +196,31 @@ KORE uses a **three-stage bootstrap architecture**:
 | Stage | Location | Technology | Purpose |
 | ----- | -------- | ---------- | ------- |
 | **Stage 0** | `bootstrap/` | Rust + Inkwell (LLVM 21) | Initial compiler, fallback |
-| **Stage 1** | `build/artifacts/latest/kore_native.exe` | KORE source → LLVM IR | Primary development compiler |
-| **Stage 2** | `build/artifacts/latest/kore_native_v2.exe` | Stage 1 compiles itself | Validation target |
+| **Stage 1** | `build/artifacts/latest/KAIN_native.exe` | KAIN source → LLVM IR | Primary development compiler |
+| **Stage 2** | `build/artifacts/latest/KAIN_native_v2.exe` | Stage 1 compiles itself | Validation target |
 
 ### Project Structure
 
 ```
-kore-main/
-├── src/                    # KORE compiler source (written in KORE)
-│   ├── korec.kr            # Compiler entry point & CLI
-│   ├── lexer.kr            # Tokenizer (23KB)
-│   ├── parser_v2.kr        # Parser with generics (54KB)
-│   ├── types.kr            # Type checker (66KB)
-│   ├── codegen.kr          # LLVM IR generator (86KB)
+KAIN-main/
+├── src/                    # KAIN compiler source (written in KAIN)
+│   ├── KAINc.kn            # Compiler entry point & CLI
+│   ├── lexer.kn            # Tokenizer (23KB)
+│   ├── parser_v2.kn        # Parser with generics (54KB)
+│   ├── types.kn            # Type checker (66KB)
+│   ├── codegen.kn          # LLVM IR generator (86KB)
 │   └── ...                 # AST, resolver, diagnostics, effects
 │
 ├── bootstrap/              # Stage 0: Rust bootstrap compiler
 │   └── src/                # Rust implementation
 │
 ├── runtime/                # C runtime library
-│   └── kore_runtime.c      # NaN-boxing runtime (65KB)
+│   └── KAIN_runtime.c      # NaN-boxing runtime (65KB)
 │
 ├── stdlib/                 # Experimental features (V2 development)
-│   ├── monomorphize.kr     # Generics instantiation
-│   ├── wasm.kr             # WebAssembly codegen
-│   ├── runtime.kr          # Interpreter with actors
+│   ├── monomorphize.kn     # Generics instantiation
+│   ├── wasm.kn             # WebAssembly codegen
+│   ├── runtime.kn          # Interpreter with actors
 │   └── ...                 # 12 modules total
 │
 ├── tests/                  # Test suite
@@ -228,11 +228,11 @@ kore-main/
 │   ├── examples/           # Demo programs
 │   └── whacky/             # Edge case tests
 │
-├── kore-v1-stable/         # V1 Production Compiler
+├── KAIN-v1-stable/         # V1 Production Compiler
 │   ├── src/                # Rust compiler source
-│   ├── stdlib/             # KORE standard library
+│   ├── stdlib/             # KAIN standard library
 │   ├── shaders/            # GPU shader examples
-│   ├── bootstrap/          # Self-hosting compiler (KORE)
+│   ├── bootstrap/          # Self-hosting compiler (KAIN)
 │   └── runtime/            # C FFI runtime
 │
 ├── docs/                   # Documentation
@@ -243,7 +243,7 @@ kore-main/
 
 ## Building
 
-KORE supports both **Windows** (PowerShell) and **Linux/macOS** (Bash) build systems.
+KAIN supports both **Windows** (PowerShell) and **Linux/macOS** (Bash) build systems.
 
 - - -
 
@@ -259,7 +259,7 @@ KORE supports both **Windows** (PowerShell) and **Linux/macOS** (Bash) build sys
 
 # Build specific targets
 ./build.sh bootstrap    # Stage 0: Rust compiler
-./build.sh native       # Stage 1: Native KORE compiler
+./build.sh native       # Stage 1: Native KAIN compiler
 ./build.sh runtime      # C runtime only
 ./build.sh test         # Run test suite
 ./build.sh clean        # Clean artifacts
@@ -282,9 +282,9 @@ build.sh (610 lines)
 ├─ Colors & Logging (29-48)     # ANSI colors, log_ok/info/warn/err/step/debug
 ├─ Configuration (50-98)        # Paths, source file list in dependency order
 ├─ Prerequisites (137-161)      # Check clang, cargo, runtime
-├─ Runtime Build (167-193)      # Compile kore_runtime.c → kore_runtime.o
+├─ Runtime Build (167-193)      # Compile KAIN_runtime.c → KAIN_runtime.o
 ├─ Bootstrap Build (199-218)    # Build Rust compiler with cargo
-├─ Source Combiner (224-280)    # Merge KORE files, filter duplicate imports
+├─ Source Combiner (224-280)    # Merge KAIN files, filter duplicate imports
 ├─ Bootstrap Compile (286-305)  # Generate LLVM IR from combined source
 ├─ LLVM IR Fixer (311-342)      # Patch missing declarations with sed/awk
 ├─ Linker (348-378)             # clang + runtime → executable
@@ -311,18 +311,18 @@ log_step()  { echo -e "${MAGENTA}==>${NC} ${BOLD}$1${NC}"; }
 
 ``` bash
 CORE_SOURCES=(
-    "src/span.kr"       # Source locations
-    "src/error.kr"      # Error types
-    "src/effects.kr"    # Effect system
-    "src/ast.kr"        # AST definitions
-    "src/stdlib.kr"     # Standard library
-    "src/types.kr"      # Type checker
-    "src/lexer.kr"      # Tokenizer
-    "src/parser_v2.kr"  # Parser
-    "src/diagnostic.kr" # Error formatting
-    "src/resolver.kr"   # Import resolution
-    "src/codegen.kr"    # LLVM IR generator
-    "src/korec.kr"      # CLI entry point
+    "src/span.kn"       # Source locations
+    "src/error.kn"      # Error types
+    "src/effects.kn"    # Effect system
+    "src/ast.kn"        # AST definitions
+    "src/stdlib.kn"     # Standard library
+    "src/types.kn"      # Type checker
+    "src/lexer.kn"      # Tokenizer
+    "src/parser_v2.kn"  # Parser
+    "src/diagnostic.kn" # Error formatting
+    "src/resolver.kn"   # Import resolution
+    "src/codegen.kn"    # LLVM IR generator
+    "src/kainc.kn"      # CLI entry point
 )
 ```
 
@@ -392,19 +392,19 @@ The build system handles the full compilation pipeline:
 
 | File | Description |
 | ---- | ----------- |
-| `build/artifacts/latest/kore_native.exe` | Stage 1 native compiler |
-| `build/artifacts/latest/kore_native_v2.exe` | Stage 2 self-hosted compiler |
-| `build/kore_runtime.o` | Compiled C runtime |
-| `build/korec_build.kr` | Combined source file |
+| `build/artifacts/latest/KAIN_native.exe` | Stage 1 native compiler |
+| `build/artifacts/latest/KAIN_native_v2.exe` | Stage 2 self-hosted compiler |
+| `build/KAIN_runtime.o` | Compiled C runtime |
+| `build/KAINc_build.kn` | Combined source file |
 
 - - -
 
 ## CLI Reference
 
-### Compiler (`korec` / `kore_native.exe`)
+### Compiler (`kainc` / `KAIN_native.exe`)
 
 ``` bash
-korec <input.kr> [OPTIONS]
+KAINc <input.kn> [OPTIONS]
 
 OPTIONS:
     -o <FILE>           Output file path (default: input.ll)
@@ -420,11 +420,11 @@ OPTIONS:
 ### Compilation Workflow
 
 ``` powershell
-# Step 1: Compile KORE to LLVM IR
-.\build\artifacts\latest\kore_native.exe program.kr -o program.ll
+# Step 1: Compile KAIN to LLVM IR
+.\build\artifacts\latest\KAIN_native.exe program.kn -o program.ll
 
 # Step 2: Link with runtime
-clang program.ll build\kore_runtime.o -o program.exe
+clang program.ll build\KAIN_runtime.o -o program.exe
 
 # Step 3: Run
 .\program.exe
@@ -447,15 +447,15 @@ The compiler emits machine-parseable output for build system integration:
 
 ## Runtime
 
-### The C Runtime (`runtime/kore_runtime.c`)
+### The C Runtime (`runtime/KAIN_runtime.c`)
 
-> **1,897 lines** (65KB) of C code that provides the execution environment for compiled KORE programs.
+> **1,897 lines** (65KB) of C code that provides the execution environment for compiled KAIN programs.
 
-This is the glue between LLVM IR and the operating system. Every compiled KORE program links against this runtime.
+This is the glue between LLVM IR and the operating system. Every compiled KAIN program links against this runtime.
 
 #### NaN-Boxing (IEEE 754 Exploitation)
 
-All KORE values fit in 64 bits using **NaN-boxing** \- exploiting unused bit patterns in IEEE 754 doubles:
+All KAIN values fit in 64 bits using **NaN-boxing** \- exploiting unused bit patterns in IEEE 754 doubles:
 
 ``` c
 // Quiet NaN prefix - values >= this are tagged, not doubles
@@ -466,25 +466,25 @@ All KORE values fit in 64 bits using **NaN-boxing** \- exploiting unused bit pat
 //   Tagged: [0xFFF8 prefix (16 bits)][tag (3 bits)][payload (45 bits)]
 
 // Type tags (3 bits, stored in bits 45-47)
-#define KORE_TAG_PTR    0  // Heap pointer (45-bit = 32TB address space)
-#define KORE_TAG_INT    1  // Signed 45-bit integer (±17.5 trillion)
-#define KORE_TAG_BOOL   2  // Boolean (payload = 0 or 1)
-#define KORE_TAG_NULL   3  // Null/Unit
-#define KORE_TAG_STR    4  // String pointer (quick type checks)
+#define KAIN_TAG_PTR    0  // Heap pointer (45-bit = 32TB address space)
+#define KAIN_TAG_INT    1  // Signed 45-bit integer (±17.5 trillion)
+#define KAIN_TAG_BOOL   2  // Boolean (payload = 0 or 1)
+#define KAIN_TAG_NULL   3  // Null/Unit
+#define KAIN_TAG_STR    4  // String pointer (quick type checks)
 
 // Sentinel values
-#define KORE_NULL   (NANBOX_QNAN | (KORE_TAG_NULL << 45))
-#define KORE_TRUE   (NANBOX_QNAN | (KORE_TAG_BOOL << 45) | 1)
-#define KORE_FALSE  (NANBOX_QNAN | (KORE_TAG_BOOL << 45) | 0)
+#define KAIN_NULL   (NANBOX_QNAN | (KAIN_TAG_NULL << 45))
+#define KAIN_TRUE   (NANBOX_QNAN | (KAIN_TAG_BOOL << 45) | 1)
+#define KAIN_FALSE  (NANBOX_QNAN | (KAIN_TAG_BOOL << 45) | 0)
 ```
 
 #### Architecture
 
 ```
-kore_runtime.c (1,897 lines)
+KAIN_runtime.c (1,897 lines)
 ├─ NaN-Boxing System (17-230)       # Type tags, boxing, unboxing, type checks
 ├─ Memory Management (280-328)      # Arena allocator, 1MB pages, 16GB limit
-├─ Print Functions (250-277)        # kore_print_str, kore_println_str
+├─ Print Functions (250-277)        # KAIN_print_str, KAIN_println_str
 ├─ String Operations (330-511)      # concat, starts_with, replace, eq, len
 ├─ Arithmetic Operators (515-696)   # add/sub/mul/div with auto-type dispatch
 ├─ Comparison Operators (698-765)   # lt/gt/le/ge/eq/neq with unboxing
@@ -496,35 +496,35 @@ kore_runtime.c (1,897 lines)
 ├─ Variant Introspection (1519-1587)# variant_of, variant_field for enums
 ├─ System Functions (1589-1607)     # system(), exit(), panic()
 ├─ Stdlib Wrappers (1609-1754)      # 40+ function aliases for linking
-├─ Stack Trace Support (1779-1825)  # kore_trace_enter/exit, print_stack_trace
-└─ Main Entry Point (1827-1832)     # Sets up args, calls main_kore()
+├─ Stack Trace Support (1779-1825)  # KAIN_trace_enter/exit, print_stack_trace
+└─ Main Entry Point (1827-1832)     # Sets up args, calls main_KAIN()
 ```
 
 #### Key Runtime Functions
 
 | Category | Functions | Lines |
 | -------- | --------- | ----- |
-| **Boxing** | `kore_box_int/string/ptr/bool/null` | 120-146 |
-| **Unboxing** | `kore_unbox_int/string/ptr/bool` | 150-204 |
-| **Type Checks** | `kore_is_int/string/ptr/bool/null/truthy` | 72-229 |
-| **Strings** | `kore_str_concat`, `kore_str_eq`, `kore_str_len`, `kore_substring` | 330-414 |
-| **Arrays** | `kore_array_new`, `kore_array_push/pop/get/set/len` | 807-980 |
-| **Maps** | `Map_new`, `kore_map_get/set`, `kore_contains_key` | 1400-1507 |
-| **Options** | `kore_some`, `kore_none`, `kore_unwrap` | 1251-1290 |
-| **Files** | `kore_file_read`, `kore_file_write`, `file_exists` | 1341-1388 |
-| **Variants** | `kore_variant_of`, `kore_variant_field` | 1524-1587 |
-| **Debug** | `kore_print_stack_trace`, `kore_debug_log_var` | 1812-1849 |
+| **Boxing** | `kain_box_int/string/ptr/bool/null` | 120-146 |
+| **Unboxing** | `kain_unbox_int/string/ptr/bool` | 150-204 |
+| **Type Checks** | `kain_is_int/string/ptr/bool/null/truthy` | 72-229 |
+| **Strings** | `kain_str_concat`, `kain_str_eq`, `kain_str_len`, `kain_substring` | 330-414 |
+| **Arrays** | `kain_array_new`, `kain_array_push/pop/get/set/len` | 807-980 |
+| **Maps** | `Map_new`, `kain_map_get/set`, `kain_contains_key` | 1400-1507 |
+| **Options** | `KAIN_some`, `KAIN_none`, `KAIN_unwrap` | 1251-1290 |
+| **Files** | `KAIN_file_read`, `KAIN_file_write`, `file_exists` | 1341-1388 |
+| **Variants** | `KAIN_variant_of`, `KAIN_variant_field` | 1524-1587 |
+| **Debug** | `KAIN_print_stack_trace`, `KAIN_debug_log_var` | 1812-1849 |
 
 #### V1/V2 Compatibility Layer
 
 The runtime includes extensive **transition hacks** to support both raw integers (V1 codegen) and NaN-boxed values (V2 codegen):
 
 ``` c
-static inline uint64_t kore_get_tag(uint64_t v) {
-    if (v == 0) return KORE_TAG_NULL;
+static inline uint64_t kain_get_tag(uint64_t v) {
+    if (v == 0) return KAIN_TAG_NULL;
     if (v < NANBOX_QNAN) {
         // TRANSITION HACK: Small values are raw integers from V1 compiler
-        if (v < 0x0010000000000000ULL) return KORE_TAG_INT;
+        if (v < 0x0010000000000000ULL) return KAIN_TAG_INT;
         return (uint64_t)-1;  // -1 = double
     }
     return (v >> 45) & 0x7;
@@ -534,7 +534,7 @@ static inline uint64_t kore_get_tag(uint64_t v) {
 #### Stack Trace Support (lines 1779-1825)
 
 ``` c
-void kore_print_stack_trace(void) {
+void kain_print_stack_trace(void) {
     fprintf(stderr, "\n\033[1;36mStack trace (most recent call last):\033[0m\n");
     for (int i = g_stack_depth - 1; i >= 0; i--) {
         fprintf(stderr, "  at %s (%s:%d)\n",
@@ -549,15 +549,15 @@ void kore_print_stack_trace(void) {
 
 ``` bash
 # Compile runtime (done by build system)
-clang -c runtime/kore_runtime.c -o build/kore_runtime.o -O2
+clang -c runtime/KAIN_runtime.c -o build/KAIN_runtime.o -O2
 
-# Link with compiled KORE program
-clang program.ll build/kore_runtime.o -o program.exe
+# Link with compiled KAIN program
+clang program.ll build/KAIN_runtime.o -o program.exe
 ```
 
 - - -
 
-KORE uses a **NaN-boxing** runtime where all values fit in 64 bits:
+KAIN uses a **NaN-boxing** runtime where all values fit in 64 bits:
 
 | Type | Representation |
 | ---- | -------------- |
@@ -570,14 +570,14 @@ KORE uses a **NaN-boxing** runtime where all values fit in 64 bits:
 
 ### Runtime Functions
 
-The C runtime (`runtime/kore_runtime.c`) provides:
+The C runtime (`runtime/KAIN_runtime.c`) provides:
 
-* **I/O**: `kore_print_str`, `kore_println_str`, `read_file`, `write_file`
-* **Strings**: `kore_str_concat`, `kore_str_len`, `kore_substring`, `kore_split`, `kore_join`
-* **Arrays**: `kore_array_new`, `kore_array_push`, `kore_array_get`, `kore_array_len`
-* **Maps**: `Map_new`, `kore_map_get`, `kore_map_set`
-* **Conversions**: `kore_to_string`, `kore_to_int`, `kore_to_float`
-* **Introspection**: `kore_variant_of`, `kore_variant_field`
+* **I/O**: `kain_print_str`, `kain_println_str`, `read_file`, `write_file`
+* **Strings**: `kain_str_concat`, `kain_str_len`, `kain_substring`, `kain_split`, `kain_join`
+* **Arrays**: `kain_array_new`, `kain_array_push`, `kain_array_get`, `kain_array_len`
+* **Maps**: `Map_new`, `kain_map_get`, `kain_map_set`
+* **Conversions**: `kain_to_string`, `kain_to_int`, `kain_to_float`
+* **Introspection**: `kain_variant_of`, `kain_variant_field`
 
 - - -
 
@@ -604,46 +604,46 @@ The C runtime (`runtime/kore_runtime.c`) provides:
 
 | File | Feature | Status |
 | ---- | ------- | ------ |
-| `codegen.kr` | For loop codegen | Placeholder |
-| `codegen.kr` | Match expression | Placeholder |
-| `codegen.kr` | Break/Continue | Missing jump labels |
-| `codegen.kr` | Field/Index assignment | Partial |
-| `codegen.kr` | Float constants | Needs IEEE 754 handling |
-| `types.kr` | Generic method calls | Not implemented |
-| `types.kr` | Variant payload types | Partial |
-| `korec.kr` | Path.stem() | Returns hardcoded "project" |
+| `codegen.kn` | For loop codegen | Placeholder |
+| `codegen.kn` | Match expression | Placeholder |
+| `codegen.kn` | Break/Continue | Missing jump labels |
+| `codegen.kn` | Field/Index assignment | Partial |
+| `codegen.kn` | Float constants | Needs IEEE 754 handling |
+| `types.kn` | Generic method calls | Not implemented |
+| `types.kn` | Variant payload types | Partial |
+| `KAINc.kn` | Path.stem() | Returns hardcoded "project" |
 
 - - -
 
 ## Experimental Features (`stdlib/`)
 
-The `stdlib/` folder contains **~9,000 lines** of experimental KORE source code for upcoming features. These are fully written but not yet integrated into the main compiler pipeline.
+The `stdlib/` folder contains **~9,000 lines** of experimental KAIN source code for upcoming features. These are fully written but not yet integrated into the main compiler pipeline.
 
 ### Feature Status
 
 | Feature | File | Lines | Description |
 | ------- | ---- | ----- | ----------- |
-| **Monomorphization** | `monomorphize.kr` | 1,315 | Generics instantiation, type substitution |
-| **WebAssembly** | `wasm.kr` | 1,213 | Full WASM codegen with opcodes, locals, memory |
-| **Interpreter** | `runtime.kr` | 1,291 | Runtime values, actor system, native functions |
-| **SPIR-V** | `spirv.kr` | 1,075 | GPU shader codegen with capabilities, types |
-| **LSP Server** | `lsp.kr` | 994 | Document sync, symbol lookup, diagnostics |
-| **Formatter** | `formatter.kr` | 751 | Code pretty-printing with configurable style |
+| **Monomorphization** | `monomorphize.kn` | 1,315 | Generics instantiation, type substitution |
+| **WebAssembly** | `wasm.kn` | 1,213 | Full WASM codegen with opcodes, locals, memory |
+| **Interpreter** | `runtime.kn` | 1,291 | Runtime values, actor system, native functions |
+| **SPIR-V** | `spirv.kn` | 1,075 | GPU shader codegen with capabilities, types |
+| **LSP Server** | `lsp.kn` | 994 | Document sync, symbol lookup, diagnostics |
+| **Formatter** | `formatter.kn` | 751 | Code pretty-printing with configurable style |
 
 **Full details**: See `stdlib/README.md`
 
 - - -
 
-## The Interpreter Runtime (`runtime.kr`)
+## The Interpreter Runtime (`runtime.kn`)
 
-> **1,291 lines** of a complete tree-walking interpreter that executes KORE without compilation.
+> **1,291 lines** of a complete tree-walking interpreter that executes KAIN without compilation.
 A full-featured runtime with JSX rendering, an actor system, HTTP networking, and 65+ native functions.
 
 ### Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    KORE Interpreter Runtime                     |
+│                    KAIN Interpreter Runtime                     |
 ├─────────────────────────────────────────────────────────────────┤
 │  Value System (15 types)  │  Environment (Scope Chain)          │
 │  ├── Int, Float, Bool     │  ├── Variable lookup O(1)           │
@@ -684,10 +684,10 @@ A full-featured runtime with JSX rendering, an actor system, HTTP networking, an
 
 ### JSX/VDOM Support
 
-KORE has **first-class JSX** that compiles to a virtual DOM:
+KAIN has **first-class JSX** that compiles to a virtual DOM:
 
-``` kore
-// runtime.kr lines 21-24
+``` KAIN
+// runtime.kn lines 21-24
 enum VNode:
     Element(String, Map<String, Value>, Array<VNode>)  // tag, attrs, children
     Text(String)
@@ -704,8 +704,8 @@ fn eval_jsx(env: Env, node: JSXNode) -> Result<Value, String>:
 
 ### Actor System (Erlang-Style Concurrency)
 
-``` kore
-// runtime.kr lines 119-144
+``` KAIN
+// runtime.kn lines 119-144
 struct ActorRef:
     id: Int
     name: String
@@ -762,7 +762,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 1. Fork and clone the repository
 2. Build with `.\build.ps1 -SkipSelfHosted`
-3. Make changes in `src/*.kr`
+3. Make changes in `src/*.kn`
 4. Run tests with `.\build.ps1 -Target test`
 5. Submit a pull request
 
@@ -777,7 +777,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Support & Funding
 
-Funding for a future 3D DCC along with future development of Kore-Lang. At the moment, I am completely broke and have no funds for the infrastructure of my in progress DCC and kore-lang.
+Funding for a future 3D DCC along with future development of KAIN-Lang. At the moment, I am completely broke and have no funds for the infrastructure of my in progress DCC and KAIN-lang.
 
 **Support via Ko-fi**: [ko-fi.com/kgreeble](https://ko-fi.com/kgreeble)
 

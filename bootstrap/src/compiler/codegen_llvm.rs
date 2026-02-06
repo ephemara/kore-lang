@@ -1,5 +1,5 @@
 // ============================================================================
-// KORE Bootstrap Compiler - LLVM IR Code Generator (Rust)
+// KAIN Bootstrap Compiler - LLVM IR Code Generator (Rust)
 // ============================================================================
 // Migrated to Inkwell (Safe LLVM Bindings)
 // ============================================================================
@@ -26,8 +26,8 @@ const NANBOX_QNAN: u64 = 0xFFF8000000000000;
 const NANBOX_TAG_SHIFT: u64 = 45;
 const NANBOX_PAYLOAD_MASK: u64 = 0x00001FFFFFFFFFFF;
 
-const KORE_TAG_PTR: u64 = 0;
-const KORE_TAG_INT: u64 = 1;
+const KAIN_TAG_PTR: u64 = 0;
+const KAIN_TAG_INT: u64 = 1;
 
 // =============================================================================
 // LLVM Code Generator
@@ -109,7 +109,7 @@ impl<'ctx> LLVMGen<'ctx> {
     fn box_int(&self, val: IntValue<'ctx>) -> IntValue<'ctx> {
         let payload_mask = self.i64_type.const_int(NANBOX_PAYLOAD_MASK, false);
         let tag_shift = self.i64_type.const_int(NANBOX_TAG_SHIFT, false);
-        let tag = self.i64_type.const_int(KORE_TAG_INT, false);
+        let tag = self.i64_type.const_int(KAIN_TAG_INT, false);
         let qnan = self.i64_type.const_int(NANBOX_QNAN, false);
         
         let masked = self.builder.build_and(val, payload_mask, "box_int_mask").unwrap();
@@ -132,16 +132,16 @@ impl<'ctx> LLVMGen<'ctx> {
 
     fn box_string(&self, ptr: PointerValue<'ctx>) -> IntValue<'ctx> {
         // String boxing: QNAN | (TAG_STR << 45) | (ptr >> 3)
-        // This matches the runtime's KORE_BOX_STR macro
+        // This matches the runtime's KAIN_BOX_STR macro
         let ptr_as_int = self.builder.build_ptr_to_int(ptr, self.i64_type, "ptr_to_int").unwrap();
 
         // Shift pointer right by 3 (pointer compression for 45-bit address space)
         let shift_amount = self.i64_type.const_int(3, false);
         let ptr_shifted = self.builder.build_right_shift(ptr_as_int, shift_amount, false, "ptr_shr_3").unwrap();
 
-        // Create tag: (KORE_TAG_STR << 45)
-        const KORE_TAG_STR: u64 = 4;
-        let tag = self.i64_type.const_int(KORE_TAG_STR, false);
+        // Create tag: (KAIN_TAG_STR << 45)
+        const KAIN_TAG_STR: u64 = 4;
+        let tag = self.i64_type.const_int(KAIN_TAG_STR, false);
         let tag_shift = self.i64_type.const_int(NANBOX_TAG_SHIFT, false);
         let shifted_tag = self.builder.build_left_shift(tag, tag_shift, "tag_shift").unwrap();
 
@@ -244,7 +244,7 @@ impl<'ctx> LLVMGen<'ctx> {
                 Item::Function(def) => {
                     // Free function prototype
                     let mut name = def.name.clone();
-                    if name == "main" { name = "main_kore".to_string(); }
+                    if name == "main" { name = "main_KAIN".to_string(); }
                     let mut param_types: Vec<BasicMetadataTypeEnum> = Vec::new();
                     for p in &def.params {
                         if let Some(ty) = &p.ty {
@@ -362,37 +362,37 @@ impl<'ctx> LLVMGen<'ctx> {
         
         // (i64, i64) -> i64 functions
         let ii_i = i64_type.fn_type(&[i64_type.into(), i64_type.into()], false);
-        let builtins = ["kore_add_op", "kore_sub_op", "kore_mul_op", "kore_div_op", "kore_rem_op",
-                        "kore_eq_op", "kore_neq_op", "kore_lt_op", "kore_le_op", "kore_str_concat_boxed",
-                        "kore_gt_op", "kore_ge_op", "kore_contains", "kore_str_eq", "kore_array_get",
-                        "kore_map_get", "kore_array_push"];
+        let builtins = ["KAIN_add_op", "KAIN_sub_op", "KAIN_mul_op", "KAIN_div_op", "KAIN_rem_op",
+                        "KAIN_eq_op", "KAIN_neq_op", "KAIN_lt_op", "KAIN_le_op", "KAIN_str_concat_boxed",
+                        "KAIN_gt_op", "KAIN_ge_op", "KAIN_contains", "KAIN_str_eq", "KAIN_array_get",
+                        "KAIN_map_get", "KAIN_array_push"];
         for name in builtins {
             self.module.add_function(name, ii_i, None);
         }
         
         // (i64, i64, i64) -> i64 functions  
         let iii_i = i64_type.fn_type(&[i64_type.into(), i64_type.into(), i64_type.into()], false);
-        self.module.add_function("kore_substring", iii_i, None);
-        self.module.add_function("kore_map_set", iii_i, None);
+        self.module.add_function("KAIN_substring", iii_i, None);
+        self.module.add_function("KAIN_map_set", iii_i, None);
         
         // i64 -> i64 functions
         let i_i = i64_type.fn_type(&[i64_type.into()], false);
-        self.module.add_function("kore_to_string", i_i, None);
-        self.module.add_function("kore_str_len", i_i, None);
-        self.module.add_function("kore_array_len", i_i, None);
-        self.module.add_function("kore_array_pop", i_i, None);
-        self.module.add_function("kore_unbox_any_ptr", ptr_i8_type.fn_type(&[i64_type.into()], false), None);
-        self.module.add_function("kore_is_string", i_i, None);
-        self.module.add_function("kore_is_ptr", i_i, None);
+        self.module.add_function("KAIN_to_string", i_i, None);
+        self.module.add_function("KAIN_str_len", i_i, None);
+        self.module.add_function("KAIN_array_len", i_i, None);
+        self.module.add_function("KAIN_array_pop", i_i, None);
+        self.module.add_function("KAIN_unbox_any_ptr", ptr_i8_type.fn_type(&[i64_type.into()], false), None);
+        self.module.add_function("KAIN_is_string", i_i, None);
+        self.module.add_function("KAIN_is_ptr", i_i, None);
 
         // Trace functions
         let trace_enter_ty = void_type.fn_type(&[ptr_i8_type.into(), ptr_i8_type.into(), i64_type.into()], false);
-        self.module.add_function("kore_trace_enter", trace_enter_ty, None);
+        self.module.add_function("KAIN_trace_enter", trace_enter_ty, None);
         
         let trace_exit_ty = void_type.fn_type(&[], false);
-        self.module.add_function("kore_trace_exit", trace_exit_ty, None);
-        let unary_builtins = ["kore_array_new", "kore_str_len", "kore_to_string", "kore_is_truthy", 
-                               "exit", "kore_array_len"];
+        self.module.add_function("KAIN_trace_exit", trace_exit_ty, None);
+        let unary_builtins = ["KAIN_array_new", "KAIN_str_len", "KAIN_to_string", "KAIN_is_truthy", 
+                               "exit", "KAIN_array_len"];
         for name in unary_builtins {
             self.module.add_function(name, i_i, None);
         }
@@ -402,8 +402,8 @@ impl<'ctx> LLVMGen<'ctx> {
         self.module.add_function("args", v_i, None);
         
         let i_v = i64_type.fn_type(&[i64_type.into()], false);
-        self.module.add_function("kore_print_str", i_v, None);
-        self.module.add_function("kore_println_str", i_v, None);
+        self.module.add_function("KAIN_print_str", i_v, None);
+        self.module.add_function("KAIN_println_str", i_v, None);
     }
 
     
@@ -448,7 +448,7 @@ impl<'ctx> LLVMGen<'ctx> {
         
         let mut name = def.name.clone();
         eprintln!("DEBUG: gen_function enter: {} (body_len={})", name, def.body.len());
-        if name == "main" { name = "main_kore".to_string(); }
+        if name == "main" { name = "main_KAIN".to_string(); }
 
         // FIXED: Handle struct parameters by reference, others by value
         let mut param_types = vec![];
@@ -512,11 +512,11 @@ impl<'ctx> LLVMGen<'ctx> {
         
         // TRACE ENTER
         eprintln!("DEBUG: gen_function before trace_enter");
-        let trace_enter = self.module.get_function("kore_trace_enter").unwrap();
+        let trace_enter = self.module.get_function("KAIN_trace_enter").unwrap();
         let name_global = format!("func_name_{}", name);
         let file_global = format!("file_name_{}", name);
         let name_str = self.builder.build_global_string_ptr(&name, &name_global).unwrap().as_pointer_value();
-        let file_str = self.builder.build_global_string_ptr("unknown.kr", &file_global).unwrap().as_pointer_value();
+        let file_str = self.builder.build_global_string_ptr("unknown.kn", &file_global).unwrap().as_pointer_value();
         let line_val = self.i64_type.const_int(0, false);
         let _ = self.builder.build_call(trace_enter, &[name_str.into(), file_str.into(), line_val.into()], "").unwrap();
         eprintln!("DEBUG: gen_function after trace_enter");
@@ -597,7 +597,7 @@ impl<'ctx> LLVMGen<'ctx> {
         eprintln!("DEBUG: gen_function end body");
         
         if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
-            let trace_exit = self.module.get_function("kore_trace_exit").unwrap();
+            let trace_exit = self.module.get_function("KAIN_trace_exit").unwrap();
             self.builder.build_call(trace_exit, &[], "").unwrap();
             self.builder.build_return(Some(&self.i64_type.const_int(0, false))).unwrap();
         }
@@ -622,10 +622,10 @@ impl<'ctx> LLVMGen<'ctx> {
                  
                  // DEBUG-LET logging disabled - produces 247K+ lines of output
                  // Uncomment to trace variable assignments:
-                 // let debug_fn = self.module.get_function("kore_debug_log_var").unwrap_or_else(|| {
+                 // let debug_fn = self.module.get_function("KAIN_debug_log_var").unwrap_or_else(|| {
                  //     let i8_ptr = self.context.ptr_type(AddressSpace::default());
                  //     let fn_type = self.void_type.fn_type(&[i8_ptr.into(), self.i64_type.into()], false);
-                 //     self.module.add_function("kore_debug_log_var", fn_type, None)
+                 //     self.module.add_function("KAIN_debug_log_var", fn_type, None)
                  // });
                  // let name_str = self.builder.build_global_string_ptr(&name, "var_name").unwrap().as_pointer_value();
                  // self.builder.build_call(debug_fn, &[name_str.into(), val.into()], "").unwrap();
@@ -680,7 +680,7 @@ impl<'ctx> LLVMGen<'ctx> {
                  } else {
                     self.i64_type.const_int(0, false)
                  };
-                 let trace_exit = self.module.get_function("kore_trace_exit").unwrap();
+                 let trace_exit = self.module.get_function("KAIN_trace_exit").unwrap();
                  self.builder.build_call(trace_exit, &[], "").unwrap();
                  self.builder.build_return(Some(&val)).unwrap();
             },
@@ -690,7 +690,7 @@ impl<'ctx> LLVMGen<'ctx> {
             Stmt::If(cond, then_block, else_block_opt) => {
                  let cond_val = self.gen_expr(cond);
                  let zero = self.i64_type.const_int(0, false);
-                 let is_truthy = self.module.get_function("kore_is_truthy").unwrap(); let truthy_val = self.builder.build_call(is_truthy, &[cond_val.into()], "if_truthy").unwrap().try_as_basic_value().unwrap_basic().into_int_value(); let is_true = self.builder.build_int_compare(IntPredicate::NE, truthy_val, zero, "ifcond").unwrap();
+                 let is_truthy = self.module.get_function("KAIN_is_truthy").unwrap(); let truthy_val = self.builder.build_call(is_truthy, &[cond_val.into()], "if_truthy").unwrap().try_as_basic_value().unwrap_basic().into_int_value(); let is_true = self.builder.build_int_compare(IntPredicate::NE, truthy_val, zero, "ifcond").unwrap();
                  
                  let parent = self.builder.get_insert_block().unwrap().get_parent().unwrap();
                  let then_bb = self.context.append_basic_block(parent, "then");
@@ -726,7 +726,7 @@ impl<'ctx> LLVMGen<'ctx> {
                  self.builder.position_at_end(cond_bb);
                  let cond_val = self.gen_expr(cond);
                  let zero = self.i64_type.const_int(0, false);
-                 let is_truthy = self.module.get_function("kore_is_truthy").unwrap(); let truthy_val = self.builder.build_call(is_truthy, &[cond_val.into()], "while_truthy").unwrap().try_as_basic_value().unwrap_basic().into_int_value(); let is_true = self.builder.build_int_compare(IntPredicate::NE, truthy_val, zero, "whilecheck").unwrap();
+                 let is_truthy = self.module.get_function("KAIN_is_truthy").unwrap(); let truthy_val = self.builder.build_call(is_truthy, &[cond_val.into()], "while_truthy").unwrap().try_as_basic_value().unwrap_basic().into_int_value(); let is_true = self.builder.build_int_compare(IntPredicate::NE, truthy_val, zero, "whilecheck").unwrap();
                  self.builder.build_conditional_branch(is_true, body_bb, end_bb).unwrap();
                  
                  self.builder.position_at_end(body_bb);
@@ -771,7 +771,7 @@ impl<'ctx> LLVMGen<'ctx> {
                  self.builder.build_store(iter_alloca, iter_val).unwrap();
                  
                  // Get len
-                 let len_fn = self.module.get_function("kore_array_len").unwrap(); // Runtime must have this
+                 let len_fn = self.module.get_function("KAIN_array_len").unwrap(); // Runtime must have this
                  let len_val = self.builder.build_call(len_fn, &[iter_val.into()], "len").unwrap().try_as_basic_value().unwrap_basic().into_int_value();
                  let len_alloca = self.builder.build_alloca(self.i64_type, len_var).unwrap();
                  self.builder.build_store(len_alloca, len_val).unwrap();
@@ -795,13 +795,13 @@ impl<'ctx> LLVMGen<'ctx> {
                  let curr_idx = self.builder.build_load(self.i64_type, idx_alloca, "curr_idx").unwrap().into_int_value();
                  let curr_len = self.builder.build_load(self.i64_type, len_alloca, "curr_len").unwrap().into_int_value();
                  
-                 // Unbox for comparison? Or use kore_lt_op?
+                 // Unbox for comparison? Or use KAIN_lt_op?
                  // Array len returns raw int? No, core runtime functions return boxed/values usually.
-                 // Wait, kore_array_len returns raw int? No, it returns Value (boxed).
-                 // Use kore_lt_op
-                 let lt_fn = self.module.get_function("kore_lt_op").unwrap();
+                 // Wait, KAIN_array_len returns raw int? No, it returns Value (boxed).
+                 // Use KAIN_lt_op
+                 let lt_fn = self.module.get_function("KAIN_lt_op").unwrap();
                  let lt_res = self.builder.build_call(lt_fn, &[curr_idx.into(), curr_len.into()], "lt").unwrap().try_as_basic_value().unwrap_basic().into_int_value();
-                 let is_truthy_fn = self.module.get_function("kore_is_truthy").unwrap();
+                 let is_truthy_fn = self.module.get_function("KAIN_is_truthy").unwrap();
                  let is_true_val = self.builder.build_call(is_truthy_fn, &[lt_res.into()], "truthy").unwrap().try_as_basic_value().unwrap_basic().into_int_value();
                  
                  let zero_raw = self.i64_type.const_int(0, false);
@@ -814,7 +814,7 @@ impl<'ctx> LLVMGen<'ctx> {
                  self.loop_stack.push((cond_bb, end_bb));
                  
                  // let var = iter[i]
-                 let get_fn = self.module.get_function("kore_array_get").unwrap();
+                 let get_fn = self.module.get_function("KAIN_array_get").unwrap();
                  let elem_val = self.builder.build_call(get_fn, &[iter_val.into(), curr_idx.into()], "elem").unwrap().try_as_basic_value().unwrap_basic().into_int_value();
                  
                  let var_alloca = self.builder.build_alloca(self.i64_type, &var).unwrap();
@@ -825,7 +825,7 @@ impl<'ctx> LLVMGen<'ctx> {
                  for s in body { self.gen_stmt(s); }
                  
                  // Increment i
-                 let add_fn = self.module.get_function("kore_add_op").unwrap();
+                 let add_fn = self.module.get_function("KAIN_add_op").unwrap();
                  let one = self.box_int(self.i64_type.const_int(1, false));
                  let next_idx = self.builder.build_call(add_fn, &[curr_idx.into(), one.into()], "inc").unwrap().try_as_basic_value().unwrap_basic().into_int_value();
                  self.builder.build_store(idx_alloca, next_idx).unwrap();
@@ -950,7 +950,7 @@ impl<'ctx> LLVMGen<'ctx> {
             Expr::Array(elements) => {
                  let malloc = self.module.get_function("malloc").unwrap();
                  
-                 // 1. Allocate KoreArray header (3 words: data_ptr, len, cap) - RUNTIME ORDER!
+                 // 1. Allocate KAINArray header (3 words: data_ptr, len, cap) - RUNTIME ORDER!
                  let header_size = self.i64_type.const_int(24, false);
                  let header_ptr_i8 = self.builder.build_call(malloc, &[header_size.into()], "arr_header_malloc").unwrap()
                      .try_as_basic_value().unwrap_basic().into_pointer_value();
@@ -1053,21 +1053,21 @@ impl<'ctx> LLVMGen<'ctx> {
             Expr::Call(callee, args) => {
                  let func_name = if let Expr::Ident(name) = *callee { name } else { "".to_string() };
                  
-                 // Map Kore function names to runtime function names
+                 // Map KAIN function names to runtime function names
                  let mapped_name = match func_name.as_str() {
-                     "contains" => "kore_contains",
-                     "str_eq" => "kore_str_eq",
-                     "array_get" => "kore_array_get",
-                     "array_len" => "kore_array_len",
-                     "array_push" => "kore_array_push",
-                     "array_new" => "kore_array_new",
-                     "map_get" => "kore_map_get",
-                     "map_set" => "kore_map_set",
-                     "str_len" => "kore_str_len",
-                     "substring" => "kore_substring",
-                     "to_string" => "kore_to_string",
-                     "println" => "kore_println_str",
-                     "print" => "kore_print_str",
+                     "contains" => "KAIN_contains",
+                     "str_eq" => "KAIN_str_eq",
+                     "array_get" => "KAIN_array_get",
+                     "array_len" => "KAIN_array_len",
+                     "array_push" => "KAIN_array_push",
+                     "array_new" => "KAIN_array_new",
+                     "map_get" => "KAIN_map_get",
+                     "map_set" => "KAIN_map_set",
+                     "str_len" => "KAIN_str_len",
+                     "substring" => "KAIN_substring",
+                     "to_string" => "KAIN_to_string",
+                     "println" => "KAIN_println_str",
+                     "print" => "KAIN_print_str",
                      _ => &func_name
                  };
                  
@@ -1199,8 +1199,8 @@ impl<'ctx> LLVMGen<'ctx> {
                     let l = self.gen_expr(*lhs);
                     let r = self.gen_expr(*rhs);
                     
-                    // Call kore_is_truthy to properly handle NaN-boxed booleans
-                    let is_truthy = self.module.get_function("kore_is_truthy").unwrap();
+                    // Call KAIN_is_truthy to properly handle NaN-boxed booleans
+                    let is_truthy = self.module.get_function("KAIN_is_truthy").unwrap();
                     let l_truthy = self.builder.build_call(is_truthy, &[l.into()], "l_truthy").unwrap()
                         .try_as_basic_value().unwrap_basic().into_int_value();
                     let r_truthy = self.builder.build_call(is_truthy, &[r.into()], "r_truthy").unwrap()
@@ -1239,17 +1239,17 @@ impl<'ctx> LLVMGen<'ctx> {
                     }
                     
                     let func_name = match op.as_str() {
-                        "+" => "kore_add_op",
-                        "-" => "kore_sub_op",
-                        "*" => "kore_mul_op",
-                        "/" => "kore_div_op",
-                        "%" => "kore_rem_op",
-                        "==" => "kore_eq_op",
-                        "!=" => "kore_neq_op",
-                        "<" => "kore_lt_op",
-                        "<=" => "kore_le_op",
-                        ">" => "kore_gt_op",
-                        ">=" => "kore_ge_op",
+                        "+" => "KAIN_add_op",
+                        "-" => "KAIN_sub_op",
+                        "*" => "KAIN_mul_op",
+                        "/" => "KAIN_div_op",
+                        "%" => "KAIN_rem_op",
+                        "==" => "KAIN_eq_op",
+                        "!=" => "KAIN_neq_op",
+                        "<" => "KAIN_lt_op",
+                        "<=" => "KAIN_le_op",
+                        ">" => "KAIN_gt_op",
+                        ">=" => "KAIN_ge_op",
                         _ => "",
                     };
                     
@@ -1319,8 +1319,8 @@ impl<'ctx> LLVMGen<'ctx> {
                 let val = self.gen_expr(*operand);
                 match op.as_str() {
                     "!" => {
-                        // Logical NOT: call kore_is_truthy, then compare result == 0
-                        let is_truthy = self.module.get_function("kore_is_truthy").unwrap();
+                        // Logical NOT: call KAIN_is_truthy, then compare result == 0
+                        let is_truthy = self.module.get_function("KAIN_is_truthy").unwrap();
                         let truthy_val = self.builder.build_call(is_truthy, &[val.into()], "truthy").unwrap()
                             .try_as_basic_value().unwrap_basic().into_int_value();
                         let zero = self.i64_type.const_int(0, false);
@@ -1336,10 +1336,10 @@ impl<'ctx> LLVMGen<'ctx> {
                 }
             },
             Expr::Index(array, index) => {
-                // Array indexing: arr[i] => kore_array_get(arr, i)
+                // Array indexing: arr[i] => KAIN_array_get(arr, i)
                 let arr_val = self.gen_expr(*array);
                 let idx_val = self.gen_expr(*index);
-                if let Some(f) = self.module.get_function("kore_array_get") {
+                if let Some(f) = self.module.get_function("KAIN_array_get") {
                     let call = self.builder.build_call(f, &[arr_val.into(), idx_val.into()], "array_get").unwrap();
                     match call.try_as_basic_value().basic() {
                         Some(val) => val.into_int_value(),

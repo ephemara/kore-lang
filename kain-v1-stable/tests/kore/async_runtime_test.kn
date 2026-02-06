@@ -1,0 +1,69 @@
+// KAIN Async Runtime Test 
+// Tests the block_on executor and async/await functionality 
+
+// Simple async function that returns immediately 
+async fn immediate() -> Int: 
+    return 42 
+
+// Async function that simulates some work 
+async fn compute(x: Int) -> Int: 
+    let result = x * 2 
+    return result 
+
+// Async function with multiple steps 
+async fn multi_step(a: Int, b: Int) -> Int: 
+    let first = await compute(a) 
+    let second = await compute(b) 
+    return first + second 
+
+// Test Poll enum creation 
+fn test_poll(): 
+    let ready = Poll::Ready(100) 
+    let pending = Poll::Pending 
+    
+    println("Ready value: ", ready) 
+    println("Pending value: ", pending) 
+    
+    // Test is_ready and is_pending 
+    println("is_ready(ready): ", is_ready(ready)) 
+    println("is_pending(pending): ", is_pending(pending)) 
+    
+    // Test unwrap_ready 
+    println("unwrap_ready(ready): ", unwrap_ready(ready)) 
+
+// Test block_on executor 
+fn test_block_on(): 
+    println("\n=== Testing block_on ===") 
+    
+    // Test with immediate value (not a future) 
+    let result1 = block_on(42) 
+    println("block_on(42) = ", result1) 
+    
+    // Test with a simple async function 
+    let future = immediate() 
+    println("Created future: ", future) 
+    
+    let result2 = block_on(future) 
+    println("block_on(immediate()) = ", result2) 
+
+// Test await in async context 
+fn test_await(): 
+    println("\n=== Testing await ===") 
+    
+    // Simple await 
+    let val = await compute(10) 
+    println("await compute(10) = ", val) 
+    
+    // Chained awaits 
+    let chained = await multi_step(5, 3) 
+    println("await multi_step(5, 3) = ", chained) 
+
+// Main entry point 
+fn main(): 
+    println(" KAIN Async Runtime Test\n") 
+    
+    test_poll() 
+    test_block_on() 
+    test_await() 
+    
+    println("\n All async tests completed!")

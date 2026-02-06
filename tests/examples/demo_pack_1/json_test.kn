@@ -1,0 +1,29 @@
+fn main() with IO:
+    println(" KAIN JSON Test")
+    
+    # 1. Parse JSON
+    let input = "{\"name\": \"KIP\", \"levels\": [1, 2, 3], \"active\": true}"
+    println(f"Input: {input}")
+    
+    let db = json_parse(input)
+    println(f"Parsed type: {type_of(db)}")
+    println(f"Name: {db.name}")
+    println(f"Active: {db.active}")
+    println(f"Level 2: {db.levels[1]}")
+    
+    # 2. Modify and Stringify
+    db.name = "SUPER KIP"
+    push(db.levels, 9000)
+    
+    let output = json_string(db)
+    println(f"Output: {output}")
+    
+    # 3. HTTP + JSON Integration
+    println("\n Fetching Real JSON...")
+    let resp = http_get("https://httpbin.org/json")
+    let data = json_parse(resp)
+    
+    println("Slideshow Title: " + data.slideshow.title)
+    println("Author: " + data.slideshow.author)
+    
+    println("\n JSON Module Operational")

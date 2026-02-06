@@ -1,0 +1,28 @@
+// Quick lexer compile test
+use compiler/lexer
+use compiler/parser  
+use compiler/codegen_rust
+
+fn main():
+    println("Compiling lexer.kn to Rust...")
+    
+    let source = read_file("src/compiler/lexer.kn")
+    println("Read " + str(len(source)) + " bytes")
+    
+    let lex = Lexer::new(source)
+    let tokens = lex.tokenize()
+    println("Tokenized: " + str(len(tokens)) + " tokens")
+    
+    let parser = Parser::new(tokens)
+    let program = parser.parse_program()
+    println("Parsed: " + str(len(program.items)) + " items")
+    
+    let gen = RustGen::new()
+    let rust = gen.gen_program(program)
+    println("Generated Rust code length: " + str(len(rust)) + " chars")
+    
+    // Write to file
+    write_file("output_bootstrap/src/compiler/lexer.rs", rust)
+    println("Wrote to output_bootstrap/src/compiler/lexer.rs")
+    
+    println("Done!")

@@ -1,0 +1,379 @@
+// ============================================================================
+// KAIN Compiler - Main Entry Point
+// ============================================================================
+// Project Ouroboros - The Self-Hosted Compiler
+//
+// This is the main compiler driver.
+// It orchestrates lexing, parsing, and code generation.
+// ============================================================================
+
+// use std/io
+// use std/fs
+// use std/env
+// use std/collections
+
+use types
+use diagnostic
+use resolver
+
+// =============================================================================
+// Compiler Stats - For Debugging
+// =============================================================================
+
+struct CompilerStats:
+    bytes_read: Int
+    token_count: Int
+    item_count: Int
+    bytes_generated: Int
+
+fn print_phase(phase: String, status: String, detail: String) -> Unit:
+    // Format: [PHASE:NAME] STATUS detail
+    // This is machine-parseable by build.ps1
+    println("[PHASE:" + phase + "] " + status + " " + detail)
+
+fn print_stat(name: String, value: Int) -> Unit:
+    // Format: [STAT:NAME] value
+    println("[STAT:" + name + "] " + to_string(value))
+
+fn print_report_error(phase: String, message: String) -> Unit:
+    // Format: [ERROR:PHASE] message
+    println("[ERROR:" + phase + "] " + message)
+
+// =============================================================================
+// Path Utilities
+// =============================================================================
+
+struct Path:
+    path: String
+
+impl Path:
+    pub fn new(path: String) -> Path:
+        return Path { path: path }
+    
+    pub fn with_extension(self, ext: String) -> String:
+        // Simple implementation: remove last extension if present, add new one
+        let p = self.path
+        return p + "." + ext
+        
+    pub fn parent(self) -> String:
+        let s = self.path
+        let len = str_len(s)
+        let i = len - 1
+        while i >= 0:
+            let c = substring(s, i, i+1)
+            if str_eq(c, "/") || str_eq(c, "\\"):
+                if i == 0:
+                    return "/"
+                return substring(s, 0, i)
+            i = i - 1
+        return "."
+        
+    pub fn stem(self) -> String:
+        return "project" // TODO: Implement properly
+
+
+// =============================================================================
+// Module Resolution
+// =============================================================================
+
+fn resolve_modules(file_path: String, stats: CompilerStats) -> Array<Item>:
+        let root = "."
+        let ir = ImportResolver::new(root)
+        return ir.resolve_all(file_path)
+
+// =============================================================================
+// Argument Parsing
+// =============================================================================
+
+struct ArgParser:
+    args: Array<String>
+
+impl ArgParser:
+    pub fn new() -> ArgParser:
+        let a = args()
+        println("DEBUG: ArgParser::new, args len=" + to_string(array_len(a)))
+        return ArgParser { args: a }
+    
+    pub fn get_value(self, flag: String) -> Option<String>:
+        println("DEBUG: get_value for " + flag)
+        let i = 0
+        let len = array_len(self.args)
+        while i < len:
+            if str_eq(self.args[i], flag):
+                let next_idx = i + 1
+                if next_idx < len:
+                    return Option::Some(self.args[next_idx])
+            i = i + 1
+        return Option::None
+
+    
+    pub fn has_flag(self, flag: String) -> Bool:
+        let i = 0
+        let len = array_len(self.args)
+        while i < len:
+            if str_eq(self.args[i], flag):
+                return true
+            i = i + 1
+        return false
+    
+    pub fn get_path(self) -> Option<String>:
+        let i = 1
+        let len = array_len(self.args)
+        println("DEBUG: get_path loop start, len=" + to_string(len))
+        while i < len:
+            let arg = self.args[i]
+            let first = substring(arg, 0, 1)
+            println("DEBUG: checking arg=" + arg + " (first=" + first + ")")
+            if !str_eq(first, "-"):
+                let prev_idx = i - 1
+                let prev = self.args[prev_idx]
+                println("DEBUG: prev=" + prev)
+                println("DEBUG: about to check str_eq condition")
+                if !str_eq(prev, "-o") && !str_eq(prev, "--target"):
+                    println("DEBUG: inside str_eq condition")
+                    println("DEBUG: found path=" + arg)
+                    return Option::Some(arg)
+                println("DEBUG: after str_eq condition")
+            i = i + 1
+        
+        println("DEBUG: get_path returning None")
+        return Option::None
+
+
+
+
+
+// =============================================================================
+// Compiler Configuration
+// =============================================================================
+
+enum Target:
+    LLVM
+    Rust
+    WASM
+
+struct CompilerConfig:
+    input_file: String
+    output_file: Option<String>
+    compile_target: Target
+    verbose: Bool
+    stats: Bool
+
+impl CompilerConfig:
+    pub fn from_args() -> CompilerConfig:
+        let parser = ArgParser::new()
+        
+        let output = parser.get_value("-o")
+        let verbose = parser.has_flag("--verbose") || parser.has_flag("-v")
+        let show_stats = parser.has_flag("--stats") || parser.has_flag("-s")
+        
+        let input = ""
+        let input_opt = parser.get_path()
+        println("DEBUG: input_opt=" + to_string(input_opt))
+        // Option::None is 0, Option::Some is the value itself (non-zero)
+        if input_opt != 0:
+            // For Some variant, the value is already the string (no masking needed)
+            input = input_opt
+            println("DEBUG: detected input=" + input)
+        else:
+            let raw_args = parser.args
+            let args_len = array_len(raw_args)
+            if args_len > 1:
+                    let arg1 = raw_args[1]
+                    if !str_eq(substring(arg1, 0, 1), "-"):
+                        input = arg1
+                    else:
+                        print_report_error("ARGS", "No input file specified")
+                        exit(1)
+            else:
+                print_report_error("ARGS", "No input file specified")
+                exit(1)
+        
+        let target = Target::LLVM
+        let target_opt = parser.get_value("--target")
+        # Option::None is 0, Option::Some is the value itself
+        if target_opt != 0:
+            let t = target_opt
+            if str_eq(t, "rust"):
+                target = Target::Rust
+            else if str_eq(t, "wasm"):
+                target = Target::WASM
+            else:
+                target = Target::LLVM
+        
+        let config = CompilerConfig {
+            input_file: input,
+            output_file: output,
+            compile_target: target,
+            verbose: verbose,
+            stats: show_stats
+        }
+        return config
+
+// =============================================================================
+// Compiler Driver
+// =============================================================================
+
+struct Compiler:
+    config: CompilerConfig
+    stats: CompilerStats
+
+impl Compiler:
+    pub fn new(config: CompilerConfig) -> Compiler:
+        let stats = CompilerStats {
+            bytes_read: 0,
+            token_count: 0,
+            item_count: 0,
+            bytes_generated: 0
+        }
+        return Compiler { config: config, stats: stats }
+    
+    /// Run the full compilation pipeline
+    pub fn compile(self) -> Bool:
+        println("DEBUG: Inside compile() method!")
+        println("[COMPILER:START] KAIN Compiler (Ouroboros)")
+        println("DEBUG: About to check input_file length")
+        // Input validation
+        let input_len = str_len(self.config.input_file)
+        println("DEBUG: input_file length = " + to_string(input_len))
+        if input_len == 0:
+            print_report_error("ARGS", "Empty input file path")
+            return false
+            
+        println("[COMPILER:INPUT] " + self.config.input_file)
+        
+        println("DEBUG: calling resolve_modules")
+        // 1. Resolve modules (Read + Parse recursively)
+        let items = resolve_modules(self.config.input_file, self.stats)
+        println("DEBUG: resolve_modules returned")
+        
+        // Construct program from all items
+        let program = Program { items: items, span: Span::empty() }
+        
+        let total_items = array_len(program.items)
+        print_phase("RESOLVE", "DONE", str(total_items) + " total items collected")
+        
+        // 2. Generate code based on target
+        let output_code = ""
+        let output_ext = ""
+        
+        // Match replacement for compile_target
+        let target = self.config.compile_target
+        let target_v = variant_of(target)
+        
+        if str_eq(target_v, "LLVM"):
+             // 1. Type Check
+             print_phase("TYPECHECK", "START", "Resolving types (Functional State Passing)...")
+             let checker = TypeChecker::new()
+             
+             // Functional state passing: check_program returns CheckResult_TypedItems
+             let res = checker.check_program(program.items)
+             checker = res.checker // Update checker state
+             let typed_items = res.items
+             
+             if checker.has_errors():
+                 print_report_error("TYPECHECK", "Type checking failed")
+                 return false
+             
+             let typed_items_count = array_len(typed_items)
+             print_phase("TYPECHECK", "DONE", str(typed_items_count) + " typed items")
+             
+             // 2. Generate LLVM IR (Typed)
+             print_phase("CODEGEN", "START", "LLVM IR (typed)")
+             let gen = CodeGen::new()
+             
+             // Pass typed_items directly - no struct involved
+             output_code = gen.gen_program(typed_items)
+             output_ext = ".ll"
+             
+             let code_len = str_len(output_code)
+             self.stats.bytes_generated = code_len
+             print_phase("CODEGEN", "DONE", str(code_len) + " bytes generated")
+             
+        else if str_eq(target_v, "Rust"):
+             print_report_error("CODEGEN", "Rust backend not available in modular build yet")
+             return false
+             
+        else if str_eq(target_v, "WASM"):
+             print_report_error("CODEGEN", "WASM backend not available")
+             return false
+        
+        // 3. Write output
+        print_phase("WRITE", "START", "")
+        
+        let output_path = ""
+        let out_opt = self.config.output_file
+        let out_v = variant_of(out_opt)
+        
+        if str_eq(out_v, "Some"):
+            output_path = variant_field(out_opt, 0)
+        else:
+            let input_path = Path::new(self.config.input_file)
+            output_path = input_path.with_extension(substring(output_ext, 1, str_len(output_ext)))
+        
+        write_file(output_path, output_code)
+        print_phase("WRITE", "DONE", output_path)
+        
+        // 4. Print stats
+        println("[COMPILER:COMPLETE] " + output_path)
+        print_stat("BYTES_READ", self.stats.bytes_read)
+        print_stat("TOKEN_COUNT", self.stats.token_count)
+        print_stat("ITEM_COUNT", self.stats.item_count)
+        print_stat("BYTES_GENERATED", self.stats.bytes_generated)
+        
+        return true
+
+// =============================================================================
+// Main Entry Point
+// =============================================================================
+
+fn main():
+    println("DEBUG: Entering main")
+    let raw_args = args()
+    println("DEBUG: args() called")
+    
+    // Show help if no args
+    let len = array_len(raw_args)
+    println("DEBUG: args length: " + to_string(len))
+    if len < 2:
+        println("DEBUG: no args provided")
+        print_help()
+        exit(0)
+
+    println("DEBUG: checking help flag")
+    // Check for help flag
+    if contains(raw_args, "--help") || contains(raw_args, "-h"):
+        println("DEBUG: help flag found")
+        print_help()
+        exit(0)
+
+    println("DEBUG: parsing config")
+    // Parse config and compile
+    let config = CompilerConfig::from_args()
+    println("DEBUG: creating compiler")
+    let compiler = Compiler::new(config)
+
+    println("DEBUG: starting compilation")
+    if compiler.compile():
+        println("[RESULT:SUCCESS]")
+        exit(0)
+    else:
+        println("[RESULT:FAILURE]")
+        exit(1)
+
+fn print_help():
+    println("KAIN Compiler (Ouroboros) - Self-Hosted Edition")
+    println("")
+    println("USAGE:")
+    println("    kainc <input.kn> [OPTIONS]")
+    println("")
+    println("OPTIONS:")
+    println("    --target <TARGET>   Set compilation target:")
+    println("                        - llvm  : LLVM IR (default)")
+    println("                        - rust  : Rust source code")
+    println("                        - wasm  : WebAssembly")
+    println("    -o <FILE>           Output file path")
+    println("    -v, --verbose       Verbose output")
+    println("    -s, --stats         Show compilation stats")
+    println("    -h, --help          Show this help")
+    println("")

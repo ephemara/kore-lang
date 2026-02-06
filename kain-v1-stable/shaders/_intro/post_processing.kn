@@ -1,0 +1,289 @@
+// ============================================================================
+// KAIN Shader Examples - Post-Processing Stack
+// ============================================================================
+// A complete post-processing pipeline including bloom, chromatic aberration,
+// film grain, vignette, color grading, and temporal anti-aliasing.
+// ============================================================================
+
+// Utility functions
+fn luminance(color: Vec3) -> Float:
+    return dot(color, vec3(0.2126, 0.7152, 0.0722))
+
+fn rgb_to_hsv(rgb: Vec3) -> Vec3:
+    let r = rgb.r
+    let g = rgb.g
+    let b = rgb.b
+    
+    let max_c = max(r, max(g, b))
+    let min_c = min(r, min(g, b))
+    let delta = max_c - min_c
+    
+    var h = 0.0
+    if delta > 0.0001:
+        if max_c == r:
+            h = mod((g - b) / delta, 6.0)
+        else if max_c == g:
+            h = (b - r) / delta + 2.0
+        else:
+            h = (r - g) / delta + 4.0
+        h = h / 6.0
+    
+    let s = if max_c > 0.0001: delta / max_c else: 0.0
+    let v = max_c
+    
+    return vec3(h, s, v)
+
+fn hsv_to_rgb(hsv: Vec3) -> Vec3:
+    let h = hsv.x * 6.0
+    let s = hsv.y
+    let v = hsv.z
+    
+    let c = v * s
+    let x = c * (1.0 - abs(mod(h, 2.0) - 1.0))
+    let m = v - c
+    
+    var rgb = vec3(0.0)
+    if h < 1.0:
+        rgb = vec3(c, x, 0.0)
+    else if h < 2.0:
+        rgb = vec3(x, c, 0.0)
+    else if h < 3.0:
+        rgb = vec3(0.0, c, x)
+    else if h < 4.0:
+        rgb = vec3(0.0, x, c)
+    else if h < 5.0:
+        rgb = vec3(x, 0.0, c)
+    else:
+        rgb = vec3(c, 0.0, x)
+    
+    return rgb + vec3(m)
+
+// Pseudo-random for film grain
+fn random(uv: Vec2) -> Float:
+    return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453)
+
+// Bloom extract pass - isolate bright pixels
+shader fragment BloomExtract(uv: Vec2) -> Vec4:
+    uniform source_texture: Sampler2D @0
+    uniform threshold: Float @1
+    uniform soft_knee: Float @2
+    
+    let color = sample(source_texture, uv).rgb
+    let brightness = luminance(color)
+    
+    // Soft knee threshold
+    let knee = threshold * soft_knee
+    let soft = brightness - threshold + knee
+    let soft_clamped = clamp(soft, 0.0, 2.0 * knee)
+    let contribution = if brightness > threshold - knee:
+        soft_clamped * soft_clamped / (4.0 * knee + 0.00001)
+    else:
+        0.0
+    
+    let extracted = color * contribution / max(brightness, 0.0001)
+    return vec4(extracted, 1.0)
+
+// Gaussian blur pass (separable - run horizontal then vertical)
+shader fragment GaussianBlur(uv: Vec2) -> Vec4:
+    uniform source_texture: Sampler2D @0
+    uniform direction: Vec2 @1          // (1,0) for horizontal, (0,1) for vertical
+    uniform texel_size: Vec2 @2
+    
+    // 9-tap Gaussian kernel
+    let weights = [0.0162162162, 0.0540540541, 0.1216216216, 0.1945945946, 
+                   0.2270270270, 0.1945945946, 0.1216216216, 0.0540540541, 0.0162162162]
+    let offsets = [-4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0]
+    
+    var result = vec3(0.0)
+    
+    for i in range(0, 9):
+        let offset = direction * texel_size * offsets[i]
+        let sample_color = sample(source_texture, uv + offset).rgb
+        result = result + sample_color * weights[i]
+    
+    return vec4(result, 1.0)
+
+// Chromatic aberration
+shader fragment ChromaticAberration(uv: Vec2) -> Vec4:
+    uniform source_texture: Sampler2D @0
+    uniform intensity: Float @1
+    uniform center: Vec2 @2
+    
+    // Direction from center
+    let dir = uv - center
+    let dist = length(dir)
+    let offset = dir * dist * intensity
+    
+    // Sample each channel with offset
+    let r = sample(source_texture, uv + offset).r
+    let g = sample(source_texture, uv).g
+    let b = sample(source_texture, uv - offset).b
+    
+    return vec4(r, g, b, 1.0)
+
+// Film grain
+shader fragment FilmGrain(uv: Vec2) -> Vec4:
+    uniform source_texture: Sampler2D @0
+    uniform time: Float @1
+    uniform intensity: Float @2
+    uniform response: Float @3      // How much dark areas get more grain
+    
+    let color = sample(source_texture, uv).rgb
+    let lum = luminance(color)
+    
+    // Animated noise
+    let noise = random(uv + vec2(time * 0.1, time * 0.07)) * 2.0 - 1.0
+    
+    // More grain in shadows
+    let response_factor = 1.0 + (1.0 - lum) * response
+    let grain = noise * intensity * response_factor
+    
+    let graded = color + vec3(grain)
+    return vec4(clamp(graded, vec3(0.0), vec3(1.0)), 1.0)
+
+// Vignette
+shader fragment Vignette(uv: Vec2) -> Vec4:
+    uniform source_texture: Sampler2D @0
+    uniform intensity: Float @1
+    uniform smoothness: Float @2
+    uniform roundness: Float @3
+    uniform center: Vec2 @4
+    
+    let color = sample(source_texture, uv).rgb
+    
+    // Vignette calculation
+    let dist = length((uv - center) * vec2(1.0, roundness))
+    let vignette = 1.0 - smoothstep(1.0 - smoothness - intensity, 1.0 - smoothness, dist)
+    
+    return vec4(color * vignette, 1.0)
+
+// Color grading with LUT support
+shader fragment ColorGrading(uv: Vec2) -> Vec4:
+    uniform source_texture: Sampler2D @0
+    
+    // Grading parameters
+    uniform exposure: Float @1
+    uniform contrast: Float @2
+    uniform saturation: Float @3
+    uniform temperature: Float @4       // Negative = cool, positive = warm
+    uniform tint: Float @5              // Negative = green, positive = magenta
+    uniform shadows: Vec3 @6
+    uniform midtones: Vec3 @7
+    uniform highlights: Vec3 @8
+    uniform lift: Vec3 @9
+    uniform gamma: Vec3 @10
+    uniform gain: Vec3 @11
+    
+    var color = sample(source_texture, uv).rgb
+    
+    // Exposure
+    color = color * pow(2.0, exposure)
+    
+    // Temperature and tint (white balance approximation)
+    let temp_shift = vec3(temperature * 0.1, 0.0, -temperature * 0.1)
+    let tint_shift = vec3(0.0, -tint * 0.05, tint * 0.05)
+    color = color + temp_shift + tint_shift
+    
+    // Contrast around middle gray (0.18)
+    color = (color - 0.18) * contrast + 0.18
+    
+    // Saturation
+    let lum = luminance(color)
+    color = mix(vec3(lum), color, saturation)
+    
+    // Lift/Gamma/Gain (ASC-CDL style)
+    color = pow(color * gain + lift, 1.0 / gamma)
+    
+    // Three-way color correction (shadows/midtones/highlights)
+    let shadow_weight = 1.0 - smoothstep(0.0, 0.5, lum)
+    let highlight_weight = smoothstep(0.5, 1.0, lum)
+    let midtone_weight = 1.0 - shadow_weight - highlight_weight
+    
+    color = color * (shadows * shadow_weight + midtones * midtone_weight + highlights * highlight_weight)
+    
+    return vec4(clamp(color, vec3(0.0), vec3(1.0)), 1.0)
+
+// ACES Tonemapping
+shader fragment TonemapACES(uv: Vec2) -> Vec4:
+    uniform source_texture: Sampler2D @0
+    uniform exposure: Float @1
+    
+    var color = sample(source_texture, uv).rgb
+    color = color * pow(2.0, exposure)
+    
+    // ACES filmic curve
+    let a = 2.51
+    let b = 0.03
+    let c = 2.43
+    let d = 0.59
+    let e = 0.14
+    
+    let mapped = (color * (a * color + b)) / (color * (c * color + d) + e)
+    
+    return vec4(clamp(mapped, vec3(0.0), vec3(1.0)), 1.0)
+
+// Temporal Anti-Aliasing (TAA)
+shader fragment TemporalAA(uv: Vec2) -> Vec4:
+    uniform current_frame: Sampler2D @0
+    uniform history_buffer: Sampler2D @1
+    uniform velocity_buffer: Sampler2D @2
+    uniform feedback_min: Float @3          // Usually 0.88
+    uniform feedback_max: Float @4          // Usually 0.97
+    
+    // Get motion vector
+    let velocity = sample(velocity_buffer, uv).xy
+    let history_uv = uv - velocity
+    
+    // Sample current and history
+    let current = sample(current_frame, uv).rgb
+    var history = sample(history_buffer, history_uv).rgb
+    
+    // Neighborhood clamping (prevent ghosting)
+    // Sample 3x3 neighborhood of current frame
+    let texel = vec2(1.0) / vec2(1920.0, 1080.0)  // Should be uniform
+    
+    var min_color = current
+    var max_color = current
+    
+    for x in range(-1, 2):
+        for y in range(-1, 2):
+            let offset = vec2(float(x), float(y)) * texel
+            let neighbor = sample(current_frame, uv + offset).rgb
+            min_color = min(min_color, neighbor)
+            max_color = max(max_color, neighbor)
+    
+    // Clamp history to neighborhood
+    history = clamp(history, min_color, max_color)
+    
+    // Dynamic feedback based on velocity
+    let velocity_length = length(velocity)
+    let feedback = mix(feedback_max, feedback_min, saturate(velocity_length * 20.0))
+    
+    // Blend
+    let result = mix(current, history, feedback)
+    
+    return vec4(result, 1.0)
+
+// Final composite pass
+shader fragment FinalComposite(uv: Vec2) -> Vec4:
+    uniform scene_texture: Sampler2D @0
+    uniform bloom_texture: Sampler2D @1
+    uniform bloom_strength: Float @2
+    uniform dithering_enabled: Int @3
+    uniform time: Float @4
+    
+    let scene = sample(scene_texture, uv).rgb
+    let bloom = sample(bloom_texture, uv).rgb
+    
+    // Add bloom
+    var color = scene + bloom * bloom_strength
+    
+    // Dithering to reduce banding (for 8-bit outputs)
+    if dithering_enabled == 1:
+        let noise = random(uv + vec2(time * 0.01, 0.0))
+        color = color + (noise - 0.5) / 255.0
+    
+    // Gamma correction
+    color = pow(color, vec3(1.0 / 2.2))
+    
+    return vec4(clamp(color, vec3(0.0), vec3(1.0)), 1.0)

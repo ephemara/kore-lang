@@ -1,0 +1,47 @@
+// ============================================================================
+// KAIN Bootstrap Generator - Project Ouroboros
+// ============================================================================
+// This generates the self-hosted Kain compiler in Rust.
+// Run: cargo run -- run src/compiler/bootstrap.kn
+// Output: output/src/main.rs + Cargo.toml
+
+use compiler/lexer
+use compiler/parser
+use compiler/codegen_rust
+
+fn main():
+    println("=================================")
+    println(" KAIN BOOTSTRAP GENERATOR ")
+    println("=================================")
+    println("")
+    
+    // Parse the main entry point which will pull in all modules
+    let source = "
+// Generated Kain Bootstrap Compiler
+
+fn main():
+    println(\"Kain Bootstrap Compiler v0.1.0\")
+    println(\"Usage: kainc <file.kn>\")
+"
+    
+    println("[1] Parsing bootstrap source...")
+    let lexer = Lexer::new(source)
+    let tokens = lexer.tokenize()
+    println("    Tokenized: " + str(len(tokens)) + " tokens")
+    
+    let parser = Parser::new(tokens)
+    let program = parser.parse_program()
+    println("    Parsed: " + str(len(program.items)) + " items")
+    
+    println("[2] Generating Rust code...")
+    let gen = RustGen::new()
+    let rust_code = gen.gen_program(program)
+    
+    println("[3] Generated Rust:")
+    println("---")
+    println(rust_code)
+    println("---")
+    
+    println("")
+    println(" Bootstrap generation complete!")
+    println("Next: Copy output to output/src/main.rs and run cargo build")

@@ -13,7 +13,7 @@
 
 # Rust/Cargo (handled per-crate, but catch stragglers)
 /target/
-/kore-v1-stable/target/
+/kain-v1-stable/target/
 /bootstrap/target/
 
 # LLVM/Compiler output

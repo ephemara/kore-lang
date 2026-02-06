@@ -1,0 +1,29 @@
+// Test 05: Functions with parameters and return values
+fn add(a: Int, b: Int) -> Int:
+    return a + b
+
+fn multiply(x: Int, y: Int) -> Int:
+    return x * y
+
+fn greet(name: String) -> String:
+    return "Hello, " + name + "!"
+
+fn factorial(n: Int) -> Int:
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+fn fibonacci(n: Int) -> Int:
+    if n <= 0:
+        return 0
+    if n == 1:
+        return 1
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+fn main():
+    println("add(3, 4) = " + str(add(3, 4)))
+    println("multiply(5, 6) = " + str(multiply(5, 6)))
+    println(greet("Kain"))
+    
+    println("factorial(5) = " + str(factorial(5)))
+    println("fibonacci(10) = " + str(fibonacci(10)))

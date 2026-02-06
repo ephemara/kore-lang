@@ -1,0 +1,750 @@
+// ============================================================================
+// KAIN Code Formatter (kain fmt)
+// ============================================================================
+// Pretty-prints Kain source code with consistent styling.
+// Supports:
+// - Indentation normalization
+// - Line length limits
+// - Spacing around operators
+// - Import sorting
+// - Trailing comma handling
+// ============================================================================
+
+use std/collections
+
+// =============================================================================
+// Formatter Configuration
+// =============================================================================
+
+struct FormatConfig:
+    indent_size: Int           // Spaces per indent level (default: 4)
+    max_line_length: Int       // Maximum line length (default: 100)
+    use_tabs: Bool             // Use tabs instead of spaces
+    trailing_commas: Bool      // Add trailing commas in collections
+    sort_imports: Bool         // Sort use statements alphabetically
+    blank_lines_top_level: Int // Blank lines between top-level items
+    space_after_colon: Bool    // Space after : in type annotations
+    space_around_operators: Bool // Spaces around binary operators
+
+impl FormatConfig:
+    pub fn default() -> FormatConfig:
+        return FormatConfig {
+            indent_size: 4,
+            max_line_length: 100,
+            use_tabs: false,
+            trailing_commas: true,
+            sort_imports: true,
+            blank_lines_top_level: 1,
+            space_after_colon: true,
+            space_around_operators: true
+        }
+    
+    pub fn compact() -> FormatConfig:
+        return FormatConfig {
+            indent_size: 2,
+            max_line_length: 80,
+            use_tabs: false,
+            trailing_commas: false,
+            sort_imports: true,
+            blank_lines_top_level: 0,
+            space_after_colon: true,
+            space_around_operators: true
+        }
+
+// =============================================================================
+// Formatter State
+// =============================================================================
+
+struct Formatter:
+    config: FormatConfig
+    output: Array<String>
+    indent_level: Int
+    current_line: String
+    current_line_len: Int
+
+impl Formatter:
+    pub fn new(config: FormatConfig) -> Formatter:
+        return Formatter {
+            config: config,
+            output: [],
+            indent_level: 0,
+            current_line: "",
+            current_line_len: 0
+        }
+    
+    // =========================================================================
+    // Output Helpers
+    // =========================================================================
+    
+    fn indent_str(self) -> String:
+        if self.config.use_tabs:
+            var s = ""
+            for i in range(0, self.indent_level):
+                s = s + "\t"
+            return s
+        else:
+            var s = ""
+            let spaces = self.indent_level * self.config.indent_size
+            for i in range(0, spaces):
+                s = s + " "
+            return s
+    
+    fn emit(self, text: String) -> Unit:
+        self.current_line = self.current_line + text
+        self.current_line_len = self.current_line_len + len(text)
+    
+    fn emit_line(self, text: String) -> Unit:
+        let line = self.indent_str() + self.current_line + text
+        push(self.output, line)
+        self.current_line = ""
+        self.current_line_len = 0
+    
+    fn newline(self) -> Unit:
+        if len(self.current_line) > 0:
+            push(self.output, self.indent_str() + self.current_line)
+        else:
+            push(self.output, "")
+        self.current_line = ""
+        self.current_line_len = 0
+    
+    fn blank_line(self) -> Unit:
+        push(self.output, "")
+    
+    fn push_indent(self) -> Unit:
+        self.indent_level = self.indent_level + 1
+    
+    fn pop_indent(self) -> Unit:
+        if self.indent_level > 0:
+            self.indent_level = self.indent_level - 1
+    
+    // =========================================================================
+    // Program Formatting
+    // =========================================================================
+    
+    pub fn format_program(self, program: Program) -> String:
+        // Collect and sort imports if enabled
+        var uses: Array<Use> = []
+        var other_items: Array<Item> = []
+        
+        for item in program.items:
+            match item:
+                Item::Use(u) => push(uses, u)
+                _ => push(other_items, item)
+        
+        // Sort imports
+        if self.config.sort_imports:
+            uses = self.sort_uses(uses)
+        
+        // Emit imports first
+        for u in uses:
+            self.format_use(u)
+        
+        if len(uses) > 0 and len(other_items) > 0:
+            self.blank_line()
+        
+        // Emit other items
+        var first = true
+        for item in other_items:
+            if !first:
+                for i in range(0, self.config.blank_lines_top_level + 1):
+                    self.blank_line()
+            first = false
+            self.format_item(item)
+        
+        return join(self.output, "\n")
+    
+    fn sort_uses(self, uses: Array<Use>) -> Array<Use>:
+        // Simple bubble sort by path
+        var sorted = uses
+        let n = len(sorted)
+        for i in range(0, n):
+            for j in range(0, n - i - 1):
+                let path_a = join(sorted[j].path, "/")
+                let path_b = join(sorted[j + 1].path, "/")
+                if path_a > path_b:
+                    let tmp = sorted[j]
+                    sorted[j] = sorted[j + 1]
+                    sorted[j + 1] = tmp
+        return sorted
+    
+    fn format_use(self, u: Use) -> Unit:
+        self.emit("use ")
+        self.emit(join(u.path, "/"))
+        self.newline()
+    
+    // =========================================================================
+    // Item Formatting
+    // =========================================================================
+    
+    fn format_item(self, item: Item) -> Unit:
+        match item:
+            Item::Function(f) => self.format_function(f)
+            Item::Struct(s) => self.format_struct(s)
+            Item::Enum(e) => self.format_enum(e)
+            Item::Impl(i) => self.format_impl(i)
+            Item::Const(c) => self.format_const(c)
+            Item::Actor(a) => self.format_actor(a)
+            Item::Component(c) => self.format_component(c)
+            Item::Test(t) => self.format_test(t)
+            _ => pass
+    
+    fn format_function(self, f: FnDef) -> Unit:
+        // Visibility and async
+        if f.is_pub:
+            self.emit("pub ")
+        if f.is_async:
+            self.emit("async ")
+        
+        self.emit("fn ")
+        self.emit(f.name)
+        
+        // Parameters
+        self.emit("(")
+        var first = true
+        for param in f.params:
+            if !first:
+                self.emit(", ")
+            first = false
+            self.format_param(param)
+        self.emit(")")
+        
+        // Return type
+        match f.return_type:
+            Some(ty) =>
+                self.emit(" -> ")
+                self.emit(ty)
+            None => pass
+        
+        // Effects
+        if len(f.effects) > 0:
+            self.emit(" with ")
+            self.emit(join(f.effects, ", "))
+        
+        self.emit(":")
+        self.newline()
+        
+        // Body
+        self.push_indent()
+        for stmt in f.body:
+            self.format_stmt(stmt)
+        self.pop_indent()
+    
+    fn format_param(self, p: Param) -> Unit:
+        if p.is_mut:
+            self.emit("mut ")
+        self.emit(p.name)
+        match p.ty:
+            Some(ty) =>
+                self.emit(":")
+                if self.config.space_after_colon:
+                    self.emit(" ")
+                self.emit(ty)
+            None => pass
+    
+    fn format_struct(self, s: StructDef) -> Unit:
+        if s.is_pub:
+            self.emit("pub ")
+        self.emit("struct ")
+        self.emit(s.name)
+        self.emit(":")
+        self.newline()
+        
+        self.push_indent()
+        for field in s.fields:
+            self.emit(field.name)
+            self.emit(":")
+            if self.config.space_after_colon:
+                self.emit(" ")
+            self.emit(field.ty)
+            self.newline()
+        self.pop_indent()
+    
+    fn format_enum(self, e: EnumDef) -> Unit:
+        if e.is_pub:
+            self.emit("pub ")
+        self.emit("enum ")
+        self.emit(e.name)
+        self.emit(":")
+        self.newline()
+        
+        self.push_indent()
+        for variant in e.variants:
+            self.emit(variant.name)
+            match variant.fields:
+                VariantFields::Unit => pass
+                VariantFields::Tuple(types) =>
+                    self.emit("(")
+                    self.emit(join(types, ", "))
+                    self.emit(")")
+                VariantFields::Struct(fields) =>
+                    self.emit(" { ")
+                    var first = true
+                    for f in fields:
+                        if !first:
+                            self.emit(", ")
+                        first = false
+                        self.emit(f.name)
+                        self.emit(": ")
+                        self.emit(f.ty)
+                    self.emit(" }")
+            self.newline()
+        self.pop_indent()
+    
+    fn format_impl(self, i: ImplDef) -> Unit:
+        self.emit("impl ")
+        self.emit(i.target)
+        self.emit(":")
+        self.newline()
+        
+        self.push_indent()
+        for method in i.methods:
+            self.format_function(method)
+            self.blank_line()
+        self.pop_indent()
+    
+    fn format_const(self, c: ConstDef) -> Unit:
+        if c.is_pub:
+            self.emit("pub ")
+        self.emit("const ")
+        self.emit(c.name)
+        self.emit(":")
+        if self.config.space_after_colon:
+            self.emit(" ")
+        self.emit(c.ty)
+        self.emit(" = ")
+        self.format_expr(c.value)
+        self.newline()
+    
+    fn format_actor(self, a: ActorDef) -> Unit:
+        self.emit("actor ")
+        self.emit(a.name)
+        self.emit(":")
+        self.newline()
+        
+        self.push_indent()
+        // State
+        if len(a.state) > 0:
+            self.emit("state:")
+            self.newline()
+            self.push_indent()
+            for field in a.state:
+                self.emit(field.name)
+                self.emit(": ")
+                self.emit(field.ty)
+                self.newline()
+            self.pop_indent()
+            self.blank_line()
+        
+        // Handlers
+        for handler in a.handlers:
+            self.emit("on ")
+            self.emit(handler.message_type)
+            self.emit(":")
+            self.newline()
+            self.push_indent()
+            for stmt in handler.body:
+                self.format_stmt(stmt)
+            self.pop_indent()
+        self.pop_indent()
+    
+    fn format_component(self, c: ComponentDef) -> Unit:
+        self.emit("component ")
+        self.emit(c.name)
+        self.emit(":")
+        self.newline()
+        
+        self.push_indent()
+        // Props
+        if len(c.props) > 0:
+            self.emit("props:")
+            self.newline()
+            self.push_indent()
+            for prop in c.props:
+                self.emit(prop.name)
+                self.emit(": ")
+                self.emit(prop.ty)
+                self.newline()
+            self.pop_indent()
+        
+        // Render
+        self.emit("render:")
+        self.newline()
+        self.push_indent()
+        self.format_jsx(c.render)
+        self.pop_indent()
+        self.pop_indent()
+    
+    fn format_test(self, t: TestDef) -> Unit:
+        self.emit("test ")
+        self.emit(t.name)
+        self.emit(":")
+        self.newline()
+        
+        self.push_indent()
+        for stmt in t.body:
+            self.format_stmt(stmt)
+        self.pop_indent()
+    
+    // =========================================================================
+    // Statement Formatting
+    // =========================================================================
+    
+    fn format_stmt(self, stmt: Stmt) -> Unit:
+        match stmt:
+            Stmt::Let(name, ty, value) =>
+                self.emit("let ")
+                self.emit(name)
+                match ty:
+                    Some(t) =>
+                        self.emit(": ")
+                        self.emit(t)
+                    None => pass
+                self.emit(" = ")
+                self.format_expr(value)
+                self.newline()
+            
+            Stmt::Var(name, ty, value) =>
+                self.emit("var ")
+                self.emit(name)
+                match ty:
+                    Some(t) =>
+                        self.emit(": ")
+                        self.emit(t)
+                    None => pass
+                self.emit(" = ")
+                self.format_expr(value)
+                self.newline()
+            
+            Stmt::Assign(target, value) =>
+                self.format_expr(target)
+                self.emit(" = ")
+                self.format_expr(value)
+                self.newline()
+            
+            Stmt::Return(Some(expr)) =>
+                self.emit("return ")
+                self.format_expr(expr)
+                self.newline()
+            
+            Stmt::Return(None) =>
+                self.emit("return")
+                self.newline()
+            
+            Stmt::If(cond, then_block, else_block) =>
+                self.emit("if ")
+                self.format_expr(cond)
+                self.emit(":")
+                self.newline()
+                self.push_indent()
+                for s in then_block:
+                    self.format_stmt(s)
+                self.pop_indent()
+                match else_block:
+                    Some(block) =>
+                        self.emit("else:")
+                        self.newline()
+                        self.push_indent()
+                        for s in block:
+                            self.format_stmt(s)
+                        self.pop_indent()
+                    None => pass
+            
+            Stmt::While(cond, body) =>
+                self.emit("while ")
+                self.format_expr(cond)
+                self.emit(":")
+                self.newline()
+                self.push_indent()
+                for s in body:
+                    self.format_stmt(s)
+                self.pop_indent()
+            
+            Stmt::For(var_name, iter, body) =>
+                self.emit("for ")
+                self.emit(var_name)
+                self.emit(" in ")
+                self.format_expr(iter)
+                self.emit(":")
+                self.newline()
+                self.push_indent()
+                for s in body:
+                    self.format_stmt(s)
+                self.pop_indent()
+            
+            Stmt::Loop(body) =>
+                self.emit("loop:")
+                self.newline()
+                self.push_indent()
+                for s in body:
+                    self.format_stmt(s)
+                self.pop_indent()
+            
+            Stmt::Break =>
+                self.emit("break")
+                self.newline()
+            
+            Stmt::Continue =>
+                self.emit("continue")
+                self.newline()
+            
+            Stmt::Expr(expr) =>
+                self.format_expr(expr)
+                self.newline()
+            
+            Stmt::Match(scrutinee, arms) =>
+                self.emit("match ")
+                self.format_expr(scrutinee)
+                self.emit(":")
+                self.newline()
+                self.push_indent()
+                for arm in arms:
+                    self.format_pattern(arm.pattern)
+                    self.emit(" => ")
+                    if len(arm.body) == 1:
+                        match arm.body[0]:
+                            Stmt::Expr(e) => self.format_expr(e)
+                            _ =>
+                                self.newline()
+                                self.push_indent()
+                                for s in arm.body:
+                                    self.format_stmt(s)
+                                self.pop_indent()
+                    else:
+                        self.newline()
+                        self.push_indent()
+                        for s in arm.body:
+                            self.format_stmt(s)
+                        self.pop_indent()
+                    self.newline()
+                self.pop_indent()
+    
+    // =========================================================================
+    // Expression Formatting
+    // =========================================================================
+    
+    fn format_expr(self, expr: Expr) -> Unit:
+        match expr:
+            Expr::Int(n) => self.emit(str(n))
+            Expr::Float(f) => self.emit(str(f))
+            Expr::Bool(true) => self.emit("true")
+            Expr::Bool(false) => self.emit("false")
+            Expr::String(s) => self.emit("\"" + s + "\"")
+            Expr::None => self.emit("None")
+            Expr::Ident(name) => self.emit(name)
+            
+            Expr::Binary(left, op, right) =>
+                self.format_expr(left)
+                if self.config.space_around_operators:
+                    self.emit(" " + op + " ")
+                else:
+                    self.emit(op)
+                self.format_expr(right)
+            
+            Expr::Unary(op, operand) =>
+                self.emit(op)
+                self.format_expr(operand)
+            
+            Expr::Call(callee, args) =>
+                self.format_expr(callee)
+                self.emit("(")
+                var first = true
+                for arg in args:
+                    if !first:
+                        self.emit(", ")
+                    first = false
+                    self.format_expr(arg)
+                self.emit(")")
+            
+            Expr::MethodCall(receiver, method, args) =>
+                self.format_expr(receiver)
+                self.emit(".")
+                self.emit(method)
+                self.emit("(")
+                var first = true
+                for arg in args:
+                    if !first:
+                        self.emit(", ")
+                    first = false
+                    self.format_expr(arg)
+                self.emit(")")
+            
+            Expr::Field(object, field) =>
+                self.format_expr(object)
+                self.emit(".")
+                self.emit(field)
+            
+            Expr::Index(object, index) =>
+                self.format_expr(object)
+                self.emit("[")
+                self.format_expr(index)
+                self.emit("]")
+            
+            Expr::Array(items) =>
+                self.emit("[")
+                var first = true
+                for item in items:
+                    if !first:
+                        self.emit(", ")
+                    first = false
+                    self.format_expr(item)
+                if self.config.trailing_commas and len(items) > 0:
+                    self.emit(",")
+                self.emit("]")
+            
+            Expr::Tuple(items) =>
+                self.emit("(")
+                var first = true
+                for item in items:
+                    if !first:
+                        self.emit(", ")
+                    first = false
+                    self.format_expr(item)
+                self.emit(")")
+            
+            Expr::Struct(name, fields) =>
+                self.emit(name)
+                self.emit(" { ")
+                var first = true
+                for field in fields:
+                    if !first:
+                        self.emit(", ")
+                    first = false
+                    self.emit(field.name)
+                    self.emit(": ")
+                    self.format_expr(field.value)
+                if self.config.trailing_commas and len(fields) > 0:
+                    self.emit(",")
+                self.emit(" }")
+            
+            Expr::EnumVariant(enum_name, variant, args) =>
+                self.emit(enum_name)
+                self.emit("::")
+                self.emit(variant)
+                if len(args) > 0:
+                    self.emit("(")
+                    var first = true
+                    for arg in args:
+                        if !first:
+                            self.emit(", ")
+                        first = false
+                        self.format_expr(arg)
+                    self.emit(")")
+            
+            Expr::Lambda(params, body) =>
+                self.emit("|")
+                var first = true
+                for p in params:
+                    if !first:
+                        self.emit(", ")
+                    first = false
+                    self.emit(p.name)
+                self.emit("| ")
+                self.format_expr(body)
+            
+            Expr::Await(inner) =>
+                self.emit("await ")
+                self.format_expr(inner)
+            
+            _ => self.emit("???")
+    
+    fn format_pattern(self, pattern: Pattern) -> Unit:
+        match pattern:
+            Pattern::Wildcard => self.emit("_")
+            Pattern::Ident(name) => self.emit(name)
+            Pattern::Literal(expr) => self.format_expr(expr)
+            Pattern::Tuple(patterns) =>
+                self.emit("(")
+                var first = true
+                for p in patterns:
+                    if !first:
+                        self.emit(", ")
+                    first = false
+                    self.format_pattern(p)
+                self.emit(")")
+            Pattern::Variant(enum_name, variant, patterns) =>
+                if len(enum_name) > 0:
+                    self.emit(enum_name)
+                    self.emit("::")
+                self.emit(variant)
+                if len(patterns) > 0:
+                    self.emit("(")
+                    var first = true
+                    for p in patterns:
+                        if !first:
+                            self.emit(", ")
+                        first = false
+                        self.format_pattern(p)
+                    self.emit(")")
+            _ => self.emit("???")
+    
+    fn format_jsx(self, node: JSXNode) -> Unit:
+        match node:
+            JSXNode::Element(el) =>
+                self.emit("<")
+                self.emit(el.tag)
+                for attr in el.attributes:
+                    self.emit(" ")
+                    self.emit(attr.name)
+                    self.emit("=")
+                    match attr.value:
+                        JSXAttrValue::String(s) => self.emit("\"" + s + "\"")
+                        JSXAttrValue::Expr(e) =>
+                            self.emit("{")
+                            self.format_expr(e)
+                            self.emit("}")
+                        JSXAttrValue::Bool(true) => pass // boolean shorthand
+                        JSXAttrValue::Bool(false) => self.emit("{false}")
+                self.emit(">")
+                self.newline()
+                self.push_indent()
+                for child in el.children:
+                    self.format_jsx(child)
+                self.pop_indent()
+                self.emit("</")
+                self.emit(el.tag)
+                self.emit(">")
+                self.newline()
+            
+            JSXNode::Text(text) =>
+                self.emit(text)
+                self.newline()
+            
+            JSXNode::Expr(e) =>
+                self.emit("{")
+                self.format_expr(e)
+                self.emit("}")
+                self.newline()
+            
+            JSXNode::Fragment(children) =>
+                self.emit("<>")
+                self.newline()
+                self.push_indent()
+                for child in children:
+                    self.format_jsx(child)
+                self.pop_indent()
+                self.emit("</>")
+                self.newline()
+            
+            _ => pass
+
+// =============================================================================
+// Public API
+// =============================================================================
+
+/// Format a program with default configuration
+pub fn format(program: Program) -> String:
+    let formatter = Formatter::new(FormatConfig::default())
+    return formatter.format_program(program)
+
+/// Format a program with custom configuration
+pub fn format_with_config(program: Program, config: FormatConfig) -> String:
+    let formatter = Formatter::new(config)
+    return formatter.format_program(program)
+
+/// Format source code string (parse -> format -> emit)
+pub fn format_source(source: String) -> Result<String, String>:
+    // Would need to parse first
+    // let tokens = Lexer::new(source).tokenize()?
+    // let program = Parser::new(tokens).parse()?
+    // return Ok(format(program))
+    return Err("format_source requires lexer/parser integration")

@@ -1,0 +1,51 @@
+// KAIN Standard Library: Option<T>
+// Represents an optional value: either Some(value) or None
+
+enum Option<T>:
+    Some(T)
+    None
+
+impl<T> Option<T>:
+    /// Returns true if the option is a Some value
+    fn is_some(self) -> Bool:
+        match self:
+            Option::Some(_) => return true
+            Option::None => return false
+    
+    /// Returns true if the option is None
+    fn is_none(self) -> Bool:
+        match self:
+            Option::Some(_) => return false
+            Option::None => return true
+    
+    /// Unwraps the value, panics if None
+    fn unwrap(self) -> T:
+        match self:
+            Option::Some(v) => return v
+            Option::None => panic("called unwrap() on a None value")
+    
+    /// Returns the contained value or a default
+    fn unwrap_or(self, default: T) -> T:
+        match self:
+            Option::Some(v) => return v
+            Option::None => return default
+    
+    /// Maps an Option<T> to Option<U> by applying a function
+    fn map<U>(self, f: fn(T) -> U) -> Option<U>:
+        match self:
+            Option::Some(v) => return Option::Some(f(v))
+            Option::None => return Option::None
+    
+    /// Returns None if the option is None, otherwise calls f with the value
+    fn and_then<U>(self, f: fn(T) -> Option<U>) -> Option<U>:
+        match self:
+            Option::Some(v) => return f(v)
+            Option::None => return Option::None
+
+/// Helper function to create Some
+fn Some<T>(value: T) -> Option<T>:
+    return Option::Some(value)
+
+/// Helper constant for None
+fn None<T>() -> Option<T>:
+    return Option::None

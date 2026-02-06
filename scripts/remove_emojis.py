@@ -1,5 +1,5 @@
 """
-Emoji Removal Script for KORE Language
+Emoji Removal Script for KAIN Language
 Strips all emoji characters from source files to ensure cross-platform compilation compatibility.
 """
 
@@ -25,7 +25,7 @@ EMOJI_PATTERN = re.compile(
 )
 
 # File extensions to process
-TARGET_EXTENSIONS = {'.kr', '.rs', '.c', '.h', '.cpp', '.hpp', '.md', '.ll', '.txt'}
+TARGET_EXTENSIONS = {'.kn', '.rs', '.c', '.h', '.cpp', '.hpp', '.md', '.ll', '.txt'}
 
 # Directories to skip entirely
 SKIP_DIRS = {'.git', 'node_modules', 'target', '.vs', '__pycache__', 'scripts'}
@@ -115,7 +115,7 @@ def main():
     dry_run = '--dry-run' in sys.argv or '-n' in sys.argv
     
     print("=" * 60)
-    print("KORE Emoji Removal Tool")
+    print("KAIN Emoji Removal Tool")
     print("=" * 60)
     print(f"Root directory: {root.absolute()}")
     print(f"Mode: {'DRY-RUN (no changes will be made)' if dry_run else 'LIVE (files will be modified)'}")

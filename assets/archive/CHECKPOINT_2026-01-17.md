@@ -1,7 +1,7 @@
-# Kore Language Checkpoint — 2026-01-17
+# Kain Language Checkpoint — 2026-01-17
 
 ## Current Status
-- Native compiler builds and links successfully via `build.ps1 -Target native -Verify`, producing `kore_native.exe` and initiating smoke tests.
+- Native compiler builds and links successfully via `build.ps1 -Target native -Verify`, producing `kain_native.exe` and initiating smoke tests.
 - LLVM IR emission is stabilized by writing IR before verification in `bootstrap/src/main.rs`, ensuring artifacts exist even if `module.verify()` fails.
 - Opaque pointer compliance and method `self` handling are implemented in LLVM codegen; extern/builtin prototypes are declared consistently.
 - Lexer v2 string tokenization fixed (passing quote to `lex_string`), eliminating hangs seen in generics-related tests.

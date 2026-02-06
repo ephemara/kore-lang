@@ -1,0 +1,146 @@
+// ============================================================================
+// KAIN Effect System - Track side effects at compile time
+// ============================================================================
+// Ported from legacy_prototype/src/effects.rs
+// Allows tracking and checking of side effects (IO, Async, GPU, etc.)
+// ============================================================================
+
+/// Side effects that functions can have
+enum Effect:
+    Pure       // No side effects
+    IO         // File/Network/Console operations
+    Async      // Can await
+    GPU        // Runs on graphics hardware
+    Reactive   // Triggers UI updates
+    Unsafe     // Breaks safety guarantees
+    Alloc      // Memory allocation
+    Panic      // Can abort
+
+impl Effect:
+    /// Parse effect from string
+    pub fn from_str(s: String) -> Option<Effect>:
+        if s == "Pure":
+            return Some(Effect::Pure)
+        if s == "IO":
+            return Some(Effect::IO)
+        if s == "Async":
+            return Some(Effect::Async)
+        if s == "GPU":
+            return Some(Effect::GPU)
+        if s == "Reactive":
+            return Some(Effect::Reactive)
+        if s == "Unsafe":
+            return Some(Effect::Unsafe)
+        if s == "Alloc":
+            return Some(Effect::Alloc)
+        if s == "Panic":
+            return Some(Effect::Panic)
+        return None
+    
+    /// Convert effect to string
+    pub fn to_str(self) -> String:
+        let v = variant_of(self)
+        return v
+
+/// A set of effects for a function
+struct EffectSet:
+    effect_items: Array<Effect>
+
+impl EffectSet:
+    /// Create an empty effect set
+    pub fn new() -> EffectSet:
+        return EffectSet { effect_items: [] }
+    
+    /// Create a pure effect set
+    pub fn pure() -> EffectSet:
+        let es = EffectSet { effect_items: [] }
+        push(es.effect_items, Effect::Pure)
+        return es
+    
+    /// Add an effect
+    pub fn with(self, e: Effect) -> EffectSet:
+        // Check if already present
+        for existing in self.effect_items:
+            if variant_of(existing) == variant_of(e):
+                return self
+        push(self.effect_items, e)
+        return self
+    
+    /// Check if effect set is pure (no side effects)
+    pub fn is_pure(self) -> Bool:
+        if array_len(self.effect_items) == 0:
+            return true
+        
+        for e in self.effect_items:
+            let v = variant_of(e)
+            if v != "Pure":
+                return false
+        return true
+    
+    /// Check if this effect set can call a function with the given effects
+    pub fn can_call(self, callee: EffectSet) -> Bool:
+        // Pure functions can call anything
+        if callee.is_pure():
+            return true
+        
+        // Pure caller cannot call impure callee
+        if self.is_pure():
+            return false
+        
+        // Unsafe can call anything
+        if self.has(Effect::Unsafe):
+            return true
+        
+        // Check that caller has all effects of callee
+        for e in callee.effect_items:
+            if !self.has(e):
+                return false
+        return true
+    
+    /// Check if effect set contains an effect
+    pub fn has(self, e: Effect) -> Bool:
+        let target = variant_of(e)
+        for existing in self.effect_items:
+            if variant_of(existing) == target:
+                return true
+        return false
+    
+    /// Merge two effect sets
+    pub fn merge(self, other: EffectSet) -> EffectSet:
+        let result = EffectSet { effect_items: [] }
+        for e in self.effect_items:
+            result = result.with(e)
+        for e in other.effect_items:
+            result = result.with(e)
+        return result
+    
+    /// Convert to string for error messages
+    pub fn to_string(self) -> String:
+        if array_len(self.effect_items) == 0:
+            return "{}"
+        
+        let s = "{"
+        let first = true
+        for e in self.effect_items:
+            if !first:
+                s = s + ", "
+            s = s + e.to_str()
+            first = false
+        s = s + "}"
+        return s
+
+/// Check if a call between functions respects effect rules
+pub fn check_effect_call(caller: EffectSet, callee: EffectSet, span: Span) -> KainResult:
+    if !caller.can_call(callee):
+        let msg = "Effect violation: " + caller.to_string() + " cannot call " + callee.to_string()
+        return KainResult::Err(KainError::effect_error(msg, span))
+    return KainResult::Ok(0)
+
+/// Parse effect annotations from function definition
+pub fn parse_effects(annotations: Array<String>) -> EffectSet:
+    let es = EffectSet::new()
+    for ann in annotations:
+        let e_opt = Effect::from_str(ann)
+        if e_opt != None:
+            es = es.with(e_opt)
+    return es

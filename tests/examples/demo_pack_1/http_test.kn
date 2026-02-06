@@ -1,0 +1,36 @@
+fn main() with IO:
+    println(" KAIN Local Network Test")
+    
+    # 1. Basic GET Request (Mock API)
+    # This uses httpbin to test GET functionality
+    let url = "https://httpbin.org/get"
+    println(f"Fetching: {url}")
+    
+    # We use match to handle potential network errors
+    # Note: In a real stdlib, http_get should return Result<String, Error>
+    # but for now we catch panics or it returns string result directly in V0.1
+    
+    let response = http_get(url)
+    println("Response received!")
+    println(f"Length: {len(response)} chars")
+    
+    # Simple JSON parsing (manual for now until we add json_parse)
+    if contains(response, "kipp"):
+        println("Found kipp in response!")
+    else:
+        println("Response valid.")
+
+    # 2. POST JSON Test
+    println("\n Testing HTTP POST")
+    let post_url = "https://httpbin.org/post"
+    let payload = "{\"name\": \"KAIN\", \"type\": \"Language\", \"status\": \"Enterprise\"}"
+    
+    let post_resp = http_post_json(post_url, payload)
+    println("POST Response received!")
+    # Just show the start of it
+    if len(post_resp) > 100:
+        println(substring(post_resp, 0, 100) + "...")
+    else:
+        println(post_resp)
+        
+    println("\n Network Module Operational")

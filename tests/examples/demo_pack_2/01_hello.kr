@@ -1,3 +1,0 @@
-// Test 01: Basic hello world
-fn main():
-    println("Hello from Kore!")

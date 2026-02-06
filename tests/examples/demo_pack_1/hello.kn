@@ -1,0 +1,4 @@
+fn main():
+    println("HELLO FROM KAIN!")
+
+# main()

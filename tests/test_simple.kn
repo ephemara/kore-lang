@@ -1,0 +1,17 @@
+fn main():
+    let s = "tests/hello.kn"
+    let first = substring(s, 0, 1)
+    println("String: " + s)
+    println("First char: " + first)
+    
+    if str_eq(first, "-"):
+        println("Starts with -")
+    else:
+        println("Does NOT start with -")
+    
+    # Test the exact input_file condition
+    let prev = "kain_native.exe"
+    if !str_eq(prev, "-o") && !str_eq(prev, "--target"):
+        println("prev is not -o or --target - PASS")
+    else:
+        println("prev matches -o or --target - FAIL")

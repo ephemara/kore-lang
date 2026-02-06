@@ -1,4 +1,4 @@
-# KORE Language Reference for LLMs
+# KAIN Language Reference for LLMs
 
 > Optimized context for AI code generation. Minimal tokens, maximum understanding.
 
@@ -13,7 +13,7 @@ TYPES:       Int, Float, Bool, String, Array<T>, Map<K,V>, Option<T>, Result<T,E
 
 ## Type Declarations
 
-```kore
+```kain
 struct Name:
     field: Type
     field2: Type = default_value
@@ -37,7 +37,7 @@ impl TraitName for StructName:
 
 ## Functions
 
-```kore
+```kain
 fn name(param: Type, param2: Type) -> ReturnType:
     body
     return value
@@ -55,7 +55,7 @@ async fn async_function() -> Future<Type>:
 
 ## Variables
 
-```kore
+```KAIN
 let immutable: Type = value     // Immutable binding
 var mutable: Type = value       // Mutable binding
 let inferred = value            // Type inference
@@ -63,7 +63,7 @@ let inferred = value            // Type inference
 
 ## Control Flow
 
-```kore
+```kain
 if condition:
     body
 else if other:
@@ -92,7 +92,7 @@ match value:
 
 ## Pattern Matching
 
-```kore
+```kain
 match option:
     Some(x) => x
     None => default
@@ -111,7 +111,7 @@ match enum_val:
 
 ## Expressions
 
-```kore
+```kain
 // Binary operators
 a + b, a - b, a * b, a / b, a % b
 a == b, a != b, a < b, a > b, a <= b, a >= b
@@ -133,7 +133,7 @@ map[key]
 
 ## Collections
 
-```kore
+```kain
 // Arrays
 let arr: Array<Int> = [1, 2, 3]
 push(arr, 4)
@@ -153,7 +153,7 @@ let (a, b, c) = tuple
 
 ## Option and Result
 
-```kore
+```kain
 // Option
 fn find(id: Int) -> Option<User>:
     if exists: return Some(user)
@@ -173,7 +173,7 @@ let value = parse("42")?  // Propagate errors with ?
 
 ## Actors (Concurrency)
 
-```kore
+```kain
 actor Counter:
     var count: Int = 0
     
@@ -191,7 +191,7 @@ let n = await send(counter, GetCount)
 
 ## JSX (UI Components)
 
-```kore
+```kain
 component Button:
     props:
         label: String
@@ -215,7 +215,7 @@ component Button:
 
 ## Effects
 
-```kore
+```kain
 fn pure_function(x: Int) -> Int with Pure:
     return x * 2  // No side effects allowed
 
@@ -270,7 +270,7 @@ assert(cond)                      // Assert condition
 
 ## Complete Example
 
-```kore
+```kain
 use std::io
 use std::json
 
@@ -314,7 +314,7 @@ fn main() with IO:
 
 ## Key Differences from Similar Languages
 
-| KORE | Rust | Python | TypeScript |
+| Kain | Rust | Python | TypeScript |
 |------|------|--------|------------|
 | `fn name():` | `fn name() {` | `def name():` | `function name() {` |
 | `let x = 1` | `let x = 1;` | `x = 1` | `const x = 1;` |
@@ -326,7 +326,7 @@ fn main() with IO:
 
 ## Common Patterns
 
-```kore
+```kain
 // Error propagation
 fn process() -> Result<Data, Error>:
     let file = read_file(path)?      // Early return on Err

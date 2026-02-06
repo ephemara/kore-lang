@@ -1,8 +1,8 @@
 // ============================================================================
-// KORE Bootstrap Compiler - Parser (Rust)
+// KAIN Bootstrap Compiler - Parser (Rust)
 // ============================================================================
-// Hand-translated from parser.kr for Project Ouroboros bootstrap
-// This is the self-hosted KORE parser running as native Rust code.
+// Hand-translated from parser.kn for Project Ouroboros bootstrap
+// This is the self-hosted KAIN parser running as native Rust code.
 // ============================================================================
 
 use crate::compiler::lexer::{Token, TokenKind, Lexer};
@@ -11,7 +11,7 @@ use crate::compiler::lexer::{Token, TokenKind, Lexer};
 // AST Node Types
 // =============================================================================
 
-/// A KORE program is a list of top-level items
+/// A KAIN program is a list of top-level items
 #[derive(Debug, Clone)]
 pub struct Program {
     pub items: Vec<Item>,

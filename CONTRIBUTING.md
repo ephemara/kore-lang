@@ -1,6 +1,6 @@
-# Contributing to KORE
+# Contributing to KAIN
 
-Thank you for your interest in contributing to KORE! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to KAIN! This document provides guidelines for contributing to the project.
 
 ## Table of Contents
 
@@ -29,19 +29,19 @@ Thank you for your interest in contributing to KORE! This document provides guid
 
 ```powershell
 # Clone the repository
-git clone https://github.com/ephemara/kore-lang.git
-cd Kore
+git clone https://github.com/ephemara/KAIN-lang.git
+cd KAIN
 
 # Build the native compiler (skip self-hosted for faster iteration)
 .\build.ps1 -SkipSelfHosted
 
 # Verify the build
-.\build\artifacts\latest\kore_native.exe --help
+.\build\artifacts\latest\KAIN_native.exe --help
 ```
 
 ### IDE Setup
 
-KORE files use the `.kr` extension. Configure your editor for:
+KAIN files use the `.kn` extension. Configure your editor for:
 - 4-space indentation (no tabs)
 - Significant whitespace (Python-like)
 
@@ -50,34 +50,34 @@ KORE files use the `.kr` extension. Configure your editor for:
 ## Project Structure
 
 ```
-kore-main/
-├── src/                    # KORE compiler source (KORE language)
-│   ├── korec.kr            # Entry point, CLI argument parsing
-│   ├── lexer.kr            # Tokenizer
-│   ├── parser_v2.kr        # Parser with generics support
-│   ├── types.kr            # Type checker with effect inference
-│   ├── codegen.kr          # LLVM IR generation
+KAIN-main/
+├── src/                    # KAIN compiler source (KAIN language)
+│   ├── KAINc.kn            # Entry point, CLI argument parsing
+│   ├── lexer.kn            # Tokenizer
+│   ├── parser_v2.kn        # Parser with generics support
+│   ├── types.kn            # Type checker with effect inference
+│   ├── codegen.kn          # LLVM IR generation
 │   └── ...                 # AST, resolver, diagnostics
 │
 ├── bootstrap/              # Stage 0: Rust bootstrap compiler
 │   └── src/                # Rust implementation
 │
 ├── runtime/                # C runtime library
-│   └── kore_runtime.c      # NaN-boxing runtime implementation
+│   └── KAIN_runtime.c      # NaN-boxing runtime implementation
 │
 ├── stdlib/                 # Experimental features (V2 development)
-│   └── *.kr                # 12 modules for WASM, SPIR-V, etc.
+│   └── *.kn                # 12 modules for WASM, SPIR-V, etc.
 │
 ├── tests/                  # Test suite
 │   ├── unit/               # Unit tests for individual features
 │   ├── examples/           # Demo programs (smoke tests)
 │   └── whacky/             # Edge case tests
 │
-├── kore-v1-stable/         # V1 Production Compiler
+├── KAIN-v1-stable/         # V1 Production Compiler
 │   ├── src/                # Rust compiler source
-│   ├── stdlib/             # KORE standard library
+│   ├── stdlib/             # KAIN standard library
 │   ├── shaders/            # GPU shader examples
-│   ├── bootstrap/          # Self-hosting compiler (KORE)
+│   ├── bootstrap/          # Self-hosting compiler (KAIN)
 │   └── runtime/            # C FFI runtime
 │
 └── build.ps1               # Main build script
@@ -102,11 +102,11 @@ kore-main/
 
 ### Build Pipeline
 
-1. **Combine Sources**: All `src/*.kr` files are combined into `build/korec_build.kr`
+1. **Combine Sources**: All `src/*.kn` files are combined into `build/KAINc_build.kn`
 2. **Stage 0 → IR**: Bootstrap compiler generates LLVM IR
 3. **Fix IR**: Deduplicate declarations, add missing types
-4. **Link**: Clang links IR with `kore_runtime.o`
-5. **Stage 1 Ready**: Native compiler at `build/artifacts/latest/kore_native.exe`
+4. **Link**: Clang links IR with `KAIN_runtime.o`
+5. **Stage 1 Ready**: Native compiler at `build/artifacts/latest/KAIN_native.exe`
 
 ### Debugging a Build
 
@@ -134,27 +134,27 @@ The compiler source is in `src/`. Each file has a specific responsibility:
 
 | File | Purpose | Key Types |
 |------|---------|-----------|
-| `lexer.kr` | Tokenization | `Token`, `TokenKind`, `Lexer` |
-| `parser_v2.kr` | Parsing | `Parser`, `Item`, `Stmt`, `Expr` |
-| `types.kr` | Type checking | `TypeChecker`, `ResolvedType`, `TypedExpr` |
-| `codegen.kr` | LLVM IR output | `CodeGen`, `StringBuilder` |
-| `korec.kr` | CLI & orchestration | `ArgParser`, `Compiler`, `CompilerConfig` |
+| `lexer.kn` | Tokenization | `Token`, `TokenKind`, `Lexer` |
+| `parser_v2.kn` | Parsing | `Parser`, `Item`, `Stmt`, `Expr` |
+| `types.kn` | Type checking | `TypeChecker`, `ResolvedType`, `TypedExpr` |
+| `codegen.kn` | LLVM IR output | `CodeGen`, `StringBuilder` |
+| `KAINc.kn` | CLI & orchestration | `ArgParser`, `Compiler`, `CompilerConfig` |
 
 ### Adding a New Feature
 
-1. **AST Changes**: Add new variants to `ast.kr`
-2. **Parser Changes**: Handle syntax in `parser_v2.kr`
-3. **Type Checker**: Add type rules in `types.kr`
-4. **Codegen**: Emit LLVM IR in `codegen.kr`
-5. **Runtime**: Add C functions if needed in `runtime/kore_runtime.c`
+1. **AST Changes**: Add new variants to `ast.kn`
+2. **Parser Changes**: Handle syntax in `parser_v2.kn`
+3. **Type Checker**: Add type rules in `types.kn`
+4. **Codegen**: Emit LLVM IR in `codegen.kn`
+5. **Runtime**: Add C functions if needed in `runtime/KAIN_runtime.c`
 6. **Tests**: Add test cases in `tests/`
 
 ### Runtime Changes
 
-The runtime uses NaN-boxing. Key constants in `codegen.kr`:
+The runtime uses NaN-boxing. Key constants in `codegen.kn`:
 
-```kore
-// NaN-boxing tags (must match kore_runtime.c)
+```KAIN
+// NaN-boxing tags (must match KAIN_runtime.c)
 fn nanbox_int_tag() -> String:
     return "-2216615441596416"
 
@@ -163,9 +163,9 @@ fn nanbox_bool_tag() -> String:
 ```
 
 If you change runtime signatures, update:
-1. `runtime/kore_runtime.c` - Implementation
-2. `src/codegen.kr` - `emit_externals()` function
-3. `src/stdlib.kr` - Standard library bindings
+1. `runtime/KAIN_runtime.c` - Implementation
+2. `src/codegen.kn` - `emit_externals()` function
+3. `src/stdlib.kn` - Standard library bindings
 
 ---
 
@@ -186,20 +186,20 @@ If you change runtime signatures, update:
 ```
 tests/
 ├── unit/
-│   ├── test_lexer.kr       # Lexer tests
-│   ├── test_parser.kr      # Parser tests
-│   └── test_*.kr           # Other unit tests
+│   ├── test_lexer.kn       # Lexer tests
+│   ├── test_parser.kn      # Parser tests
+│   └── test_*.kn           # Other unit tests
 │
 ├── integration/
-│   ├── test_full.kr        # Full pipeline tests
+│   ├── test_full.kn        # Full pipeline tests
 │   └── ...
 │
 ├── examples/
 │   └── demo_pack_*/        # Smoke test programs
-│       ├── hello.kr
+│       ├── hello.kn
 │       └── hello.expected  # Expected output
 │
-└── *.kr                    # Root-level tests
+└── *.kn                    # Root-level tests
 ```
 
 ### Writing Tests
@@ -208,8 +208,8 @@ Each test file should:
 1. Use `assert` or produce deterministic output
 2. Have a matching `.expected` file for output verification
 
-```kore
-// tests/unit/test_factorial.kr
+```KAIN
+// tests/unit/test_factorial.kn
 fn factorial(n: Int) -> Int:
     if n <= 1:
         return 1
@@ -228,9 +228,9 @@ fn main():
 
 ## Code Style
 
-### KORE Style Guide
+### KAIN Style Guide
 
-```kore
+```KAIN
 // Use 4-space indentation
 fn example():
     let x = 10
@@ -293,9 +293,9 @@ let MAX_BUFFER_SIZE = 4096
 
 | Stage | Compiler | Input | Output |
 |-------|----------|-------|--------|
-| 0 | Rust (`bootstrap/`) | KORE source | LLVM IR |
-| 1 | Native (`kore_native.exe`) | KORE source | LLVM IR |
-| 2 | Self-hosted (`kore_native_v2.exe`) | KORE source | LLVM IR |
+| 0 | Rust (`bootstrap/`) | KAIN source | LLVM IR |
+| 1 | Native (`KAIN_native.exe`) | KAIN source | LLVM IR |
+| 2 | Self-hosted (`KAIN_native_v2.exe`) | KAIN source | LLVM IR |
 
 The goal is for Stage 1 to compile itself (Stage 2), validating the compiler's correctness.
 
@@ -315,7 +315,7 @@ All values are represented as 64-bit integers using IEEE 754 NaN-boxing:
 ### Priority Contributions
 
 - [ ] Fix IR verification edge cases
-- [ ] Improve error messages in `diagnostic.kr`
+- [ ] Improve error messages in `diagnostic.kn`
 - [ ] Expand test coverage
 - [ ] Document standard library functions
 - [ ] Add pattern matching exhaustiveness checking
@@ -330,4 +330,4 @@ All values are represented as 64-bit integers using IEEE 754 NaN-boxing:
 
 ---
 
-Thank you for contributing to KORE!
+Thank you for contributing to KAIN!

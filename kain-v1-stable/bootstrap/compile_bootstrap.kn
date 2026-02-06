@@ -1,0 +1,69 @@
+// ============================================================================
+// KAIN FULL BOOTSTRAP COMPILER - Project Ouroboros
+// ============================================================================
+// Run this with: cargo run -- run src/compiler/compile_bootstrap.kn
+// It will generate all the Rust files for kainc.exe
+
+use compiler/lexer
+use compiler/parser  
+use compiler/codegen_rust
+
+fn compile_to_rust(source_path: String, output_path: String) -> Bool:
+    println("  [" + source_path + "] -> [" + output_path + "]")
+    
+    let source = read_file(source_path)
+    if len(source) == 0:
+        println("    ERROR: Could not read file")
+        return false
+    println("    Read " + str(len(source)) + " bytes")
+    
+    let lex = Lexer::new(source)
+    let tokens = lex.tokenize()
+    println("    Tokenized: " + str(len(tokens)) + " tokens")
+    
+    let parser = Parser::new(tokens)
+    let program = parser.parse_program()
+    println("    Parsed: " + str(len(program.items)) + " items")
+    
+    let gen = RustGen::new()
+    let rust = gen.gen_program(program)
+    println("    Generated: " + str(len(rust)) + " chars of Rust")
+    
+    write_file(output_path, rust)
+    println("     Written!")
+    return true
+
+fn main():
+    println("================================================")
+    println(" KAIN FULL BOOTSTRAP GENERATOR ")
+    println("Project Ouroboros - The Snake Eats Its Tail")
+    println("================================================")
+    println("")
+    
+    // Compile each compiler component
+    println("[1/4] Compiling lexer.kn...")
+    compile_to_rust("src/compiler/lexer.kn", "output_bootstrap/src/compiler/lexer.rs")
+    
+    println("")
+    println("[2/4] Compiling parser.kn...")
+    compile_to_rust("src/compiler/parser.kn", "output_bootstrap/src/compiler/parser.rs")
+    
+    println("")
+    println("[3/4] Compiling codegen.kn...")
+    compile_to_rust("src/compiler/codegen.kn", "output_bootstrap/src/compiler/codegen.rs")
+    
+    println("")
+    println("[4/4] Compiling codegen_rust.kn...")
+    compile_to_rust("src/compiler/codegen_rust.kn", "output_bootstrap/src/compiler/codegen_rust.rs")
+    
+    println("")
+    println("================================================")
+    println(" BOOTSTRAP GENERATION COMPLETE! ")
+    println("================================================")
+    println("")
+    println("Next steps:")
+    println("  1. Manually create output_bootstrap/src/compiler/mod.rs")
+    println("  2. Update output_bootstrap/src/main.rs to: pub mod compiler;")
+    println("  3. cd output_bootstrap && cargo build --release")
+    println("")
+    println(" The snake is ready to eat its tail!")

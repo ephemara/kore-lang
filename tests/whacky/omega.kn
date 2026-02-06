@@ -1,0 +1,1070 @@
+// OMEGA - The Ultimate KAIN Demonstration
+
+effect FSM<State>:
+    fn transition(from: State, to: State) -> ()
+    fn current_state() -> State
+
+effect Physics:
+    fn apply_force(entity: Entity, force: Vec3) -> ()
+    fn raycast(origin: Vec3, direction: Vec3) -> Option<RayHit>
+
+effect Rendering:
+    fn draw(entity: Entity) -> ()
+    fn set_camera(position: Vec3, target: Vec3) -> ()
+
+effect Audio:
+    fn process(buffer: AudioBuffer) -> AudioBuffer
+    fn get_sample_rate() -> Float
+    fn get_time() -> Float
+
+effect Consensus:
+    fn request_vote(candidate_id: String, term: Int, last_log_index: Int, last_log_term: Int) -> VoteResponse
+    fn append_entries(leader_id: String, term: Int, entries: Array<LogEntry>, leader_commit: Int) -> AppendResponse
+    fn propose(command: Command) -> Result<Int, String>
+
+effect Storage:
+    fn get(key: String) -> Option<Bytes>
+    fn put(key: String, value: Bytes) -> Result<(), String>
+    fn delete(key: String) -> Result<(), String>
+
+effect Render:
+    fn render(component: Component) -> Html
+    fn hydrate(html: Html, data: Json) -> Component
+
+effect Http:
+    fn get(path: String, body: Bytes) -> Response
+    fn post(path: String, body: Bytes) -> Response
+    fn put(path: String, body: Bytes) -> Response
+    fn delete(path: String) -> Response
+
+effect Database:
+    fn query(sql: String, params: Array<Any>) -> Array<Row>
+    fn execute(sql: String, params: Array<Any>) -> Int
+    fn transaction<T>(f: fn() -> T) -> T
+
+effect WebSocket:
+    fn send(client: ClientId, message: Bytes) -> ()
+    fn broadcast(room: String, message: Bytes) -> ()
+    fn join_room(client: ClientId, room: String) -> ()
+    fn leave_room(client: ClientId, room: String) -> ()
+
+const SAMPLE_RATE: Float = 44100.0
+const BUFFER_SIZE: Int = 256
+const TWO_PI: Float = 6.28318530718
+
+enum CompilerPhase:
+    Lexing
+    Parsing
+    TypeChecking
+    Optimization
+    CodeGen
+    Linking
+    Done
+
+enum ColliderShape:
+    Sphere(radius: Float)
+    Box(half_extents: Vec3)
+    Capsule(radius: Float, height: Float)
+    Mesh(mesh: Handle<Mesh>)
+
+enum InputEvent:
+    KeyDown(key: Key)
+    KeyUp(key: Key)
+    MouseMove(dx: Float, dy: Float)
+    MouseButton(button: Int, pressed: Bool)
+    GamepadAxis(axis: Int, value: Float)
+    GamepadButton(button: Int, pressed: Bool)
+
+enum NodeRole:
+    Leader
+    Follower
+    Candidate
+    Observer
+
+enum Command:
+    Set(key: String, value: Bytes)
+    Delete(key: String)
+    CAS(key: String, expected: Bytes, new: Bytes)
+    Noop
+
+enum NodeHealth:
+    Healthy
+    Suspect
+    Dead
+
+enum HttpMethod:
+    GET
+    POST
+    PUT
+    DELETE
+    PATCH
+    OPTIONS
+
+enum EnvelopeStage:
+    Idle
+    Attack
+    Decay
+    Sustain
+    Release
+
+enum FilterType:
+    LowPass
+    HighPass
+    BandPass
+    Notch
+    Peak
+    LowShelf
+    HighShelf
+
+enum MidiMessage:
+    NoteOn(channel: Int, note: Int, velocity: Int)
+    NoteOff(channel: Int, note: Int)
+    ControlChange(channel: Int, cc: Int, value: Int)
+    PitchBend(channel: Int, value: Int)
+    ProgramChange(channel: Int, program: Int)
+
+struct Transform:
+    position: Vec3
+    rotation: Quat
+    scale: Vec3
+
+struct Velocity:
+    linear: Vec3
+    angular: Vec3
+
+struct Collider:
+    shape: ColliderShape
+    is_trigger: Bool
+
+struct Renderer:
+    mesh: Handle<Mesh>
+    material: Handle<Material>
+    visible: Bool
+
+struct AudioSource:
+    clip: Handle<AudioClip>
+    volume: Float
+    looping: Bool
+    playing: Bool
+
+struct Entity:
+    id: u64
+    transform: Option<Transform>
+    velocity: Option<Velocity>
+    collider: Option<Collider>
+    renderer: Option<Renderer>
+    audio: Option<AudioSource>
+    tags: Array<String>
+
+struct Tensor:
+    data: Array<Float>
+    shape: Array<Int>
+    grad: Option<Array<Float>>
+    requires_grad: Bool
+    _backward: Option<fn() -> ()>
+    _prev: Array<Tensor>
+    _op: String
+
+struct NodeConfig:
+    id: String
+    host: String
+    port: Int
+    role: NodeRole
+    datacenter: String
+
+struct ClusterConfig:
+    nodes: Array<NodeConfig>
+    replication_factor: Int
+    read_quorum: Int
+    write_quorum: Int
+    heartbeat_interval_ms: Int
+    election_timeout_ms: Int
+
+struct LogEntry:
+    term: Int
+    index: Int
+    command: Command
+    timestamp: Int
+
+struct RaftState:
+    current_term: Int
+    voted_for: Option<String>
+    log: Array<LogEntry>
+    commit_index: Int
+    last_applied: Int
+    next_index: Map<String, Int>
+    match_index: Map<String, Int>
+
+struct VoteResponse:
+    term: Int
+    vote_granted: Bool
+    voter_id: String
+
+struct AppendResponse:
+    term: Int
+    success: Bool
+    match_index: Int
+    node_id: String
+
+struct ConsistentHash:
+    ring: BTreeMap<u64, String>
+    virtual_nodes: Int
+
+struct AudioBuffer:
+    samples: Array<Float>
+    channels: Int
+    sample_rate: Float
+
+struct Component:
+    tag: String
+    props: Map<String, Any>
+    children: Array<Component>
+    state: Option<State>
+    effects: Array<Effect>
+
+struct State:
+    values: Map<String, Any>
+    dispatch: fn(Action) -> ()
+
+struct Request:
+    method: HttpMethod
+    path: String
+    headers: Map<String, String>
+    query: Map<String, String>
+    params: Map<String, String>
+    body: Bytes
+    session: Option<Session>
+
+struct Response:
+    status: Int
+    headers: Map<String, String>
+    body: Bytes
+
+struct Router:
+    routes: Array<Route>
+    middleware: Array<Middleware>
+
+struct Route:
+    method: HttpMethod
+    pattern: String
+    handler: fn(Request) -> Response with Async
+
+struct GraphQLSchema:
+    types: Map<String, TypeDef>
+    queries: Map<String, Resolver>
+    mutations: Map<String, Resolver>
+    subscriptions: Map<String, Resolver>
+
+struct BiquadFilter:
+    filter_type: FilterType
+    cutoff: Float
+    resonance: Float
+    a0: Float = 1.0
+    a1: Float = 0.0
+    a2: Float = 0.0
+    b0: Float = 1.0
+    b1: Float = 0.0
+    b2: Float = 0.0
+    x1: Float = 0.0
+    x2: Float = 0.0
+    y1: Float = 0.0
+    y2: Float = 0.0
+
+struct MoogFilter:
+    cutoff: Float
+    resonance: Float
+    stage: [Float; 4] = [0.0, 0.0, 0.0, 0.0]
+    delay: [Float; 4] = [0.0, 0.0, 0.0, 0.0]
+
+struct ADSR:
+    attack: Float
+    decay: Float
+    sustain: Float
+    release: Float
+    stage: EnvelopeStage = EnvelopeStage.Idle
+    value: Float = 0.0
+    rate: Float = 0.0
+
+struct Delay:
+    buffer: Array<Float>
+    write_pos: Int = 0
+    delay_time: Float
+    feedback: Float
+    mix: Float
+
+struct Reverb:
+    comb_filters: [CombFilter; 8]
+    allpass_filters: [AllpassFilter; 4]
+    mix: Float = 0.3
+
+struct Distortion:
+    drive: Float = 1.0
+    mix: Float = 1.0
+
+struct Chorus:
+    buffer: Array<Float>
+    write_pos: Int = 0
+    rate: Float = 1.5
+    depth: Float = 0.002
+    mix: Float = 0.5
+    phase: Float = 0.0
+
+struct ModularRack:
+    modules: Map<String, Module>
+    connections: Array<Connection>
+
+struct Connection:
+    source_module: String
+    source_output: String
+    dest_module: String
+    dest_input: String
+    amount: Float
+
+struct Linear:
+    weight: Tensor
+    bias: Tensor
+
+struct Sequential:
+    layers: Array<dyn Layer>
+
+struct DataLoader:
+    data: Tensor
+    labels: Tensor
+    batch_size: Int
+    shuffle: Bool
+
+struct SGD:
+    params: Array<Tensor>
+    lr: Float
+    momentum: Float
+    velocities: Array<Array<Float>>
+
+struct Adam:
+    params: Array<Tensor>
+    lr: Float
+    beta1: Float
+    beta2: Float
+    eps: Float
+    m: Array<Array<Float>>
+    v: Array<Array<Float>>
+    t: Int
+
+trait Oscillator:
+    fn generate(self, frequency: Float, phase: Float) -> Float
+    fn next_phase(self, frequency: Float, phase: Float) -> Float
+
+trait Filter:
+    fn process(self, input: Float) -> Float
+    fn set_cutoff(self, frequency: Float) -> ()
+    fn set_resonance(self, q: Float) -> ()
+
+trait Module:
+    fn process(self, inputs: Map<String, Float>) -> Map<String, Float>
+    fn get_inputs(self) -> Array<String>
+    fn get_outputs(self) -> Array<String>
+
+trait Layer:
+    fn forward(self, x: Tensor) -> Tensor
+    fn parameters(self) -> Array<Tensor>
+
+trait Optimizer:
+    fn step(self) -> ()
+    fn zero_grad(self) -> ()
+
+trait CodeEmitter<Target>:
+    fn emit_function(name: String, params: Array<Param>, body: Ast) -> Target
+    fn emit_call(target: String, args: Array<Ast>) -> Target
+    fn finalize() -> Target
+
+comptime:
+    let grammar = """
+        expr    := term (('+' | '-') term)*
+        term    := factor (('*' | '/') factor)*
+        factor  := NUMBER | '(' expr ')'
+        NUMBER  := [0-9]+
+    """
+    
+    fn generate_parser(grammar: String) -> String:
+        var code = "fn parse_expr(tokens: Array<Token>) -> Ast:\n"
+        for line in grammar.lines():
+            let parts = line.split(":=")
+            if parts.len() >= 2:
+                let rule_name = parts[0].trim()
+                code = code + f"    # Rule: {rule_name}\n"
+        code = code + "    return Ast.Expr(tokens)\n"
+        return code
+    
+    emit_code(generate_parser(grammar))
+
+macro define_optimizer(name, pattern, replacement):
+    fn `optimize_{name}`(ast: Ast) -> Ast:
+        match ast:
+            `pattern` => `replacement`
+            other => other.map_children(optimize_{name})
+
+define_optimizer!(dce,
+    If(Literal(false), _, else_branch) => else_branch,
+    If(Literal(true), then_branch, _) => then_branch)
+
+define_optimizer!(const_fold,
+    BinaryOp(Literal(a), "+", Literal(b)) => Literal(a + b),
+    BinaryOp(Literal(a), "*", Literal(b)) => Literal(a * b))
+
+define_optimizer!(strength_reduce,
+    BinaryOp(x, "*", Literal(2)) => BinaryOp(x, "+", x),
+    BinaryOp(x, "*", Literal(0)) => Literal(0))
+
+struct SineOsc:
+    impl Oscillator:
+        fn generate(self, frequency: Float, phase: Float) -> Float:
+            return sin(phase)
+        fn next_phase(self, frequency: Float, phase: Float) -> Float:
+            return (phase + TWO_PI * frequency / SAMPLE_RATE) % TWO_PI
+
+struct SawOsc:
+    impl Oscillator:
+        fn generate(self, frequency: Float, phase: Float) -> Float:
+            let t = phase / TWO_PI
+            var saw = 2.0 * t - 1.0
+            saw = saw - poly_blep(t, frequency / SAMPLE_RATE)
+            return saw
+        fn next_phase(self, frequency: Float, phase: Float) -> Float:
+            return (phase + TWO_PI * frequency / SAMPLE_RATE) % TWO_PI
+
+struct SquareOsc:
+    pulse_width: Float = 0.5
+    impl Oscillator:
+        fn generate(self, frequency: Float, phase: Float) -> Float:
+            let t = phase / TWO_PI
+            return if t < self.pulse_width: 1.0 else: -1.0
+        fn next_phase(self, frequency: Float, phase: Float) -> Float:
+            return (phase + TWO_PI * frequency / SAMPLE_RATE) % TWO_PI
+
+struct VCO:
+    waveform: Int = 0
+    phase: Float = 0.0
+    impl Module:
+        fn process(self, inputs: Map<String, Float>) -> Map<String, Float>:
+            let freq = inputs.get("freq").unwrap_or(440.0)
+            let fm = inputs.get("fm").unwrap_or(0.0)
+            let actual_freq = freq * pow(2.0, fm)
+            let output = match self.waveform:
+                0 => sin(self.phase)
+                1 => 2.0 * (self.phase / TWO_PI) - 1.0
+                2 => if self.phase / TWO_PI < 0.5: 1.0 else: -1.0
+                _ => 0.0
+            self.phase = (self.phase + TWO_PI * actual_freq / SAMPLE_RATE) % TWO_PI
+            return { "out": output }
+        fn get_inputs(self) -> Array<String>:
+            return ["freq", "fm", "pw"]
+        fn get_outputs(self) -> Array<String>:
+            return ["out"]
+
+struct VCF:
+    filter: MoogFilter = MoogFilter { cutoff: 1000.0, resonance: 0.5 }
+    impl Module:
+        fn process(self, inputs: Map<String, Float>) -> Map<String, Float>:
+            let input = inputs.get("in").unwrap_or(0.0)
+            let cutoff = inputs.get("cutoff").unwrap_or(1000.0)
+            let cv = inputs.get("cv").unwrap_or(0.0)
+            self.filter.set_cutoff(cutoff * pow(2.0, cv))
+            return { "out": self.filter.process(input) }
+        fn get_inputs(self) -> Array<String>:
+            return ["in", "cutoff", "cv", "res"]
+        fn get_outputs(self) -> Array<String>:
+            return ["out"]
+
+struct VCA:
+    impl Module:
+        fn process(self, inputs: Map<String, Float>) -> Map<String, Float>:
+            let input = inputs.get("in").unwrap_or(0.0)
+            let cv = inputs.get("cv").unwrap_or(1.0)
+            return { "out": input * cv }
+        fn get_inputs(self) -> Array<String>:
+            return ["in", "cv"]
+        fn get_outputs(self) -> Array<String>:
+            return ["out"]
+
+struct LFO:
+    phase: Float = 0.0
+    impl Module:
+        fn process(self, inputs: Map<String, Float>) -> Map<String, Float>:
+            let rate = inputs.get("rate").unwrap_or(1.0)
+            let sine = sin(self.phase)
+            let saw = 2.0 * (self.phase / TWO_PI) - 1.0
+            self.phase = (self.phase + TWO_PI * rate / SAMPLE_RATE) % TWO_PI
+            return { "sine": sine, "saw": saw, "square": if self.phase < 3.14159: 1.0 else: -1.0 }
+        fn get_inputs(self) -> Array<String>:
+            return ["rate"]
+        fn get_outputs(self) -> Array<String>:
+            return ["sine", "saw", "square", "tri"]
+
+impl Tensor:
+    fn add(self, other: Tensor) -> Tensor:
+        let out_data = zip(self.data, other.data).map((a, b) => a + b)
+        var out = tensor(out_data, self.shape, self.requires_grad or other.requires_grad)
+        out._prev = [self, other]
+        out._op = "+"
+        if out.requires_grad:
+            out._backward = Some(fn():
+                if self.requires_grad:
+                    self.grad = Some(zip(self.grad.unwrap(), out.grad.unwrap()).map((a, b) => a + b))
+                if other.requires_grad:
+                    other.grad = Some(zip(other.grad.unwrap(), out.grad.unwrap()).map((a, b) => a + b))
+            )
+        return out
+    
+    fn mul(self, other: Tensor) -> Tensor:
+        let out_data = zip(self.data, other.data).map((a, b) => a * b)
+        var out = tensor(out_data, self.shape, self.requires_grad or other.requires_grad)
+        out._prev = [self, other]
+        out._op = "*"
+        return out
+    
+    fn matmul(self, other: Tensor) -> Tensor:
+        let m = self.shape[0]
+        let k = self.shape[1]
+        let n = other.shape[1]
+        var out_data = Array.new(m * n, 0.0)
+        for i in range(0, m):
+            for j in range(0, n):
+                var sum = 0.0
+                for kk in range(0, k):
+                    sum = sum + self.data[i * k + kk] * other.data[kk * n + j]
+                out_data[i * n + j] = sum
+        return tensor(out_data, [m, n], self.requires_grad or other.requires_grad)
+    
+    fn relu(self) -> Tensor:
+        let out_data = self.data.map(x => if x > 0.0: x else: 0.0)
+        var out = tensor(out_data, self.shape, self.requires_grad)
+        out._prev = [self]
+        out._op = "relu"
+        return out
+    
+    fn sigmoid(self) -> Tensor:
+        let out_data = self.data.map(x => 1.0 / (1.0 + exp(-x)))
+        return tensor(out_data, self.shape, self.requires_grad)
+    
+    fn softmax(self) -> Tensor:
+        let max_val = self.data.fold(Float.MIN, max)
+        let exp_data = self.data.map(x => exp(x - max_val))
+        let sum_exp = exp_data.fold(0.0, (a, b) => a + b)
+        return tensor(exp_data.map(x => x / sum_exp), self.shape, self.requires_grad)
+    
+    fn backward(self):
+        var topo: Array<Tensor> = []
+        var visited: Set<u64> = Set.new()
+        fn build_topo(t: Tensor):
+            if not visited.contains(t.id()):
+                visited.insert(t.id())
+                for child in t._prev:
+                    build_topo(child)
+                topo.push(t)
+        build_topo(self)
+        self.grad = Some([1.0])
+        for t in topo.reversed():
+            match t._backward:
+                Some(backward_fn) => backward_fn()
+                None => ()
+
+impl Linear:
+    fn new(in_features: Int, out_features: Int) -> Linear:
+        let scale = sqrt(2.0 / (in_features + out_features) as Float)
+        let weight = randn([in_features, out_features], requires_grad: true) * scale
+        let bias = zeros([1, out_features])
+        bias.requires_grad = true
+        return Linear { weight: weight, bias: bias }
+    impl Layer:
+        fn forward(self, x: Tensor) -> Tensor:
+            return x.matmul(self.weight).add(self.bias)
+        fn parameters(self) -> Array<Tensor>:
+            return [self.weight, self.bias]
+
+struct ReLU:
+    impl Layer:
+        fn forward(self, x: Tensor) -> Tensor:
+            return x.relu()
+        fn parameters(self) -> Array<Tensor>:
+            return []
+
+impl Sequential:
+    fn new(layers: Array<dyn Layer>) -> Sequential:
+        return Sequential { layers: layers }
+    impl Layer:
+        fn forward(self, x: Tensor) -> Tensor:
+            var out = x
+            for layer in self.layers:
+                out = layer.forward(out)
+            return out
+        fn parameters(self) -> Array<Tensor>:
+            return self.layers.flat_map(l => l.parameters())
+
+impl Adam:
+    fn new(params: Array<Tensor>, lr: Float = 0.001, beta1: Float = 0.9, beta2: Float = 0.999) -> Adam:
+        return Adam {
+            params: params, lr: lr, beta1: beta1, beta2: beta2, eps: 1e-8,
+            m: params.map(p => zeros_like(p.data)),
+            v: params.map(p => zeros_like(p.data)),
+            t: 0
+        }
+    impl Optimizer:
+        fn step(self):
+            self.t = self.t + 1
+            for (i, p) in self.params.enumerate():
+                match p.grad:
+                    Some(grad) =>
+                        self.m[i] = zip(self.m[i], grad).map((m, g) => self.beta1 * m + (1.0 - self.beta1) * g)
+                        self.v[i] = zip(self.v[i], grad).map((v, g) => self.beta2 * v + (1.0 - self.beta2) * g * g)
+                        let m_hat = self.m[i].map(m => m / (1.0 - pow(self.beta1, self.t as Float)))
+                        let v_hat = self.v[i].map(v => v / (1.0 - pow(self.beta2, self.t as Float)))
+                        p.data = zip3(p.data, m_hat, v_hat).map((d, m, v) => d - self.lr * m / (sqrt(v) + self.eps))
+                    None => ()
+        fn zero_grad(self):
+            for p in self.params:
+                p.zero_grad()
+
+actor CompilerStateMachine with FSM<CompilerPhase>:
+    var phase: CompilerPhase = CompilerPhase.Lexing
+    var error_count: Int = 0
+    var warnings: Array<String> = []
+    on transition(from: CompilerPhase, to: CompilerPhase):
+        println!(f"[PHASE] {from} -> {to}")
+        phase = to
+    on current_state() -> CompilerPhase:
+        return phase
+    on ReportError(msg: String):
+        error_count = error_count + 1
+        println!(f"[ERROR #{error_count}] {msg}")
+
+actor PhysicsSystem with Physics:
+    var gravity: Vec3 = Vec3.new(0.0, -9.81, 0.0)
+    var entities: Array<Entity> = []
+    var collision_pairs: Array<(Entity, Entity)> = []
+    on Tick(dt: Float):
+        for e in entities:
+            match (e.transform, e.velocity):
+                (Some(t), Some(v)) =>
+                    let new_vel = v.linear + gravity * dt
+                    let new_pos = t.position + new_vel * dt
+                    e.transform = Some(Transform { position: new_pos, ..t })
+                    e.velocity = Some(Velocity { linear: new_vel, ..v })
+                _ => ()
+        for i in range(0, entities.len()):
+            for j in range(i + 1, entities.len()):
+                if check_aabb_overlap(entities[i], entities[j]):
+                    collision_pairs.push((entities[i], entities[j]))
+    on apply_force(entity: Entity, force: Vec3):
+        match entity.velocity:
+            Some(v) =>
+                let accel = force / 1.0
+                entity.velocity = Some(Velocity { linear: v.linear + accel, ..v })
+            None => ()
+    on raycast(origin: Vec3, direction: Vec3) -> Option<RayHit>:
+        var closest: Option<RayHit> = None
+        var closest_dist = Float.MAX
+        for e in entities:
+            match e.collider:
+                Some(c) =>
+                    let hit = ray_vs_collider(origin, direction, e.transform.unwrap(), c)
+                    match hit:
+                        Some(h) if h.distance < closest_dist =>
+                            closest = Some(h)
+                            closest_dist = h.distance
+                        _ => ()
+                None => ()
+        return closest
+
+actor RenderSystem with Rendering:
+    var camera_pos: Vec3 = Vec3.new(0.0, 5.0, -10.0)
+    var camera_target: Vec3 = Vec3.ZERO
+    var render_queue: Array<Entity> = []
+    on Frame(entities: Array<Entity>):
+        render_queue = entities.filter(e =>
+            match e.renderer:
+                Some(r) if r.visible => is_in_frustum(e.transform.unwrap().position)
+                _ => false
+        )
+        render_queue.sort_by(e => e.renderer.unwrap().material.id)
+        for e in render_queue:
+            draw(e)
+    on draw(entity: Entity):
+        let t = entity.transform.unwrap()
+        let r = entity.renderer.unwrap()
+        let model = Mat4.from_trs(t.position, t.rotation, t.scale)
+        let view = Mat4.look_at(camera_pos, camera_target, Vec3.UP)
+        let proj = Mat4.perspective(fov: 60.0, aspect: 16.0/9.0, near: 0.1, far: 1000.0)
+        gpu_draw_mesh(r.mesh, r.material, proj * view * model)
+    on set_camera(position: Vec3, target: Vec3):
+        camera_pos = position
+        camera_target = target
+
+actor RaftNode with Consensus:
+    var config: NodeConfig
+    var state: RaftState
+    var role: NodeRole = NodeRole.Follower
+    var leader_id: Option<String> = None
+    var peers: Array<RaftNode>
+    on Initialize(cfg: NodeConfig, cluster: ClusterConfig):
+        config = cfg
+        state = RaftState {
+            current_term: 0, voted_for: None, log: [],
+            commit_index: 0, last_applied: 0,
+            next_index: Map.new(), match_index: Map.new()
+        }
+    fn start_election(self):
+        role = NodeRole.Candidate
+        state.current_term = state.current_term + 1
+        state.voted_for = Some(config.id)
+        var votes_received = 1
+        let vote_futures = peers.map(peer => async:
+            await peer.request_vote(config.id, state.current_term, state.log.len() - 1, 0)
+        )
+        for response in await_all(vote_futures):
+            if response.vote_granted:
+                votes_received = votes_received + 1
+        if votes_received >= (peers.len() + 1) / 2 + 1:
+            become_leader()
+    fn become_leader(self):
+        role = NodeRole.Leader
+        leader_id = Some(config.id)
+        let noop = LogEntry { term: state.current_term, index: state.log.len(), command: Command.Noop, timestamp: now() }
+        state.log.push(noop)
+    on request_vote(candidate_id: String, term: Int, last_log_index: Int, last_log_term: Int) -> VoteResponse:
+        if term < state.current_term:
+            return VoteResponse { term: state.current_term, vote_granted: false, voter_id: config.id }
+        let can_vote = match state.voted_for:
+            None => true
+            Some(id) => id == candidate_id
+        if can_vote:
+            state.voted_for = Some(candidate_id)
+            return VoteResponse { term: state.current_term, vote_granted: true, voter_id: config.id }
+        return VoteResponse { term: state.current_term, vote_granted: false, voter_id: config.id }
+    on append_entries(leader_id: String, term: Int, entries: Array<LogEntry>, leader_commit: Int) -> AppendResponse:
+        if term < state.current_term:
+            return AppendResponse { term: state.current_term, success: false, match_index: 0, node_id: config.id }
+        for entry in entries:
+            state.log.push(entry)
+        return AppendResponse { term: state.current_term, success: true, match_index: state.log.len() - 1, node_id: config.id }
+    on propose(command: Command) -> Result<Int, String>:
+        if role != NodeRole.Leader:
+            return Err("Not leader")
+        let entry = LogEntry { term: state.current_term, index: state.log.len(), command: command, timestamp: now() }
+        state.log.push(entry)
+        return Ok(entry.index)
+
+actor StorageNode with Storage, Consensus:
+    var node_id: String
+    var data: Map<String, Bytes>
+    var raft: RaftNode
+    var hasher: ConsistentHash
+    on get(key: String) -> Option<Bytes>:
+        return data.get(key)
+    on put(key: String, value: Bytes) -> Result<(), String>:
+        let command = Command.Set(key, value)
+        raft.propose(command)?
+        data.insert(key, value)
+        return Ok(())
+    on delete(key: String) -> Result<(), String>:
+        raft.propose(Command.Delete(key))?
+        data.remove(key)
+        return Ok(())
+
+actor ClusterCoordinator:
+    var config: ClusterConfig
+    var nodes: Map<String, StorageNode>
+    var health: Map<String, NodeHealth>
+    on Bootstrap(cfg: ClusterConfig):
+        config = cfg
+        for node_cfg in cfg.nodes:
+            let node = spawn StorageNode()
+            send node.Initialize(node_cfg.id, cfg)
+            nodes.insert(node_cfg.id, node)
+            health.insert(node_cfg.id, NodeHealth.Healthy)
+
+actor WebSocketServer with WebSocket:
+    var clients: Map<ClientId, Connection>
+    var rooms: Map<String, Set<ClientId>>
+    on Connect(client_id: ClientId, conn: Connection):
+        clients.insert(client_id, conn)
+    on Disconnect(client_id: ClientId):
+        clients.remove(client_id)
+        for (room, members) in rooms:
+            members.remove(client_id)
+    on Message(client_id: ClientId, data: Bytes):
+        let msg = parse_message(data)
+        match msg.type:
+            "join" => join_room(client_id, msg.room)
+            "message" => broadcast(msg.room, encode({ from: client_id, content: msg.content }))
+            _ => send(client_id, encode({ type: "error" }))
+    on send(client: ClientId, message: Bytes):
+        match clients.get(client):
+            Some(conn) => conn.send(message)
+            None => ()
+    on broadcast(room: String, message: Bytes):
+        match rooms.get(room):
+            Some(members) =>
+                for client_id in members:
+                    send(client_id, message)
+            None => ()
+    on join_room(client: ClientId, room: String):
+        if not rooms.contains(room):
+            rooms.insert(room, Set.new())
+        rooms.get_mut(room).unwrap().insert(client)
+
+actor MidiHandler:
+    var note_states: [Bool; 128] = [false; 128]
+    var velocities: [Float; 128] = [0.0; 128]
+    var pitch_bend: Float = 0.0
+    on Message(msg: MidiMessage):
+        match msg:
+            NoteOn(ch, note, vel) if vel > 0 =>
+                note_states[note] = true
+                velocities[note] = vel as Float / 127.0
+            NoteOn(ch, note, 0) | NoteOff(ch, note) =>
+                note_states[note] = false
+            PitchBend(ch, value) =>
+                pitch_bend = (value - 8192) as Float / 8192.0 * 2.0
+            _ => ()
+
+actor Synthesizer with Audio:
+    var voices: Array<Voice>
+    var filter: MoogFilter
+    var delay_fx: Delay
+    var reverb_fx: Reverb
+    var master_volume: Float = 0.8
+    on Initialize():
+        voices = Array.new(8, Voice.new())
+        filter = MoogFilter { cutoff: 2000.0, resonance: 0.3 }
+        delay_fx = Delay.new(2.0)
+        reverb_fx = Reverb.new(0.8, 0.3)
+    on Process(buffer: AudioBuffer) -> AudioBuffer:
+        for i in range(0, buffer.samples.len()):
+            var sample = 0.0
+            for voice in voices:
+                sample = sample + voice.process()
+            sample = filter.process(sample)
+            sample = delay_fx.process(sample)
+            sample = reverb_fx.process(sample)
+            buffer.samples[i] = clamp(sample * master_volume, -1.0, 1.0)
+        return buffer
+    on NoteOn(note: Int, velocity: Float):
+        var voice = find_free_voice(voices)
+        voice.trigger(midi_note_to_freq(note), velocity)
+    on NoteOff(note: Int):
+        for voice in voices:
+            if voice.note == note:
+                voice.release()
+
+fn use_state<T>(initial: T) -> (T, fn(T) -> ()):
+    let state_id = get_current_component_state_slot()
+    let current = match get_state(state_id):
+        Some(v) => v as T
+        None => 
+            set_state(state_id, initial)
+            initial
+    let setter = fn(new_value: T):
+        set_state(state_id, new_value)
+        trigger_rerender()
+    return (current, setter)
+
+fn use_effect(effect: fn() -> Option<fn() -> ()>, deps: Array<Any>):
+    let effect_id = get_current_effect_slot()
+    let prev_deps = get_effect_deps(effect_id)
+    let should_run = match prev_deps:
+        None => true
+        Some(prev) => not array_shallow_equal(prev, deps)
+    if should_run:
+        match get_effect_cleanup(effect_id):
+            Some(cleanup) => cleanup()
+            None => ()
+        let cleanup = effect()
+        set_effect_cleanup(effect_id, cleanup)
+
+fn App() -> Component:
+    let (user, set_user) = use_state<Option<User>>(None)
+    let (theme, set_theme) = use_state("dark")
+    use_effect(fn():
+        spawn async:
+            let response = await fetch("/api/me")
+            set_user(Some(await response.json()))
+        return None
+    , [])
+    return <div class={f"app theme-{theme}"}>
+        <ThemeContext.Provider value={theme}>
+            <Navbar on_theme_toggle={fn(): set_theme(if theme == "dark": "light" else: "dark")} />
+            <Router>
+                <Route path="/" component={HomePage} />
+                <Route path="/dashboard" component={Dashboard} />
+            </Router>
+        </ThemeContext.Provider>
+    </div>
+
+fn Dashboard() -> Component:
+    let user = use_context(UserContext)
+    let (data, set_data) = use_state<Array<DashboardItem>>([])
+    let (loading, set_loading) = use_state(true)
+    use_effect(fn():
+        set_loading(true)
+        spawn async:
+            let items = await graphql_query("query { dashboardItems { id title value } }")
+            set_data(items)
+            set_loading(false)
+        return None
+    , [user])
+    if loading:
+        return <div class="loading"><Spinner size="large" /></div>
+    return <div class="dashboard">
+        <h1>Welcome, {user.unwrap().name}</h1>
+        <div class="stats-grid">
+            {data.map(item => <StatCard key={item.id} title={item.title} value={item.value} />)}
+        </div>
+    </div>
+
+impl Router:
+    fn get(self, path: String, handler: fn(Request) -> Response) -> Router:
+        self.routes.push(Route { method: HttpMethod.GET, pattern: path, handler: handler })
+        return self
+    fn post(self, path: String, handler: fn(Request) -> Response) -> Router:
+        self.routes.push(Route { method: HttpMethod.POST, pattern: path, handler: handler })
+        return self
+    fn handle(self, req: Request) -> Response with Async:
+        for route in self.routes:
+            if route.method == req.method:
+                match match_pattern(route.pattern, req.path):
+                    Some(params) =>
+                        let req_with_params = Request { params: params, ..req }
+                        return route.handler(req_with_params)
+                    None => ()
+        return Response { status: 404, headers: Map.new(), body: b"Not Found" }
+
+fn train(model: dyn Layer, train_loader: DataLoader, epochs: Int, optimizer: dyn Optimizer) with IO:
+    for epoch in range(0, epochs):
+        var train_loss = 0.0
+        var batches = 0
+        for (x, y) in train_loader.iter():
+            let pred = model.forward(x)
+            let loss = cross_entropy_loss(pred, y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            train_loss = train_loss + loss.data[0]
+            batches = batches + 1
+        println!(f"Epoch {epoch + 1}/{epochs} | Loss: {train_loss / batches as Float:.4}")
+
+fn process_input(event: InputEvent, player: Entity) with Physics:
+    match event:
+        KeyDown(Key.W) | KeyDown(Key.Up) =>
+            apply_force(player, Vec3.new(0.0, 0.0, 10.0))
+        KeyDown(Key.Space) =>
+            let ground = raycast(player.transform.unwrap().position, Vec3.DOWN)
+            match ground:
+                Some(hit) if hit.distance < 0.1 =>
+                    apply_force(player, Vec3.new(0.0, 500.0, 0.0))
+                _ => ()
+        MouseMove(dx, dy) =>
+            let rot = player.transform.unwrap().rotation
+            let yaw = Quat.from_axis_angle(Vec3.UP, -dx * 0.1)
+            player.transform = Some(Transform { rotation: yaw * rot, ..player.transform.unwrap() })
+        _ => ()
+
+fn midi_note_to_freq(note: Int) -> Float:
+    return 440.0 * pow(2.0, (note - 69) as Float / 12.0)
+
+fn poly_blep(t: Float, dt: Float) -> Float:
+    if t < dt:
+        let t_norm = t / dt
+        return t_norm + t_norm - t_norm * t_norm - 1.0
+    else if t > 1.0 - dt:
+        let t_norm = (t - 1.0) / dt
+        return t_norm * t_norm + t_norm + t_norm + 1.0
+    return 0.0
+
+fn consistent_hash_new(nodes: Array<String>, virtual_nodes: Int = 150) -> ConsistentHash:
+    var ring = BTreeMap.new()
+    for node in nodes:
+        for i in range(0, virtual_nodes):
+            let hash = murmur3_hash(f"{node}:{i}")
+            ring.insert(hash, node)
+    return ConsistentHash { ring: ring, virtual_nodes: virtual_nodes }
+
+fn get_node(ch: ConsistentHash, key: String) -> String:
+    let hash = murmur3_hash(key)
+    match ch.ring.range(hash..).first():
+        Some((_, node)) => node
+        None => ch.ring.first().unwrap().1
+
+fn create_server() -> App with IO:
+    let db = connect_database("postgres://localhost/omega")
+    let ws_server = spawn WebSocketServer()
+    let api = router()
+        .get("/api/health", fn(req): json({ status: "ok" }))
+        .post("/graphql", fn(req) with Async:
+            let { query, variables } = req.body.parse()
+            json(await execute_graphql(query, variables, req.session))
+        )
+        .get("/ws", fn(req): upgrade_websocket(req, ws_server))
+    return api
+
+fn main() with IO, Async, Physics, Rendering, Audio, Consensus, Storage, Database, WebSocket:
+    println!("OMEGA INITIALIZED")
+    println!()
+    println!("Loading subsystems...")
+    
+    let compiler = spawn CompilerStateMachine()
+    let physics = spawn PhysicsSystem()
+    let renderer = spawn RenderSystem()
+    let cluster = spawn ClusterCoordinator()
+    let synth = spawn Synthesizer()
+    let midi = spawn MidiHandler()
+    let server = create_server()
+    
+    let model = Sequential.new([
+        Linear.new(784, 128), ReLU{},
+        Linear.new(128, 64), ReLU{},
+        Linear.new(64, 10)
+    ])
+    let optimizer = Adam.new(model.parameters())
+    
+    let rack = ModularRack { modules: Map.new(), connections: [] }
+    rack.add_module("vco", VCO { waveform: 1 })
+    rack.add_module("vcf", VCF {})
+    rack.add_module("vca", VCA {})
+    rack.add_module("lfo", LFO {})
+    rack.connect("vco", "out", "vcf", "in", 1.0)
+    rack.connect("lfo", "sine", "vcf", "cv", 0.3)
+    rack.connect("vcf", "out", "vca", "in", 1.0)
+    
+    send synth.Initialize()
+    send cluster.Bootstrap(ClusterConfig {
+        nodes: [
+            NodeConfig { id: "n1", host: "127.0.0.1", port: 9001, role: NodeRole.Follower, datacenter: "us" },
+            NodeConfig { id: "n2", host: "127.0.0.1", port: 9002, role: NodeRole.Follower, datacenter: "us" },
+            NodeConfig { id: "n3", host: "127.0.0.1", port: 9003, role: NodeRole.Follower, datacenter: "eu" }
+        ],
+        replication_factor: 3,
+        read_quorum: 2,
+        write_quorum: 2,
+        heartbeat_interval_ms: 150,
+        election_timeout_ms: 300
+    })
+    
+    let app = App()
+    
+    println!()
+    println!("OMEGA ONLINE")
+    println!()
+    println!("Active systems:")
+    println!("  - Self-modifying compiler with comptime macros")
+    println!("  - ECS game engine with physics and rendering")
+    println!("  - Neural network with autograd and Adam optimizer")
+    println!("  - Raft consensus distributed cluster")
+    println!("  - Full-stack web framework with React hooks")
+    println!("  - Real-time audio synthesizer with modular patching")
+    println!("  - GraphQL API with WebSocket support")
+    println!()
+    println!("All in one language.")
+    println!("All in one file.")
+    println!("All in KAIN.")
+    
+    listen(server, port: 3000)
+    await forever()

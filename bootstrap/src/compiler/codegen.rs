@@ -1,5 +1,5 @@
 // ============================================================================
-// KORE Bootstrap Compiler - LLVM IR Code Generator (Stub)
+// KAIN Bootstrap Compiler - LLVM IR Code Generator (Stub)
 // ============================================================================
 // This is a stub for the LLVM IR codegen. The Rust backend is primary.
 // Full implementation will come later.
@@ -28,6 +28,6 @@ impl CodeGen {
     
     pub fn gen_program(&mut self, _program: Program) -> String {
         // Stub - not implemented yet
-        "; KORE LLVM IR Output (stub)\n; Use --target rust instead\n".to_string()
+        "; KAIN LLVM IR Output (stub)\n; Use --target rust instead\n".to_string()
     }
 }

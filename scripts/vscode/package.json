@@ -1,7 +1,7 @@
 {
-  "name": "kore",
-  "displayName": "KORE Language",
-  "description": "Language support for KORE - The Alloy of Rust, Python, and Lisp",
+  "name": "kain",
+  "displayName": "KAIN Language",
+  "description": "Language support for KAIN - The Alloy of Rust, Python, and Lisp",
   "version": "0.1.0",
   "publisher": "k-os",
   "engines": {
@@ -14,9 +14,14 @@
   "contributes": {
     "languages": [
       {
-        "id": "kore",
-        "aliases": ["Kore", "kore"],
-        "extensions": [".kr", ".kor"],
+        "id": "kain",
+        "aliases": [
+          "Kain",
+          "kain"
+        ],
+        "extensions": [
+          ".kn"
+        ],
         "icon": {
           "light": "./icon.png",
           "dark": "./icon.png"
@@ -26,9 +31,9 @@
     ],
     "grammars": [
       {
-        "language": "kore",
-        "scopeName": "source.kore",
-        "path": "./syntaxes/kore.tmLanguage.json"
+        "language": "kain",
+        "scopeName": "source.kain",
+        "path": "./syntaxes/kain.tmLanguage.json"
       }
     ]
   }

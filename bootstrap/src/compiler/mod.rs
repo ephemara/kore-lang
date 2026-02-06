@@ -1,5 +1,5 @@
 // output_bootstrap/src/compiler/mod.rs
-// Module declarations for the Kore compiler
+// Module declarations for the KAIN compiler
 
 pub mod lexer;
 pub mod parser;

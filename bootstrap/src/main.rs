@@ -1,16 +1,16 @@
 // ============================================================================
-// KORE Compiler - Self-Hosted Bootstrap Edition
+// KAIN Compiler - Self-Hosted Bootstrap Edition
 // ============================================================================
 // Project Ouroboros - The Snake That Eats Its Own Tail
 //
-// This is the first self-hosted Kore compiler!
-// Generated from Kore source code, running as native Rust.
+// This is the first self-hosted KAIN compiler!
+// Generated from KAIN source code, running as native Rust.
 //
 // Usage:
-//   korec <source.kr>                    # Compile to LLVM IR (default)
-//   korec <source.kr> --target llvm      # Compile to LLVM IR
-//   korec <source.kr> --target rust      # Transpile to Rust
-//   korec <source.kr> -o output.ll       # Specify output file
+//   KAINc <source.kn>                    # Compile to LLVM IR (default)
+//   KAINc <source.kn> --target llvm      # Compile to LLVM IR
+//   KAINc <source.kn> --target rust      # Transpile to Rust
+//   KAINc <source.kn> -o output.ll       # Specify output file
 //
 // ============================================================================
 
@@ -31,19 +31,19 @@ use compiler::{Lexer, Parser, RustGen, LLVMGen};
 fn main() {
     let args: Vec<String> = env::args().collect();
     
-    println!(" Kore Compiler v0.2.0 (LLVM Bootstrap)");
+    println!(" KAIN Compiler v0.2.0 (LLVM Bootstrap)");
     println!("Project Ouroboros - Native Compilation");
-    eprintln!("DEBUG: Kore Compiler Starting... (Build Verification ID: 2980)");
+    eprintln!("DEBUG: KAIN Compiler Starting... (Build Verification ID: 2980)");
     println!();
     
     if args.len() < 2 {
-        println!("Usage: korec <source.kr> [--target llvm|rust] [-o output]");
+        println!("Usage: KAINc <source.kn> [--target llvm|rust] [-o output]");
         println!();
         println!("Targets:");
         println!("  llvm   - Generate LLVM IR (.ll) - compile with: clang output.ll -o output");
         println!("  rust   - Transpile to Rust (.rs) - compile with: rustc output.rs");
         println!();
-        println!("This is the self-hosted Kore compiler!");
+        println!("This is the self-hosted KAIN compiler!");
         return;
     }
     
@@ -118,7 +118,7 @@ fn main() {
         println!("Generating LLVM IR...");
         // Initialize Inkwell context
         let context = inkwell::context::Context::create();
-        let mut gen = LLVMGen::new(&context, "kore_main");
+        let mut gen = LLVMGen::new(&context, "KAIN_main");
         
         let success = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| gen.gen_program(program))) {
             Ok(_) => true,
@@ -193,8 +193,8 @@ fn main() {
     
     if target == "llvm" || target == "ll" {
         println!("Next steps:");
-        println!("  1. Compile runtime: clang -c runtime/kore_runtime.c -o kore_runtime.o");
-        println!("  2. Link: clang {} kore_runtime.o -o output.exe", out_path);
+        println!("  1. Compile runtime: clang -c runtime/KAIN_runtime.c -o KAIN_runtime.o");
+        println!("  2. Link: clang {} KAIN_runtime.o -o output.exe", out_path);
         println!("  3. Run: ./output.exe");
     } else {
         println!("Next steps:");

@@ -1,0 +1,51 @@
+// KAIN Standard Library: Future<T>
+// Represents an asynchronous computation
+
+use std::poll
+
+// Trait for types that can be polled to completion
+trait Future:
+    type Output
+    fn poll(mut self) -> Poll<Self::Output>
+
+// Waker stub - for future expansion with proper scheduling
+struct Waker:
+    _dummy: Int
+
+impl Waker:
+    fn wake(self):
+        // In a real implementation, this would notify the executor
+        pass
+
+// Context passed to poll (contains waker for real async runtimes)
+struct Context:
+    waker: Waker
+
+// Simple executor that blocks until completion
+fn block_on<T>(future: impl Future<Output = T>) -> T:
+    loop:
+        match future.poll():
+            Poll::Ready(val) => return val
+            Poll::Pending =>
+                // In a real implementation: yield, check I/O, reschedule
+                // For now, just spin (cooperative multitasking requires await points)
+                continue
+
+// Run multiple futures concurrently (simple version)
+fn join2<A, B>(a: impl Future<Output = A>, b: impl Future<Output = B>) -> (A, B):
+    let result_a: Option<A> = Option::None
+    let result_b: Option<B> = Option::None
+    
+    loop:
+        if result_a.is_none():
+            match a.poll():
+                Poll::Ready(val) => result_a = Option::Some(val)
+                Poll::Pending => pass
+        
+        if result_b.is_none():
+            match b.poll():
+                Poll::Ready(val) => result_b = Option::Some(val)
+                Poll::Pending => pass
+        
+        if result_a.is_some() && result_b.is_some():
+            return (result_a.unwrap(), result_b.unwrap())

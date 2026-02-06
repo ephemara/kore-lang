@@ -1,8 +1,8 @@
 // ============================================================================
-// KORE Bootstrap Compiler - Lexer (Rust)
+// KAIN Bootstrap Compiler - Lexer (Rust)
 // ============================================================================
-// Hand-translated from lexer.kr for Project Ouroboros bootstrap
-// This is the self-hosted KORE lexer running as native Rust code.
+// Hand-translated from lexer.kn for Project Ouroboros bootstrap
+// This is the self-hosted KAIN lexer running as native Rust code.
 // ============================================================================
 
 use std::fmt;
@@ -11,7 +11,7 @@ use std::fmt;
 // Token Types
 // =============================================================================
 
-/// All possible token types in KORE
+/// All possible token types in KAIN
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     // Literals
@@ -61,7 +61,7 @@ pub enum TokenKind {
     LAngle,     // <
     RAngle,     // >
     
-    // Whitespace (significant in KORE!)
+    // Whitespace (significant in KAIN!)
     Newline,
     Indent,
     Dedent,
@@ -140,7 +140,7 @@ impl Token {
 // Lexer
 // =============================================================================
 
-/// The KORE lexer - converts source text to tokens
+/// The KAIN lexer - converts source text to tokens
 pub struct Lexer {
     source: String,
     chars: Vec<char>,

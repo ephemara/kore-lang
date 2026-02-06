@@ -2,20 +2,20 @@
 import os
 
 SOURCES = [
-    "src/span.kr",
-    "src/error.kr", 
-    "src/effects.kr",
-    "src/ast.kr",
-    "src/stdlib.kr",
-    "src/types.kr",
-    "src/lexer.kr",
-    "src/lexer_static.kr",
-    "src/parser.kr",
-    "src/codegen.kr",
-    "src/korec.kr"
+    "src/span.kn",
+    "src/error.kn", 
+    "src/effects.kn",
+    "src/ast.kn",
+    "src/stdlib.kn",
+    "src/types.kn",
+    "src/lexer.kn",
+    "src/lexer_static.kn",
+    "src/parser.kn",
+    "src/codegen.kn",
+    "src/kainc.kn"
 ]
 
-OUTPUT = "korec_build_v2.kr"
+OUTPUT = "kainc_build_v2.kn"
 
 SKIP_MODULES = {"span", "error", "effects", "ast", "stdlib", "types", "lexer", "lexer_static", "parser", "codegen"}
 
