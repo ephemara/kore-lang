@@ -1,4 +1,4 @@
-<img src="docs/kore_timeline_final.gif" alt="KORE - Timeline Animation" width="1041">
+<img src="assets/kore_timeline_final.gif" alt="KORE - Timeline Animation" width="1041">
 
 
 <a href="#quick-start">Quick Start</a> • <a href="#features">Features</a> • <a href="#architecture">Architecture</a> • <a href="#building">Building</a> • <a href="#cli-reference">CLI</a> • <a href="#contributing">Contributing</a>
