@@ -1,0 +1,27 @@
+// Holographic glitch effect - SUPERCHARGED VERSION
+shader fragment HolographicGlitch(position: Vec4, uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform glitch_intensity: Float @1
+    uniform holo_color: Vec4 @2
+    uniform base_texture: Sampler2D @3
+    
+    // Extract UV components
+    let u = uv.x
+    let v = uv.y
+    
+    // Create glitch offset using sin
+    let time_scaled = time * 10.0
+    let glitch_wave = sin(time_scaled)
+    let glitch_offset = glitch_wave * glitch_intensity
+    
+    // Distort UV coordinates
+    let distorted_u = u + glitch_offset
+    let distorted_uv = vec2(distorted_u, v)
+    
+    // Sample texture
+    let base_color = sample(base_texture, distorted_uv)
+    
+    // Apply holographic tint
+    let tinted = base_color * holo_color
+    
+    return tinted

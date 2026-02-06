@@ -1,0 +1,4 @@
+// Simple test shader - verifying UE5 pipeline
+shader vertex SimpleVert(position: Vec4, uv: Vec2) -> Vec4:
+    uniform mvp: Mat4 @0
+    return mvp * position

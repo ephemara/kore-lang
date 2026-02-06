@@ -1,0 +1,16 @@
+// Wave effect using sin function
+shader fragment WaveEffect(position: Vec4, uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform wave_color: Vec4 @1
+    uniform base_texture: Sampler2D @2
+    
+    // Sample base texture
+    let base = sample(base_texture, uv)
+    
+    // Create wave using sin
+    let wave = sin(time)
+    
+    // Mix colors
+    let result = base * wave_color
+    
+    return result

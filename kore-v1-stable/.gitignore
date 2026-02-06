@@ -13,9 +13,6 @@
 
 # LLVM/Compiler output
 *.ll
-*.spv
-*.hlsl
-*.wasm
 
 # IDE
 .vscode/

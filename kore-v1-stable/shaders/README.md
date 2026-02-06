@@ -1,86 +1,37 @@
-# KORE Shader Examples
+Keeping some build artifacts around for reference! ultimate_shader.kr compiled cleanly into ultimate_shader.hlsl
 
-This folder contains production-quality GPU shader examples written in KORE, demonstrating the language's expressiveness for graphics programming.
+This successful compilation acts as a stress test for the backend, proving it can handle complex control flow, heavy mathematical operations, and multi-stage processing without breaking. It confirms that the HLSL generation logic is robust enough to translate high-level Kore syntax into valid, optimized shader code for real-world scenarios.
 
-## Shaders
+To serve as a comprehensive testing reference, ultimate_shader.kr includes:
 
-### `pbr_material.kr` - Physically-Based Rendering
-Complete PBR material system with:
-- **Cook-Torrance BRDF** - Industry-standard microfacet model
-- **GGX/Trowbridge-Reitz** - Normal distribution function
-- **Schlick-GGX Geometry** - Masking/shadowing term
-- **Fresnel-Schlick** - Reflectance at grazing angles
-- **Image-Based Lighting** - Environment maps with prefiltered specular
-- **ACES Tonemapping** - Cinematic color response
+Parallax occlusion mapping
 
-### `volumetric_clouds.kr` - Raymarched Volumetrics
-Real-time cloud rendering with:
-- **3D Fractal Noise** - FBM-based density fields
-- **Henyey-Greenstein Phase** - Realistic light scattering
-- **Beer-Lambert Law** - Exponential light absorption
-- **Powder Effect** - Multi-scattering approximation
-- **Light Marching** - Sun shadow sampling
+Full PBR with Cook-Torrance BRDF
 
-### `sdf_raymarcher.kr` - Signed Distance Fields
-Complete SDF renderer with:
-- **Primitive SDFs** - Sphere, box, torus, cylinder, capsule, plane
-- **CSG Operations** - Union, subtract, intersect (hard and smooth)
-- **Domain Operations** - Repeat, twist, bend
-- **Soft Shadows** - Penumbra estimation
-- **Ambient Occlusion** - Short-range raymarched AO
-- **Material System** - Per-object material IDs
+GGX distribution
 
-### `post_processing.kr` - Post-FX Stack
-Full post-processing pipeline:
-- **Bloom** - HDR bright-pass with Gaussian blur
-- **Chromatic Aberration** - Lens distortion simulation
-- **Film Grain** - Animated noise with luminance response
-- **Vignette** - Configurable edge falloff
-- **Color Grading** - Lift/Gamma/Gain, temperature, saturation
-- **ACES Tonemapping** - Filmic tone curve
-- **Temporal Anti-Aliasing** - Motion-aware history blending
+Schlick-GGX geometry
 
-## Compilation
+Fresnel-Schlick
 
-These shaders target the KORE V1 compiler's SPIR-V backend:
+Normal mapping with TBN matrix
 
-```bash
-# Compile to SPIR-V
-cd kore-v1-stable
-cargo build --release
-./target/release/kore ../shaders/pbr_material.kr --target spirv -o ../shaders/pbr_material.spv
+Detail textures
 
-# Convert to HLSL (for DirectX/UE5)
-naga ../shaders/pbr_material.spv ../shaders/pbr_material.hlsl
+ACES tone mapping
 
-# Convert to WGSL (for WebGPU)
-naga ../shaders/pbr_material.spv ../shaders/pbr_material.wgsl
-```
+Gamma correction
 
-## Syntax Overview
+Chromatic aberration
 
-KORE shader syntax is designed to be familiar to GLSL/HLSL users while being more concise:
+Vignette
 
-```kore
-// Shader declaration with typed inputs/outputs
-shader vertex MyVertex(position: Vec4, uv: Vec2) -> Vec4:
-    uniform mvp: Mat4 @0    // Uniform with binding point
-    return mvp * position
+Film grain
 
-shader fragment MyFragment(uv: Vec2) -> Vec4:
-    uniform texture: Sampler2D @0
-    let color = sample(texture, uv)
-    return color
-```
+Color grading (contrast + saturation)
 
-## Why KORE for Shaders?
+Animated distortion
 
-1. **Type Safety** - Full type checking before IR generation
-2. **Familiar Syntax** - Python-like indentation, Rust-like types
-3. **Multi-Target** - Single source compiles to SPIR-V, WGSL, HLSL
-4. **Effect Tracking** - GPU operations are tracked in the type system
-5. **Composability** - Functions work like any other KORE code
+8 texture samplers
 
----
-
-*These examples are for reference and demonstration. For production use, consider the specific requirements of your rendering pipeline.*
+14 uniform parameters

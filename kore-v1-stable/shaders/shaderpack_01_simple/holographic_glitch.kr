@@ -1,0 +1,15 @@
+// Holographic glitch effect shader for UE5
+// Creates a cyberpunk-style holographic distortion with scan lines
+
+shader fragment HolographicGlitch(position: Vec4, uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform glitch_intensity: Float @1
+    uniform scan_line_density: Float @2
+    uniform holo_color: Vec4 @3
+    uniform base_texture: Sampler2D @4
+    
+    // Simple holographic effect
+    let base_color = sample(base_texture, uv)
+    let tinted = base_color * holo_color
+    
+    return tinted

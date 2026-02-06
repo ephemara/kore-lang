@@ -1,0 +1,19 @@
+// Simple color tint shader - testing math functions
+shader fragment ColorTint(position: Vec4, uv: Vec2) -> Vec4:
+    uniform tint_color: Vec4 @0
+    uniform base_texture: Sampler2D @1
+    
+    // Sample texture
+    let base = sample(base_texture, uv)
+    
+    // Extract RGB components
+    let base_rgb = base.xyz
+    
+    // Tint it
+    let tint_rgb = tint_color.xyz
+    let result_rgb = base_rgb * tint_rgb
+    
+    // Reconstruct with alpha
+    let result = vec4(result_rgb.x, result_rgb.y, result_rgb.z, base.w)
+    
+    return result

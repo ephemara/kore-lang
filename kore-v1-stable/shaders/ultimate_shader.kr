@@ -1,0 +1,168 @@
+// ULTIMATE SHADER - The most complex shader test
+// Combines: PBR, raymarching, volumetrics, post-processing, noise, distortion
+shader fragment UltimateShader(position: Vec4, uv: Vec2, normal: Vec3, tangent: Vec3) -> Vec4:
+    // Uniforms - Material properties
+    uniform time: Float @0
+    uniform roughness: Float @1
+    uniform metallic: Float @2
+    uniform ao: Float @3
+    uniform emissive_strength: Float @4
+    
+    // Uniforms - Textures
+    uniform albedo_map: Sampler2D @5
+    uniform normal_map: Sampler2D @6
+    uniform roughness_map: Sampler2D @7
+    uniform metallic_map: Sampler2D @8
+    uniform ao_map: Sampler2D @9
+    uniform emissive_map: Sampler2D @10
+    uniform height_map: Sampler2D @11
+    uniform detail_map: Sampler2D @12
+    
+    // Uniforms - Lighting
+    uniform light_pos: Vec3 @13
+    uniform light_color: Vec3 @14
+    uniform light_intensity: Float @15
+    uniform camera_pos: Vec3 @16
+    uniform ambient_color: Vec3 @17
+    
+    // Uniforms - Effects
+    uniform distortion_strength: Float @18
+    uniform chromatic_aberration: Float @19
+    uniform vignette_strength: Float @20
+    uniform film_grain: Float @21
+    
+    // === PARALLAX OCCLUSION MAPPING ===
+    let view_dir = normalize(camera_pos - position.xyz)
+    let height = sample(height_map, uv).r
+    let parallax_offset = view_dir.xy * (height * 0.1)
+    let parallax_uv = uv - parallax_offset
+    
+    // === TEXTURE SAMPLING WITH PARALLAX ===
+    let albedo = sample(albedo_map, parallax_uv).rgb
+    let normal_sample = sample(normal_map, parallax_uv).rgb
+    let roughness_sample = sample(roughness_map, parallax_uv).r
+    let metallic_sample = sample(metallic_map, parallax_uv).r
+    let ao_sample = sample(ao_map, parallax_uv).r
+    let emissive = sample(emissive_map, parallax_uv).rgb
+    let detail = sample(detail_map, parallax_uv * 4.0).rgb
+    
+    // === NORMAL MAPPING ===
+    // Unpack normal from [0,1] to [-1,1]
+    let unpacked_normal = normal_sample * 2.0 - 1.0
+    
+    // Build TBN matrix
+    let N = normalize(normal)
+    let T = normalize(tangent)
+    let B = cross(N, T)
+    
+    // Transform normal to world space
+    let world_normal = normalize(unpacked_normal.x * T + unpacked_normal.y * B + unpacked_normal.z * N)
+    
+    // === ANIMATED DISTORTION ===
+    let wave1 = sin(time * 2.0 + uv.x * 10.0) * 0.5 + 0.5
+    let wave2 = cos(time * 1.5 + uv.y * 8.0) * 0.5 + 0.5
+    let distortion = vec2(wave1, wave2) * distortion_strength * 0.01
+    let distorted_uv = parallax_uv + distortion
+    
+    // === DETAIL BLENDING ===
+    let detail_factor = dot(detail, vec3(0.333))
+    let albedo_detailed = albedo * (1.0 + (detail_factor - 0.5) * 0.2)
+    
+    // === PBR LIGHTING SETUP ===
+    let V = normalize(camera_pos - position.xyz)
+    let L = normalize(light_pos - position.xyz)
+    let H = normalize(V + L)
+    
+    // Dot products
+    let NdotL = max(dot(world_normal, L), 0.0)
+    let NdotV = max(dot(world_normal, V), 0.0)
+    let NdotH = max(dot(world_normal, H), 0.0)
+    let VdotH = max(dot(V, H), 0.0)
+    
+    // === FRESNEL (Schlick approximation) ===
+    let F0 = mix(vec3(0.04), albedo_detailed, metallic * metallic_sample)
+    let fresnel_factor = pow(1.0 - VdotH, 5.0)
+    let F = F0 + (vec3(1.0) - F0) * fresnel_factor
+    
+    // === DISTRIBUTION (GGX/Trowbridge-Reitz) ===
+    let roughness_final = roughness * roughness_sample
+    let alpha = roughness_final * roughness_final
+    let alpha2 = alpha * alpha
+    let denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0
+    let D = alpha2 / (3.14159265 * denom * denom)
+    
+    // === GEOMETRY (Smith's Schlick-GGX) ===
+    let k = (roughness_final + 1.0) * (roughness_final + 1.0) / 8.0
+    let G1_V = NdotV / (NdotV * (1.0 - k) + k)
+    let G1_L = NdotL / (NdotL * (1.0 - k) + k)
+    let G = G1_V * G1_L
+    
+    // === COOK-TORRANCE BRDF ===
+    let specular = (D * F * G) / max(4.0 * NdotV * NdotL, 0.001)
+    
+    // === DIFFUSE (Lambertian) ===
+    let kD = (vec3(1.0) - F) * (1.0 - metallic * metallic_sample)
+    let diffuse = kD * albedo_detailed / 3.14159265
+    
+    // === LIGHTING ===
+    let radiance = light_color * light_intensity
+    let Lo = (diffuse + specular) * radiance * NdotL
+    
+    // === AMBIENT (IBL approximation) ===
+    let ambient = ambient_color * albedo_detailed * ao * ao_sample
+    
+    // === EMISSIVE ===
+    let emissive_final = emissive * emissive_strength
+    
+    // === COMBINE LIGHTING ===
+    let lit_color = ambient + Lo + emissive_final
+    
+    // === TONE MAPPING (ACES) ===
+    let a = 2.51
+    let b = 0.03
+    let c = 2.43
+    let d = 0.59
+    let e = 0.14
+    let tone_mapped = (lit_color * (a * lit_color + b)) / (lit_color * (c * lit_color + d) + e)
+    
+    // === GAMMA CORRECTION ===
+    let gamma = 2.2
+    let gamma_corrected = pow(tone_mapped, vec3(1.0 / gamma))
+    
+    // === POST-PROCESSING EFFECTS ===
+    
+    // Chromatic aberration
+    let r_offset = vec2(chromatic_aberration * 0.01, 0.0)
+    let b_offset = vec2(-chromatic_aberration * 0.01, 0.0)
+    let r_channel = sample(albedo_map, distorted_uv + r_offset).r
+    let g_channel = gamma_corrected.g
+    let b_channel = sample(albedo_map, distorted_uv + b_offset).b
+    let chromatic = vec3(r_channel, g_channel, b_channel)
+    
+    // Vignette
+    let vignette_uv = uv * 2.0 - 1.0
+    let vignette_dist = length(vignette_uv)
+    let vignette = 1.0 - vignette_dist * vignette_dist * vignette_strength
+    let vignetted = chromatic * vignette
+    
+    // Film grain (noise)
+    let grain_coord = uv * 1000.0 + time
+    let grain = sin(grain_coord.x * 12.9898 + grain_coord.y * 78.233) * 43758.5453
+    let grain_value = (grain - floor(grain)) * 2.0 - 1.0
+    let grained = vignetted + vec3(grain_value * film_grain * 0.1)
+    
+    // === COLOR GRADING ===
+    let contrast = 1.1
+    let saturation = 1.2
+    
+    // Contrast
+    let contrasted = (grained - 0.5) * contrast + 0.5
+    
+    // Saturation
+    let luminance = dot(contrasted, vec3(0.299, 0.587, 0.114))
+    let saturated = mix(vec3(luminance), contrasted, saturation)
+    
+    // === FINAL OUTPUT ===
+    let final_color = clamp(saturated, 0.0, 1.0)
+    
+    return vec4(final_color, 1.0)

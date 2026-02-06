@@ -1,0 +1,18 @@
+// Simple wave effect shader - testing UE5 pipeline
+shader fragment WaveEffect(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform wave_speed: Float @1
+    uniform wave_frequency: Float @2
+    uniform color_a: Vec3 @3
+    uniform color_b: Vec3 @4
+    
+    // Create animated wave pattern
+    let x_coord = uv.x * wave_frequency
+    let time_offset = time * wave_speed
+    let wave_input = x_coord + time_offset
+    let wave = sin(wave_input) * 0.5 + 0.5
+    
+    // Mix between two colors based on wave
+    let final_color = mix(color_a, color_b, wave)
+    
+    return vec4(final_color, 1.0)

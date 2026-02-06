@@ -1,0 +1,5 @@
+// Ultra simple color shader - pipeline test
+shader fragment SimpleColor(uv: Vec2) -> Vec4:
+    uniform tint_color: Vec3 @0
+    
+    return vec4(tint_color, 1.0)

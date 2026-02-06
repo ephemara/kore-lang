@@ -1,0 +1,37 @@
+// Advanced shader test - showcasing all the nuclear features
+shader fragment AdvancedEffect(position: Vec4, uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform intensity: Float @1
+    uniform base_texture: Sampler2D @2
+    uniform normal_map: Sampler2D @3
+    
+    // Sample textures
+    let base_color = sample(base_texture, uv)
+    let normal = sample(normal_map, uv)
+    
+    // Math operations
+    let wave = sin(time * 2.0 + uv.x * 10.0)
+    let pulse = cos(time * 3.0)
+    
+    // Vector operations
+    let offset = vec2(wave * 0.01, pulse * 0.01)
+    let distorted_uv = uv + offset
+    
+    // More sampling with distortion
+    let distorted = sample(base_texture, distorted_uv)
+    
+    // Color manipulation with swizzling
+    let rgb = distorted.rgb
+    let alpha = base_color.a
+    
+    // Advanced math
+    let brightness = dot(rgb, vec3(0.299, 0.587, 0.114))
+    let saturated = clamp(brightness * intensity, 0.0, 1.0)
+    
+    // Mix colors
+    let final_rgb = mix(rgb, vec3(saturated), 0.5)
+    
+    // Construct final color
+    let result = vec4(final_rgb, alpha)
+    
+    return result

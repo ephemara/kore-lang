@@ -80,23 +80,6 @@ enum Commands {
         name: Option<String>,
     },
     
-    /// Add a dependency to the project
-    Add {
-        /// Package name
-        #[arg(required = true)]
-        package: String,
-        
-        /// Specific version (optional)
-        #[arg(long)]
-        version: Option<String>,
-    },
-
-    /// Install all dependencies or a specific one
-    Install {
-        /// Package name (if empty, installs from kore.toml)
-        package: Option<String>,
-    },
-    
     /// Start the Language Server
     Lsp,
 
@@ -136,7 +119,7 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                     CompileTarget::Wasm => "wasm",
                     CompileTarget::Llvm => "ll",
                     CompileTarget::SpirV => "spv",
-                    CompileTarget::Rust => "rs",
+                    CompileTarget::Hlsl => "hlsl",
                     CompileTarget::Interpret | CompileTarget::Test => unreachable!(),
                 };
                 
@@ -332,23 +315,6 @@ fn main() {
                     eprintln!(" Init failed: {}", e);
                 }
             }
-            Some(Commands::Add { package, version }) => {
-                match packager::add_dependency(&package, version) {
-                    Ok(_) => println!(" Success!"),
-                    Err(e) => eprintln!(" Add failed: {}", e),
-                }
-            }
-            Some(Commands::Install { package }) => {
-                let result = match package {
-                    Some(p) => packager::add_dependency(&p, None),
-                    None => packager::install_all(),
-                };
-                
-                match result {
-                    Ok(_) => println!(" Success!"),
-                    Err(e) => eprintln!(" Install failed: {}", e),
-                }
-            }
             Some(Commands::Lsp) => {
                 eprintln!(" Starting KORE Language Server...");
                 // Manual runtime for LSP
@@ -382,11 +348,11 @@ fn main() {
                             "wasm" | "w" => CompileTarget::Wasm,
                             "llvm" | "native" | "n" => CompileTarget::Llvm,
                             "spirv" | "gpu" | "shader" | "s" => CompileTarget::SpirV,
-                            "rust" | "rs" => CompileTarget::Rust,
+                            "hlsl" | "usf" | "h" => CompileTarget::Hlsl,
                             "run" | "r" | "interpret" | "i" => CompileTarget::Interpret,
                             "test" | "t" => CompileTarget::Test,
                             _ => {
-                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, rust, run, test, or ue5-shader", args.target);
+                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, hlsl, run, test, or ue5-shader", args.target);
                                 std::process::exit(1);
                             }
                         };
