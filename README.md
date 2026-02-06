@@ -50,21 +50,10 @@ You might ask: *Why another language?*
 2.  **Solving Architectural Glue**: I am currently building a massive, professional-grade 3D DCC suite. Think **Blender meets Houdini, ZBrush, Substance, and C4D**. It handles everything from PBR painting and GPU sculpting to real-time particle simulations with 64+ million particles. The prototype was glued together using Rust, React, Tauri, TypeScript, Python, and C++ via a complex IPC system. It became a maintenance nightmare.
 3.  **The "Dogfooding" Strategy**: It turned out to be more efficient to design a language that unifies these domains (UI, Logic, GPU) than to maintain the "cobweb" of legacy stacks.
 
-**KAIN is being built to power this DCC.** The ultimate way to stress-test a language is to build complex 3D architecture with it. I am currently porting the DCC to KAIN to ensure the language handles real-world production edge cases.
-
->> **Funding & Roadmap**: To support this development, I am releasing modules of the DCC as **Unreal Engine 5 Plugins** (powered by KAIN's V1 compiler).
->
->> **Status Update:** Active work on the KAIN compiler core will be minimal until these plugins are released. I am currently developing on a legacy mobile workstation (i7 9th Gen, RTX 2060, 32GB RAM) which has become a hard bottleneck; compiler memory spikes during self-hosting frequently crash the machine. **Revenue from these plugins will directly fund the hardware upgrade needed to finish Project Ouroboros.**
-
-- - -
-
 ## The Origin
 
-KAIN has been under active private development for years. You might ask: *Where did these ~337 files suddenly spawn from?*
-
-The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate. FURTHERMORE, I prefer using the classic version of git (zipping folders and using that for backup instead of github). Only recently have I started using github for version control. In the scripts folder, you can find a robust Python GUI script that handled backups for me along with dozens of other features KAIN-main\scripts\ilovebuttons.pyw.
-
-Curious what this language is designed to power? Head over to **[Greeble.co](https://www.greeble.co/)**. There you can find a sample of the in-progress 3D DCC (1/14 modules) and previews of Unreal Engine 5 plugins—featuring C4D-style effectors, cloners, and MoGraph tools. Next plugin is going to be GPU based image to PBR generation. It is currently ~95% done. More info soon! 
+KAIN has been under active private development for years.
+The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate. .
 
 ## What is KAIN?
 
