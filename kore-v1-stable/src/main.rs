@@ -80,6 +80,23 @@ enum Commands {
         name: Option<String>,
     },
     
+    /// Add a dependency to the project
+    Add {
+        /// Package name
+        #[arg(required = true)]
+        package: String,
+        
+        /// Specific version (optional)
+        #[arg(long)]
+        version: Option<String>,
+    },
+
+    /// Install all dependencies or a specific one
+    Install {
+        /// Package name (if empty, installs from kore.toml)
+        package: Option<String>,
+    },
+    
     /// Start the Language Server
     Lsp,
 
@@ -313,6 +330,23 @@ fn main() {
             Some(Commands::Init { path, name }) => {
                 if let Err(e) = packager::init_project(&path, name) {
                     eprintln!(" Init failed: {}", e);
+                }
+            }
+            Some(Commands::Add { package, version }) => {
+                match packager::add_dependency(&package, version) {
+                    Ok(_) => println!(" Success!"),
+                    Err(e) => eprintln!(" Add failed: {}", e),
+                }
+            }
+            Some(Commands::Install { package }) => {
+                let result = match package {
+                    Some(p) => packager::add_dependency(&p, None),
+                    None => packager::install_all(),
+                };
+                
+                match result {
+                    Ok(_) => println!(" Success!"),
+                    Err(e) => eprintln!(" Install failed: {}", e),
                 }
             }
             Some(Commands::Lsp) => {
