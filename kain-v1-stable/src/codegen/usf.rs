@@ -89,7 +89,8 @@ pub fn generate(program: &TypedProgram) -> KainResult<String> {
 }
 
 struct USFContext {
-    vars: HashMap<String, String>,
+    // Maps variable name -> (code, type) for proper type tracking
+    vars: HashMap<String, (String, String)>,
     indent_level: usize,
     uniform_bindings: Vec<(String, String, u32)>,
 }
@@ -134,9 +135,9 @@ fn emit_shader_body(shader: &TypedShader) -> KainResult<String> {
             // UE5 convention: early-out for out-of-bounds threads
             output.push_str(&format!("{}// Early-out for bounds check\n", ctx.indent()));
             
-            // Add compute builtins to context
-            ctx.vars.insert("thread_id".to_string(), "ThreadId".to_string());
-            ctx.vars.insert("dispatch_thread_id".to_string(), "ThreadId".to_string());
+            // Add compute builtins to context with proper types
+            ctx.vars.insert("thread_id".to_string(), ("ThreadId".to_string(), "uint3".to_string()));
+            ctx.vars.insert("dispatch_thread_id".to_string(), ("ThreadId".to_string(), "uint3".to_string()));
             
             let body_code = emit_block(&mut ctx, &shader.ast.body)?;
             output.push_str(&body_code);
@@ -165,7 +166,8 @@ fn emit_shader_body(shader: &TypedShader) -> KainResult<String> {
             ctx.push_indent();
             
             for param in &shader.ast.inputs {
-                ctx.vars.insert(param.name.clone(), format!("Input.{}", param.name));
+                let param_type = map_type_to_usf(&param.ty);
+                ctx.vars.insert(param.name.clone(), (format!("Input.{}", param.name), param_type));
             }
             
             let body_code = emit_block(&mut ctx, &shader.ast.body)?;
@@ -200,7 +202,8 @@ fn emit_shader_body(shader: &TypedShader) -> KainResult<String> {
             ctx.push_indent();
             
             for param in &shader.ast.inputs {
-                ctx.vars.insert(param.name.clone(), format!("Input.{}", param.name));
+                let param_type = map_type_to_usf(&param.ty);
+                ctx.vars.insert(param.name.clone(), (format!("Input.{}", param.name), param_type));
             }
             
             let body_code = emit_block(&mut ctx, &shader.ast.body)?;
@@ -232,10 +235,11 @@ fn emit_stmt(ctx: &mut USFContext, stmt: &Stmt) -> KainResult<String> {
                     let (expr_code, expr_type) = emit_expr(ctx, value)?;
                     // Both let and var use same declaration in HLSL/USF
                     output.push_str(&format!("{}{} {} = {};\n", ctx.indent(), expr_type, name, expr_code));
-                    ctx.vars.insert(name.clone(), name.clone());
+                    // Store both the code and the type for proper type propagation
+                    ctx.vars.insert(name.clone(), (name.clone(), expr_type.clone()));
                     // Mark mutable vars so we know they can be reassigned
                     if *mutable {
-                        ctx.vars.insert(format!("__mutable_{}", name), "true".to_string());
+                        ctx.vars.insert(format!("__mutable_{}", name), ("true".to_string(), "bool".to_string()));
                     }
                 }
             }
@@ -276,7 +280,7 @@ fn emit_stmt(ctx: &mut USFContext, stmt: &Stmt) -> KainResult<String> {
                     ctx.indent(), name, name, name));
                 output.push_str(&format!("{}{{\n", ctx.indent()));
                 ctx.push_indent();
-                ctx.vars.insert(name.clone(), name.clone());
+                ctx.vars.insert(name.clone(), (name.clone(), "int".to_string()));
                 output.push_str(&emit_block(ctx, body)?);
                 ctx.pop_indent();
                 output.push_str(&format!("{}}}\n", ctx.indent()));
@@ -343,9 +347,11 @@ fn emit_if_statement(ctx: &mut USFContext, condition: &Expr, then_branch: &Block
 fn emit_expr(ctx: &mut USFContext, expr: &Expr) -> KainResult<(String, String)> {
     match expr {
         Expr::Ident(name, _) => {
-            if let Some(mapped) = ctx.vars.get(name) {
-                Ok((mapped.clone(), "float4".to_string()))
+            if let Some((code, ty)) = ctx.vars.get(name) {
+                // Return the stored type for proper type propagation
+                Ok((code.clone(), ty.clone()))
             } else {
+                // Unknown identifier - default to float4 (common for uniforms)
                 Ok((name.clone(), "float4".to_string()))
             }
         },
