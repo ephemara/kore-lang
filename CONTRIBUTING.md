@@ -57,29 +57,29 @@ kore-main/
 │   ├── parser_v2.kr        # Parser with generics support
 │   ├── types.kr            # Type checker with effect inference
 │   ├── codegen.kr          # LLVM IR generation
-│   ├── ast.kr              # Abstract syntax tree definitions
-│   ├── resolver.kr         # Import/module resolution
-│   ├── diagnostic.kr       # Error message formatting
-│   ├── effects.kr          # Effect system types
-│   ├── span.kr             # Source location tracking
-│   └── stdlib.kr           # Standard library function bindings
+│   └── ...                 # AST, resolver, diagnostics
 │
 ├── bootstrap/              # Stage 0: Rust bootstrap compiler
-│   ├── Cargo.toml
-│   └── src/
-│       └── ...             # Rust implementation
+│   └── src/                # Rust implementation
 │
 ├── runtime/                # C runtime library
-│   ├── kore_runtime.c      # NaN-boxing runtime implementation
-│   └── kore_runtime.o      # Pre-compiled object (rebuilt as needed)
+│   └── kore_runtime.c      # NaN-boxing runtime implementation
+│
+├── stdlib/                 # Experimental features (V2 development)
+│   └── *.kr                # 12 modules for WASM, SPIR-V, etc.
 │
 ├── tests/                  # Test suite
 │   ├── unit/               # Unit tests for individual features
-│   ├── integration/        # End-to-end tests
-│   └── examples/           # Demo programs (smoke tests)
+│   ├── examples/           # Demo programs (smoke tests)
+│   └── whacky/             # Edge case tests
 │
-├── kore-v1-stable/         # V1 Production Compiler (WASM/SPIR-V/Rust/Actors)
-├── build/                  # Build artifacts (gitignored)
+├── kore-v1-stable/         # V1 Production Compiler
+│   ├── src/                # Rust compiler source
+│   ├── stdlib/             # KORE standard library
+│   ├── shaders/            # GPU shader examples
+│   ├── bootstrap/          # Self-hosting compiler (KORE)
+│   └── runtime/            # C FFI runtime
+│
 └── build.ps1               # Main build script
 ```
 

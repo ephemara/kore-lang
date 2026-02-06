@@ -1,363 +1,184 @@
 # KORE V1 Commands Reference
 
-> **Production Compiler**: This documents the KORE V1 production compiler. For the V2 self-hosting compiler (experimental), see the main [README.md](../README.md) in the root directory.
+> **Production Compiler**: Full documentation for the unified KORE V1 compiler with all targets in one binary.
 
 ---
 
 ## Overview
 
-The **kore-v1-stable** folder contains two production-ready compiler implementations:
+The KORE V1 compiler (`kore`) is a single unified binary that supports **6 compilation targets**:
 
-1. **V1 Main Compiler** (`kore-v1-stable/`) - Production Rust implementation with SPIR-V/WASM backends
-2. **Bootstrap Compiler** (`bootstrap/`) - LLVM-based implementation with Rust transpilation
-
-Both are production-ready and actively maintained for their respective use cases.
+| Target | Output | Use Case |
+|--------|--------|----------|
+| WASM | `.wasm` | Web applications |
+| LLVM | `.ll` | Native binaries |
+| SPIR-V | `.spv` | GPU shaders |
+| **Rust** | `.rs` | Rust interop |
+| Interpret | stdout | Quick testing |
+| Test | stdout | Unit tests |
 
 ---
 
-## 1. V1 Main Compiler (SPIR-V & WASM)
-
-**Location**: `kore-v1-stable/`
-
-This is the production V1 KORE compiler with multi-target support.
-
-### Building
+## Building
 
 ```bash
 cd kore-v1-stable
 cargo build --release
 ```
 
-**Output**: `target/release/kore.exe` (Windows) or `target/release/kore` (Linux/macOS)
+**Binary**: `target/release/kore` (or `kore.exe` on Windows)
 
-### Compile to SPIR-V (GPU Shaders)
+---
 
-```bash
-./target/release/kore <input.kr> --target spirv -o <output.spv>
-```
-
-**Example**:
-```bash
-./target/release/kore shaders/pbr.kr --target spirv -o shaders/pbr.spv
-```
-
-**Output**: Binary SPIR-V shader file (`.spv`)
-
-### Compile to WASM
+## 1. Running KORE Code (Interpreter)
 
 ```bash
-./target/release/kore <input.kr> --target wasm -o <output.wasm>
-```
-
-**Output**: WebAssembly binary (`.wasm`)
-
-### Run in Interpreter
-
-```bash
-./target/release/kore <input.kr> --target run
-```
-
-**Example**:
-```bash
+# Run directly
 ./target/release/kore examples/hello.kr --target run
-```
 
-**Output**: Executes KORE code directly, prints to console
-
-### Debug Options
-
-```bash
-# Emit AST
-./target/release/kore <input.kr> --emit-ast
-
-# Emit Typed AST
-./target/release/kore <input.kr> --emit-typed
-
-# Verbose output
-./target/release/kore <input.kr> --target spirv -v
+# Shorthand
+./target/release/kore examples/hello.kr -t r
 ```
 
 ---
 
-## 2. Bootstrap Compiler (LLVM & Rust)
-
-**Location**: `bootstrap/`
-
-The bootstrap compiler uses LLVM via Inkwell and includes a Rust transpiler.
-
-### Building
+## 2. Compiling to WebAssembly
 
 ```bash
-cd bootstrap
-cargo build --release
-```
-
-**Output**: `target/release/korec.exe` (Windows) or `target/release/korec` (Linux/macOS)
-
-### Transpile to Rust
-
-```bash
-./bootstrap/target/release/korec <input.kr> --target rust -o <output.rs>
-```
-
-**Example**:
-```bash
-./bootstrap/target/release/korec src/parser.kr --target rust -o output/parser.rs
-```
-
-**Output**: Valid Rust source file (`.rs`)
-
-### Compile to LLVM IR
-
-```bash
-./bootstrap/target/release/korec <input.kr> --target llvm -o <output.ll>
-```
-
-**Output**: LLVM IR file (`.ll`)
-
-### Link and Execute LLVM Output
-
-```bash
-# Generate IR
-./bootstrap/target/release/korec program.kr --target llvm -o program.ll
-
-# Compile with Clang
-clang program.ll runtime/kore_runtime.c -o program.exe
-
-# Run
-./program.exe
-```
-
-### Full Usage
-
-```
-Usage: korec <source.kr> [--target llvm|rust] [-o output]
-
-Targets:
-  llvm   - Generate LLVM IR (.ll) - compile with: clang output.ll -o output
-  rust   - Transpile to Rust (.rs) - compile with: rustc output.rs
+./target/release/kore examples/app.kr --target wasm -o output.wasm
 ```
 
 ---
 
-## 3. Shader Pipeline (KORE → SPIR-V → HLSL)
-
-Use the V1 compiler for shaders, then convert with Naga.
-
-### Install Naga
+## 3. Compiling GPU Shaders (SPIR-V)
 
 ```bash
-cargo install naga-cli
-```
+# Basic compile
+./target/release/kore shaders/pbr_material.kr --target spirv -o pbr.spv
 
-### Full Pipeline
+# Convert to HLSL (using naga)
+naga pbr.spv pbr.hlsl
 
-```bash
-# Step 1: Compile KORE to SPIR-V
-./kore-v1-stable/target/release/kore shader.kr --target spirv -o shader.spv
-
-# Step 2: Convert SPIR-V to HLSL (for DirectX/UE5)
-naga shader.spv shader.hlsl
-
-# Step 3: Or convert to other formats
-naga shader.spv shader.wgsl   # WebGPU
-naga shader.spv shader.glsl   # OpenGL
-naga shader.spv shader.metal  # Metal (macOS/iOS)
-```
-
-### One-liner
-
-```bash
-./kore-v1-stable/target/release/kore shader.kr --target spirv -o shader.spv && naga shader.spv shader.hlsl
+# Convert to other formats
+naga pbr.spv pbr.wgsl   # WebGPU
+naga pbr.spv pbr.glsl   # OpenGL
+naga pbr.spv pbr.metal  # Metal
 ```
 
 ---
 
-## 4. Unreal Engine 5 Shader Pipeline
-
-The V1 compiler has a dedicated `ue5-shader` target that automates the full pipeline from KORE source to UE5-ready `.usf` shader files.
-
-### What It Does
-
-1. Compiles KORE shader to SPIR-V
-2. Validates SPIR-V with `spirv-val` (if available)
-3. Transpiles SPIR-V to HLSL using `naga`
-4. Generates a `.usf` wrapper that includes the HLSL
-5. Optionally copies everything to your UE5 plugin's Shaders directory
-
-### Basic Usage
-
-```bash
-# Compile a KORE shader for UE5
-./target/release/kore shader.kr --target ue5-shader
-```
-
-**Output** (in `./stage/` directory):
-- `shader.spv` - SPIR-V binary
-- `shader.hlsl` - Transpiled HLSL
-- `shader.usf` - UE5 shader wrapper
-
-### Deploy to UE5 Plugin
-
-```bash
-# Copy directly to a plugin's Shaders folder
-./target/release/kore shader.kr --target ue5-shader --plugin MyPlugin
-
-# Specify custom plugins directory
-./target/release/kore shader.kr --target ue5-shader --plugin MyPlugin --plugins-dir "C:/UE5/MyProject/Plugins"
-```
-
-This copies `shader.hlsl` and `shader.usf` to:
-```
-{plugins-dir}/MyPlugin/Shaders/shader.hlsl
-{plugins-dir}/MyPlugin/Shaders/shader.usf
-```
-
-### CLI Options for UE5
-
-| Flag | Description |
-|------|-------------|
-| `--target ue5-shader` | Enable UE5 shader pipeline |
-| `--plugin <name>` | Target UE5 plugin name |
-| `--plugins-dir <path>` | UE5 plugins directory (default: scans common locations) |
-| `--dry-run` | Show what would be done without executing |
-| `--verbose` | Show detailed pipeline steps |
-
-### Requirements
-
-- **naga-cli**: `cargo install naga-cli`
-- **spirv-val** (optional): Part of Vulkan SDK, used for validation
-
-### Example Workflow
-
-```bash
-# 1. Write your shader in KORE
-cat > my_effect.kr << 'EOF'
-shader fragment MyEffect:
-    uniform time: Float
-    in uv: vec2
-    out color: vec4
-    
-    fn main():
-        let wave = sin(uv.x * 10.0 + time) * 0.5 + 0.5
-        color = vec4(wave, uv.y, 0.5, 1.0)
-EOF
-
-# 2. Compile and deploy to your plugin
-./target/release/kore my_effect.kr --target ue5-shader --plugin MyRenderPlugin -v
-
-# 3. In UE5, reference it as:
-#    /Plugin/MyRenderPlugin/Shaders/my_effect.usf
-```
-
----
-
-## 5. Common Workflows
-
-### Workflow A: Test KORE Code (Interpreter)
-
-```bash
-# Write code in examples/test.kr
-# Run directly without compilation
-./kore-v1-stable/target/release/kore examples/test.kr --target run
-```
-
-### Workflow B: Generate Rust Library
+## 4. Transpiling to Rust
 
 ```bash
 # Transpile KORE to Rust
-./bootstrap/target/release/korec my_module.kr --target rust -o output/my_module.rs
+./target/release/kore stdlib/runtime.kr --target rust -o runtime.rs
 
-# Review generated code
-cat output/my_module.rs
-
-# Integrate into Rust project
-# (manually add to lib.rs or use as standalone module)
+# Compile the generated Rust
+rustc runtime.rs -o runtime
 ```
 
-### Workflow C: Compile GPU Shader
+---
+
+## 5. UE5 Shader Pipeline
+
+Automated compilation from KORE to UE5-ready shaders:
 
 ```bash
-# 1. Write shader in KORE
-# 2. Compile to SPIR-V
-./kore-v1-stable/target/release/kore my_shader.kr --target spirv -o my_shader.spv
+# Generate UE5 shader files
+./target/release/kore shaders/effect.kr --target ue5-shader
 
-# 3. Validate with spirv-val (optional)
-spirv-val my_shader.spv
+# Deploy directly to plugin
+./target/release/kore shaders/effect.kr --target ue5-shader --plugin MyPlugin
+```
 
-# 4. Convert to target format
-naga my_shader.spv my_shader.hlsl
+**Generated files** (in `./stage/`):
+- `effect.spv` - SPIR-V binary
+- `effect.hlsl` - Transpiled HLSL
+- `effect.usf` - UE5 wrapper
+
+---
+
+## 6. CLI Options
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output <file>` | Output file path |
+| `-t, --target <target>` | Compilation target |
+| `-r, --run` | Run after compilation |
+| `-w, --watch` | Watch mode (auto-recompile) |
+| `--emit-ast` | Dump parsed AST |
+| `--emit-typed` | Dump typed AST |
+| `-v, --verbose` | Verbose output |
+| `--dry-run` | Preview actions |
+
+---
+
+## 7. Target Aliases
+
+| Target | Aliases |
+|--------|---------|
+| WASM | `wasm`, `w` |
+| LLVM | `llvm`, `native`, `n` |
+| SPIR-V | `spirv`, `gpu`, `shader`, `s` |
+| Rust | `rust`, `rs` |
+| Interpret | `run`, `interpret`, `i`, `r` |
+| Test | `test`, `t` |
+
+---
+
+## 8. Directory Structure
+
+```
+kore-v1-stable/
+├── src/           # Rust compiler source
+├── stdlib/        # KORE standard library
+├── shaders/       # GPU shader examples
+├── examples/      # General examples
+├── bootstrap/     # Self-hosting compiler (KORE)
+├── tests/         # Test files
+└── runtime/       # C FFI runtime
 ```
 
 ---
 
-## 5. Troubleshooting
+## 9. Common Workflows
 
-### SPIR-V Validation Errors
+### Test KORE Code
+```bash
+./target/release/kore examples/test.kr --target run
+```
 
-If Naga fails with validation errors, the SPIR-V output is malformed:
+### Compile Shader for UE5
+```bash
+./target/release/kore shaders/pbr_material.kr --target ue5-shader --plugin MyPlugin -v
+```
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `Type isn't compatible with address space` | Wrong storage class | Check uniform declarations |
-| `Missing @builtin(position)` | Vertex shader output | Ensure `-> Vec4` has Position builtin |
-| `Global variable invalid` | Missing Block decoration | Wrap uniform in struct |
+### Generate Rust Library
+```bash
+./target/release/kore stdlib/runtime.kr --target rust -o kore_runtime.rs
+rustc kore_runtime.rs --crate-type lib -o libkore_runtime.rlib
+```
 
-### Rust Transpilation Issues
+---
 
-If generated Rust fails to compile:
-1. Check if KORE source uses patterns the codegen doesn't handle
-2. Manually refactor or add type annotations
-3. Report codegen bug for future improvement
+## 10. Troubleshooting
 
-### Build Performance
+| Issue | Solution |
+|-------|----------|
+| SPIR-V validation fails | Check uniform/builtin declarations |
+| Naga errors | Validate with `spirv-val` first |
+| Rust compile errors | Check type annotations in KORE source |
+
+### Install Required Tools
 
 ```bash
-# Fast syntax check (no codegen)
-cargo check
+# Naga (SPIR-V to HLSL/GLSL/WGSL converter)
+cargo install naga-cli
 
-# Build only the binary, skip tests/docs
-cargo build --release --bin kore
-
-# Use release mode for real projects (dev builds are slow)
-cargo build --release
+# SPIR-V Tools (optional validation)
+# Install Vulkan SDK from https://vulkan.lunarg.com/
 ```
 
 ---
 
-## 6. Why Two Compilers?
-
-| Compiler | Use Case | Backends |
-|----------|----------|----------|
-| **V1 Main** | GPU shaders, WASM apps, Actors | SPIR-V, WASM, Interpreter |
-| **Bootstrap** | Native binaries, Rust codegen | LLVM IR, Rust transpiler |
-
-The **V2 self-hosting compiler** (root directory) is the next-generation implementation. The V1 compilers remain as production-ready tools for:
-- SPIR-V shader generation
-- WASM compilation
-- Actor-based concurrency
-- Python FFI integration
-- Production-ready tooling
-
----
-
-## 7. Migration Path
-
-To use the **V2 self-hosting compiler** (experimental):
-
-```bash
-# See main README.md for build instructions
-./build.sh              # Linux/macOS
-./build.ps1             # Windows
-
-# Output: ./build/kore_native.exe
-
-# Run KORE code
-./build/kore_native.exe examples/hello.kr
-```
-
-The V2 compiler is **self-hosting** and under active development. Use V1 compilers for production workloads, especially for SPIR-V shaders, WASM, and actor systems.
-
----
-
-*For full documentation, see [../README.md](../README.md)*
+*For language syntax and features, see the main [README.MD](./README.MD)*

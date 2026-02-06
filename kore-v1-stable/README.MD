@@ -16,19 +16,6 @@ KORE combines the best ideas from multiple paradigms:
 
 ---
 
-## Two Compilers
-
-This folder contains **two distinct compilers** at different stages of development:
-
-| Compiler | Location | LLVM Version | Backends | Status |
-|----------|----------|--------------|----------|--------|
-| **Main V1 Compiler** | `./` (root) | inkwell 0.4 / LLVM 17 | WASM, LLVM, SPIR-V, Interpret | Production |
-| **Bootstrap Compiler** | `./bootstrap/` | inkwell 0.7.1 / LLVM 21 | LLVM, **Rust** | Stable |
-
-The bootstrap compiler includes the **Rust transpiler** - KORE code can be compiled to valid Rust source.
-
----
-
 ## Quick Start
 
 ```bash
@@ -67,6 +54,9 @@ cargo build --release
 # Compile to SPIR-V (GPU shader bytecode)
 ./target/release/kore shader.kr --target spirv -o shader.spv
 
+# Transpile to Rust source code
+./target/release/kore example.kr --target rust -o output.rs
+
 # Run tests
 ./target/release/kore test_file.kr --target test
 
@@ -74,29 +64,16 @@ cargo build --release
 ./target/release/kore example.kr --target wasm --watch
 ```
 
-### Bootstrap Compiler (`korec`)
-
-```bash
-# Compile to LLVM IR (default)
-./bootstrap/target/release/korec example.kr -o output.ll
-
-# Transpile to Rust
-./bootstrap/target/release/korec example.kr --target rust -o output.rs
-
-# Specify target explicitly
-./bootstrap/target/release/korec example.kr --target llvm -o output.ll
-```
-
 ### Compilation Targets
 
-| Target | Main Compiler | Bootstrap | Flag(s) | Output |
-|--------|:-------------:|:---------:|---------|--------|
-| WASM | Yes | No | `-t wasm`, `-t w` | `.wasm` |
-| LLVM/Native | Yes | Yes | `-t llvm`, `-t native`, `-t n` | `.ll` |
-| SPIR-V | Yes | No | `-t spirv`, `-t gpu`, `-t shader`, `-t s` | `.spv` |
-| Interpret | Yes | No | `-t run`, `-t interpret`, `-t i` | stdout |
-| Test | Yes | No | `-t test`, `-t t` | stdout |
-| **Rust** | No | **Yes** | `--target rust` | `.rs` |
+| Target | Flag(s) | Output |
+|--------|---------|--------|
+| WASM | `-t wasm`, `-t w` | `.wasm` |
+| LLVM/Native | `-t llvm`, `-t native`, `-t n` | `.ll` |
+| SPIR-V | `-t spirv`, `-t gpu`, `-t shader`, `-t s` | `.spv` |
+| **Rust** | `-t rust`, `-t rs` | `.rs` |
+| Interpret | `-t run`, `-t interpret`, `-t i` | stdout |
+| Test | `-t test`, `-t t` | stdout |
 
 ### CLI Options
 
@@ -196,15 +173,15 @@ Or in a material:
 
 ---
 
-## Rust Transpiler Pipeline
+## Rust Transpiler
 
-The bootstrap compiler can transpile KORE to Rust, giving access to the entire Rust ecosystem.
+KORE can be transpiled to valid Rust source code:
 
 ```bash
-# Step 1: Transpile to Rust
-./bootstrap/target/release/korec logic.kr --target rust -o logic.rs
+# Transpile to Rust
+./target/release/kore logic.kr --target rust -o logic.rs
 
-# Step 2: Compile with rustc
+# Compile with rustc
 rustc logic.rs -o logic.exe
 
 # Or integrate into a Cargo project
@@ -222,88 +199,40 @@ The generated Rust includes:
 
 ```
 kore-v1-stable/
-├── Cargo.toml                  # Main compiler manifest (inkwell 0.4)
-├── README.md                   # This file
-├── commands.md                 # CLI reference
+├── Cargo.toml              # Compiler manifest
+├── README.md               # This file
+├── commands.md             # CLI reference
 │
-├── src/                        # Main compiler source (Rust)
-│   ├── lib.rs                  # Library entry, compile() function
-│   ├── main.rs                 # CLI entry point
-│   │
-│   ├── lexer.rs                # Tokenizer (logos)
-│   ├── parser.rs               # Parser combinator (82KB, chumsky)
-│   ├── ast.rs                  # Abstract Syntax Tree types
-│   ├── types.rs                # Type system definitions
-│   ├── span.rs                 # Source location tracking
-│   │
-│   ├── runtime.rs              # Interpreter + Actor system (135KB)
-│   ├── stdlib.rs               # Standard library bindings
-│   ├── effects.rs              # Effect system
-│   ├── comptime.rs             # Compile-time evaluation
-│   ├── monomorphize.rs         # Generic instantiation (55KB)
-│   │
-│   ├── codegen/                # Code generation backends
-│   │   ├── mod.rs              # Module exports
-│   │   ├── llvm.rs             # LLVM IR generator (66KB)
-│   │   ├── wasm.rs             # WebAssembly codegen (95KB)
-│   │   └── spirv.rs            # SPIR-V shader codegen (14KB)
-│   │
-│   ├── compiler/               # Self-hosted compiler (written in KORE!)
-│   │   ├── main.kr             # Compiler driver (284 lines)
-│   │   ├── lexer.kr            # Lexer in KORE
-│   │   ├── parser.kr           # Parser in KORE
-│   │   ├── codegen.kr          # LLVM codegen in KORE
-│   │   ├── codegen_rust.kr     # Rust transpiler in KORE (684 lines)
-│   │   ├── bootstrap.kr        # Bootstrap entry
-│   │   ├── compile_bootstrap.kr
-│   │   └── full_bootstrap.kr
-│   │
-│   ├── other/                  # Additional KORE-written utilities
-│   │   ├── repl.kr             # Interactive REPL (432 lines)
-│   │   ├── formatter.kr        # Code formatter (751 lines)
-│   │   ├── lsp.kr              # Language Server
-│   │   ├── runtime.kr          # Runtime utilities
-│   │   ├── spirv.kr            # SPIR-V utilities
-│   │   ├── wasm.kr             # WASM utilities
-│   │   ├── comptime.kr         # Comptime evaluation
-│   │   ├── monomorphize.kr     # Monomorphization
-│   │   ├── import_resolver.kr  # Import resolution
-│   │   ├── packager.kr         # Package management
-│   │   ├── suggestions.kr      # Error suggestions
-│   │   └── test_runner.kr      # Test framework
-│   │
-│   ├── runtime/c/              # C runtime for LLVM backend
-│   │   ├── kore_runtime.c      # Runtime implementation (334 lines)
-│   │   └── kore_runtime.obj    # Compiled object file
-│   │
-│   ├── lsp.rs                  # Language Server Protocol (20KB)
-│   ├── diagnostics.rs          # Pretty error formatting
-│   ├── error.rs                # Error types
-│   └── packager.rs             # Project scaffolding
+├── src/                    # Rust compiler source
+│   ├── lib.rs              # Library entry, compile() function
+│   ├── main.rs             # CLI entry point
+│   ├── lexer.rs            # Tokenizer
+│   ├── parser.rs           # Parser (82KB)
+│   ├── ast.rs              # AST types
+│   ├── types.rs            # Type system
+│   ├── runtime.rs          # Interpreter + Actor system (135KB)
+│   ├── monomorphize.rs     # Generic instantiation (55KB)
+│   └── codegen/            # Code generation backends
+│       ├── wasm.rs         # WebAssembly (95KB)
+│       ├── llvm.rs         # LLVM IR (66KB)
+│       ├── spirv.rs        # SPIR-V shaders (14KB)
+│       └── rust.rs         # Rust transpiler (28KB)
 │
-├── bootstrap/                  # Bootstrap compiler (inkwell 0.7.1 / LLVM 21)
-│   ├── Cargo.toml              # Bootstrap manifest
-│   ├── src/
-│   │   ├── main.rs             # CLI entry (211 lines)
-│   │   └── compiler/
-│   │       ├── mod.rs          # Module exports
-│   │       ├── lexer.rs        # Lexer (18KB)
-│   │       ├── parser.rs       # Parser (43KB)
-│   │       ├── codegen.rs      # Codegen entry
-│   │       ├── codegen_llvm.rs # LLVM backend (71KB)
-│   │       └── codegen_rust.rs # Rust transpiler (23KB)
-│   │
-│   └── backup/                 # Compiled LLVM IR artifacts
-│       ├── kore_native.ll      # Bootstrap IR (623KB)
-│       ├── kore_native.exe     # Compiled bootstrap
-│       └── kore_runtime.o      # C runtime object
+├── stdlib/                 # KORE standard library
+│   ├── runtime.kr          # Runtime utilities
+│   ├── wasm.kr             # WASM utilities
+│   ├── spirv.kr            # SPIR-V utilities
+│   └── ...                 # 12 modules total
 │
-└── test/                       # Test files
-    ├── test_shader.kr          # Sample shader
-    ├── test_shader.spv         # Compiled SPIR-V
-    ├── test_shader.hlsl        # Transpiled HLSL
-    ├── test_rust.kr            # Rust codegen test
-    └── test_rust_output.*      # Compiled artifacts
+├── shaders/                # GPU shader examples
+│   ├── pbr_material.kr     # PBR shader
+│   ├── post_processing.kr  # Post-processing effects
+│   └── ...                 # 5 shaders
+│
+├── examples/               # General KORE examples
+├── bootstrap/              # Self-hosting compiler (in KORE)
+├── tests/kore/             # Test files
+└── runtime/                # C FFI runtime
 ```
 
 ---

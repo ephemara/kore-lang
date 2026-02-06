@@ -202,55 +202,40 @@ KORE uses a **three-stage bootstrap architecture**:
 ### Project Structure
 
 ```
-
+kore-main/
 ├── src/                    # KORE compiler source (written in KORE)
 │   ├── korec.kr            # Compiler entry point & CLI
 │   ├── lexer.kr            # Tokenizer (23KB)
 │   ├── parser_v2.kr        # Parser with generics (54KB)
 │   ├── types.kr            # Type checker (66KB)
 │   ├── codegen.kr          # LLVM IR generator (86KB)
-│   ├── ast.kr              # AST definitions
-│   ├── resolver.kr         # Import resolution
-│   ├── diagnostic.kr       # Error formatting
-│   ├── effects.kr          # Effect system
-│   ├── span.kr             # Source locations
-│   └── stdlib.kr           # Standard library bindings
+│   └── ...                 # AST, resolver, diagnostics, effects
 │
 ├── bootstrap/              # Stage 0: Rust bootstrap compiler
-│   ├── Cargo.toml          # Inkwell 0.7.1 / LLVM 21
 │   └── src/                # Rust implementation
 │
 ├── runtime/                # C runtime library
-│   ├── kore_runtime.c      # NaN-boxing runtime (65KB)
-│   └── kore_runtime.o      # Compiled object file
+│   └── kore_runtime.c      # NaN-boxing runtime (65KB)
 │
-├── build/                  # Build artifacts (gitignored)
-│   ├── artifacts/          # Timestamped builds
-│   │   ├── latest/         # Symlink to newest build
-│   │   └── YYYYMMDD_HHMMSS/
-│   └── logs/               # Build logs
+├── stdlib/                 # Experimental features (V2 development)
+│   ├── monomorphize.kr     # Generics instantiation
+│   ├── wasm.kr             # WebAssembly codegen
+│   ├── runtime.kr          # Interpreter with actors
+│   └── ...                 # 12 modules total
 │
 ├── tests/                  # Test suite
 │   ├── unit/               # Unit tests
-│   └── examples/           # Demo programs
+│   ├── examples/           # Demo programs
+│   └── whacky/             # Edge case tests
 │
-├── not_yet_implemented/    # Experimental features (~9,000 lines)
-│   ├── monomorphize.kr     # Generics instantiation (1,315 lines)
-│   ├── wasm.kr             # WebAssembly codegen (1,213 lines)
-│   ├── runtime.kr          # Interpreter with actors (1,291 lines)
-│   ├── spirv.kr            # GPU shader codegen (1,075 lines)
-│   ├── lsp.kr              # Language Server Protocol (994 lines)
-│   ├── formatter.kr        # Code formatter (751 lines)
-│   ├── comptime.kr         # Compile-time evaluation (382 lines)
-│   ├── repl.kr             # Interactive REPL (432 lines)
-│   ├── test_runner.kr      # Test discovery/runner (432 lines)
-│   ├── packager.kr         # Package manager (422 lines)
-│   ├── suggestions.kr      # Error recovery suggestions (388 lines)
-│   └── import_resolver.kr  # Module resolution (365 lines)
+├── kore-v1-stable/         # V1 Production Compiler
+│   ├── src/                # Rust compiler source
+│   ├── stdlib/             # KORE standard library
+│   ├── shaders/            # GPU shader examples
+│   ├── bootstrap/          # Self-hosting compiler (KORE)
+│   └── runtime/            # C FFI runtime
 │
-├── kore-v1-stable/         # V1 Production Compiler (WASM/SPIR-V/Rust/Actors)
 ├── docs/                   # Documentation
-├── stdlib/                 # Standard library (KORE source)
 └── scripts/                # Development utilities
 ```
 
@@ -630,9 +615,9 @@ The C runtime (`runtime/kore_runtime.c`) provides:
 
 - - -
 
-## Experimental Features (`not_yet_implemented/`)
+## Experimental Features (`stdlib/`)
 
-The `not_yet_implemented/` folder contains **\~9,000 lines** of experimental KORE source code for upcoming features. These are fully written but not yet integrated into the main compiler pipeline.
+The `stdlib/` folder contains **~9,000 lines** of experimental KORE source code for upcoming features. These are fully written but not yet integrated into the main compiler pipeline.
 
 ### Feature Status
 
@@ -644,57 +629,8 @@ The `not_yet_implemented/` folder contains **\~9,000 lines** of experimental KOR
 | **SPIR-V** | `spirv.kr` | 1,075 | GPU shader codegen with capabilities, types |
 | **LSP Server** | `lsp.kr` | 994 | Document sync, symbol lookup, diagnostics |
 | **Formatter** | `formatter.kr` | 751 | Code pretty-printing with configurable style |
-| **Comptime** | `comptime.kr` | 382 | Zig-style compile-time expression evaluation |
-| **REPL** | `repl.kr` | 432 | Interactive shell with history, commands |
-| **Test Runner** | `test_runner.kr` | 432 | Test discovery, parallel execution, reporting |
-| **Packager** | `packager.kr` | 422 | Package manifest (kore.toml), project init |
-| **Suggestions** | `suggestions.kr` | 388 | Typo detection, smart error recovery |
-| **Import Resolver** | `import_resolver.kr` | 365 | Module graph, cycle detection, caching |
 
-### Key Highlights
-
-**Monomorphization** (`monomorphize.kr`):
-
-* Two-pass algorithm: collect generics → scan for instantiations
-* Type substitution mapping
-* Method registration from impl blocks
-* Trait implementation tracking
-
-**WebAssembly Codegen** (`wasm.kr`):
-
-* Complete opcode definitions (40+ opcodes)
-* Struct/enum layout computation
-* Lambda and closure support
-* Data section for string literals
-* Component compilation (for UI)
-
-**Interpreter Runtime** (`runtime.kr`):
-
-* NaN-boxing value representation
-* Actor system with mailboxes and message passing
-* 50+ native functions (I/O, math, HTTP, JSON)
-* VDOM support for JSX rendering
-
-**SPIR-V Codegen** (`spirv.kr`):
-
-* Full SPIR-V builder with proper section ordering
-* Capabilities, execution models, decorations
-* Type caching for primitives and vectors
-* Shader entry point generation
-
-**LSP Server** (`lsp.kr`):
-
-* Document store with incremental text updates
-* Symbol extraction from parsed AST
-* Position ↔ offset conversion
-* Go-to-definition support
-
-**Comptime Evaluation** (`comptime.kr`):
-
-* Zig-style `comptime` expression handling
-* Value-to-literal conversion
-* Recursive block and expression evaluation
-* Const evaluation at compile time
+**Full details**: See `stdlib/README.md`
 
 - - -
 

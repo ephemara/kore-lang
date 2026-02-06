@@ -58,7 +58,7 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<Vec<u8>, KoreError
     let mut typed_ast = types::check(&ast)?;
     
     // 3.5 Monomorphization (for native targets and interpreter if we want to test lowering)
-    if matches!(target, CompileTarget::Llvm | CompileTarget::Wasm | CompileTarget::SpirV | CompileTarget::Interpret) {
+    if matches!(target, CompileTarget::Llvm | CompileTarget::Wasm | CompileTarget::SpirV | CompileTarget::Interpret | CompileTarget::Rust) {
         let mono_prog = monomorphize::monomorphize(&typed_ast)?;
         // Replace items with monomorphized items
         // Since codegen expects TypedProgram, we can just update it.
@@ -75,6 +75,10 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<Vec<u8>, KoreError
         #[cfg(not(feature = "llvm"))]
         CompileTarget::Llvm => Err(KoreError::codegen("LLVM backend not compiled. Rebuild with --features llvm", Span::new(0, 0))),
         CompileTarget::SpirV => codegen::spirv::generate(&typed_ast),
+        CompileTarget::Rust => {
+            let rust_code = codegen::rust::generate(&typed_ast)?;
+            Ok(rust_code.into_bytes())
+        }
         CompileTarget::Interpret => {
             runtime::interpret(&typed_ast)?;
             Ok(vec![])
@@ -91,6 +95,7 @@ pub enum CompileTarget {
     Wasm,
     Llvm,
     SpirV,
+    Rust,
     Interpret,
     Test,
 }

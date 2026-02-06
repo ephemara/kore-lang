@@ -119,6 +119,7 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                     CompileTarget::Wasm => "wasm",
                     CompileTarget::Llvm => "ll",
                     CompileTarget::SpirV => "spv",
+                    CompileTarget::Rust => "rs",
                     CompileTarget::Interpret | CompileTarget::Test => unreachable!(),
                 };
                 
@@ -347,10 +348,11 @@ fn main() {
                             "wasm" | "w" => CompileTarget::Wasm,
                             "llvm" | "native" | "n" => CompileTarget::Llvm,
                             "spirv" | "gpu" | "shader" | "s" => CompileTarget::SpirV,
+                            "rust" | "rs" => CompileTarget::Rust,
                             "run" | "r" | "interpret" | "i" => CompileTarget::Interpret,
                             "test" | "t" => CompileTarget::Test,
                             _ => {
-                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, run, test, or ue5-shader", args.target);
+                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, rust, run, test, or ue5-shader", args.target);
                                 std::process::exit(1);
                             }
                         };
