@@ -42,7 +42,7 @@ You might ask: *Why another language?*
 
 Kore has been under active private development for years. You might ask: *Where did these ~337 files suddenly spawn from?*
 
-The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate.
+The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate. FURTHERMORE, I prefer using the classic version of git (zipping folders and using that for backup instead of github). Only recently have I started using github for version control. In the scripts folder, you can find a robust Python GUI script that handled backups for me along with dozens of other features kore-main\scripts\ilovebuttons.pyw. I would love if other people got the same use out of the script as I did. (IT EVEN HAS A BUILT IN TODO LIST, CLIPBOARD HISTORY, SCREENSHOT MANAGING, PRESET TERMINAL COMMANDS, AND MUCH MORE.)
 
 Curious what this language is designed to power? Head over to **[Greeble.co](https://www.greeble.co/)**. There you can find a sample of the in-progress 3D DCC (1/14 modules) and previews of Unreal Engine 5 plugins—featuring C4D-style effectors, cloners, and MoGraph tools. Next plugin is going to be GPU based image to PBR generation. It is currently ~95% done. More info soon! 
 
