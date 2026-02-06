@@ -227,7 +227,6 @@ fn install_package(name: &str, version: &str, url: &str) -> KoreResult<()> {
     // Verify lib.kr exists (optional safety check)
     if !target_dir.join("lib.kr").exists() {
         // If the package was packed with a root folder (e.g. package-1.0.0/), we might need to handle stripping
-        // For now, prompt the user if structure looks wrong
         println!(" Warning: installed package {} might be nested.", name);
     }
 
