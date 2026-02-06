@@ -1,0 +1,91 @@
+// Volumetric Ray Marching Fog - Would be a nightmare to write by hand in raw USF
+// Features: exponential height fog, noise-based density, Henyey-Greenstein phase function
+shader fragment VolumetricFog(position: Vec4, uv: Vec2, world_pos: Vec3, view_dir: Vec3) -> Vec4:
+    // Core parameters
+    uniform time: Float @0
+    uniform fog_density: Float @1
+    uniform fog_height: Float @2
+    uniform fog_falloff: Float @3
+    uniform absorption: Float @4
+    uniform scattering: Float @5
+    uniform noise_scale: Float @6
+    uniform henyey_g: Float @7
+    uniform ray_steps: Float @8
+    uniform near_plane: Float @9
+    uniform far_plane: Float @10
+    
+    // Lighting
+    uniform light_dir: Vec3 @11
+    uniform light_color: Vec3 @12
+    uniform fog_color: Vec3 @13
+    uniform camera_pos: Vec3 @14
+    
+    // Reconstruct ray
+    let ray_origin = camera_pos
+    let ray_dir = normalize(view_dir)
+    let step_size = (far_plane - near_plane) / ray_steps
+    
+    // Temporal jitter to reduce banding
+    let jitter = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453 + time) * step_size
+    
+    // Accumulation
+    var accumulated_fog = vec3(0.0, 0.0, 0.0)
+    var transmittance = 1.0
+    var t = near_plane + jitter
+    var i = 0.0
+    
+    // Ray march loop
+    while i < ray_steps:
+        let sample_pos = ray_origin + ray_dir * t
+        
+        // Height-based exponential density
+        let height_factor = exp(-max(sample_pos.y - fog_height, 0.0) * fog_falloff)
+        
+        // Animated 3D noise using sin approximation
+        let noise_coord = sample_pos * noise_scale + vec3(time * 0.1, 0.0, 0.0)
+        let noise1 = sin(noise_coord.x * 1.0) * cos(noise_coord.y * 1.0) * sin(noise_coord.z * 1.0)
+        let noise2 = sin(noise_coord.x * 2.1) * cos(noise_coord.y * 1.9) * sin(noise_coord.z * 2.3)
+        let noise3 = sin(noise_coord.x * 4.3) * cos(noise_coord.y * 3.7) * sin(noise_coord.z * 4.1)
+        let fbm_noise = (noise1 + noise2 * 0.5 + noise3 * 0.25) * 0.5 + 0.5
+        
+        // Combined density
+        let density = fog_density * height_factor * fbm_noise
+        
+        if density > 0.001:
+            // Henyey-Greenstein phase function for anisotropic scattering
+            let cos_theta = dot(ray_dir, light_dir)
+            let g2 = henyey_g * henyey_g
+            let phase_denom = 1.0 + g2 - 2.0 * henyey_g * cos_theta
+            let phase = (1.0 - g2) / (4.0 * 3.14159 * pow(phase_denom, 1.5))
+            
+            // Shadow sampling toward light
+            var shadow_density = 0.0
+            var shadow_t = 0.0
+            var j = 0.0
+            while j < 6.0:
+                let shadow_pos = sample_pos + light_dir * shadow_t
+                let shadow_h = exp(-max(shadow_pos.y - fog_height, 0.0) * fog_falloff)
+                shadow_density = shadow_density + fog_density * shadow_h * step_size
+                shadow_t = shadow_t + step_size * 3.0
+                j = j + 1.0
+            
+            let light_occlusion = exp(-shadow_density * absorption)
+            
+            // In-scattering
+            let in_scatter = light_color * phase * scattering * light_occlusion
+            
+            // Beer-Lambert
+            let step_transmittance = exp(-density * step_size * absorption)
+            let fog_contrib = (fog_color + in_scatter) * density * transmittance * step_size
+            accumulated_fog = accumulated_fog + fog_contrib
+            transmittance = transmittance * step_transmittance
+            
+            // Early termination if opaque
+            if transmittance < 0.01:
+                i = ray_steps
+        
+        t = t + step_size
+        i = i + 1.0
+    
+    let fog_opacity = 1.0 - transmittance
+    return vec4(accumulated_fog, fog_opacity)

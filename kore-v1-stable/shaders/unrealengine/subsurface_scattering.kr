@@ -1,0 +1,117 @@
+// Advanced Subsurface Scattering - Separable screen-space SSS with Burley profile
+// Features: Burley diffusion profile, back-transmittance, wrap lighting
+shader fragment SubsurfaceScattering(position: Vec4, uv: Vec2, normal: Vec3, tangent: Vec3, world_pos: Vec3) -> Vec4:
+    uniform sss_width: Float @0
+    uniform sss_strength: Float @1
+    uniform translucency: Float @2
+    uniform depth_scale: Float @3
+    uniform epidermis_thickness: Float @4
+    uniform dermis_thickness: Float @5
+    uniform wrap_amount: Float @6
+    
+    uniform sss_falloff_r: Float @7
+    uniform sss_falloff_g: Float @8
+    uniform sss_falloff_b: Float @9
+    uniform sss_color: Vec3 @10
+    uniform skin_color: Vec3 @11
+    uniform blood_color: Vec3 @12
+    uniform light_dir: Vec3 @13
+    uniform light_color: Vec3 @14
+    uniform ambient_color: Vec3 @15
+    
+    uniform albedo_map: Sampler2D @16
+    uniform normal_map: Sampler2D @17
+    uniform thickness_map: Sampler2D @18
+    uniform depth_buffer: Sampler2D @19
+    uniform irradiance_buffer: Sampler2D @20
+    
+    // Sample textures
+    let albedo = sample(albedo_map, uv).rgb
+    let normal_tex = sample(normal_map, uv).rgb * 2.0 - 1.0
+    let thickness = sample(thickness_map, uv).r
+    let depth = sample(depth_buffer, uv).r
+    let irradiance = sample(irradiance_buffer, uv).rgb
+    
+    // Tangent-space to world normal
+    let N = normalize(normal)
+    let T = normalize(tangent)
+    let B = cross(N, T)
+    let world_normal = normalize(T * normal_tex.x + B * normal_tex.y + N * normal_tex.z)
+    
+    // Burley diffusion profile: S(r) = A*exp(-r/d)/r
+    // We sample 11 points along screen-space x
+    var sss_result_r = 0.0
+    var sss_result_g = 0.0
+    var sss_result_b = 0.0
+    var total_weight = 0.0
+    
+    // Kernel sampling loop
+    var si = -5.0
+    while si <= 5.0:
+        let pixel_offset = si * sss_width * 0.001
+        let sample_uv = uv + vec2(pixel_offset, 0.0)
+        
+        let sample_irrad = sample(irradiance_buffer, sample_uv).rgb
+        let sample_depth = sample(depth_buffer, sample_uv).r
+        
+        // Distance in world units
+        let depth_diff = abs(depth - sample_depth) * depth_scale
+        let screen_dist = abs(si) * sss_width * 0.001
+        let world_dist = sqrt(screen_dist * screen_dist + depth_diff * depth_diff) + 0.001
+        
+        // Per-channel diffusion with different falloffs
+        let s_r = 3.67 * sss_falloff_r
+        let s_g = 3.67 * sss_falloff_g
+        let s_b = 3.67 * sss_falloff_b
+        
+        let w_r = exp(-world_dist * s_r) / world_dist + exp(-world_dist * s_r / 3.0) / (3.0 * world_dist)
+        let w_g = exp(-world_dist * s_g) / world_dist + exp(-world_dist * s_g / 3.0) / (3.0 * world_dist)
+        let w_b = exp(-world_dist * s_b) / world_dist + exp(-world_dist * s_b / 3.0) / (3.0 * world_dist)
+        
+        sss_result_r = sss_result_r + sample_irrad.r * w_r
+        sss_result_g = sss_result_g + sample_irrad.g * w_g
+        sss_result_b = sss_result_b + sample_irrad.b * w_b
+        total_weight = total_weight + (w_r + w_g + w_b) / 3.0
+        
+        si = si + 1.0
+    
+    let sss_blurred = vec3(sss_result_r, sss_result_g, sss_result_b) / max(total_weight, 0.001)
+    
+    // Wrap lighting for softer diffuse
+    let NdotL = dot(world_normal, -light_dir)
+    let wrapped_diffuse = max((NdotL + wrap_amount) / (1.0 + wrap_amount), 0.0)
+    
+    // Back-face transmittance
+    let transmittance_factor = clamp(-NdotL, 0.0, 1.0) * translucency
+    
+    // Beer-Lambert absorption through tissue
+    let absorption_r = exp(-thickness / epidermis_thickness * 2.0)
+    let absorption_g = exp(-thickness / dermis_thickness * 3.0)
+    let absorption_b = exp(-thickness / dermis_thickness * 4.0)
+    let absorption = vec3(absorption_r, absorption_g, absorption_b)
+    
+    // Blood tint based on depth
+    let blood_factor = 1.0 - exp(-thickness * 5.0)
+    let subsurface_tint = skin_color * (1.0 - blood_factor) + blood_color * blood_factor
+    
+    // Transmitted light
+    let transmitted = light_color * absorption * transmittance_factor * subsurface_tint
+    
+    // Combine contributions
+    let sss_contrib = sss_blurred * sss_color * sss_strength
+    let diffuse = wrapped_diffuse * albedo * light_color
+    let ambient = ambient_color * albedo * 0.1
+    
+    // Fresnel rim for skin
+    let view_dir = normalize(-position.xyz)
+    let rim_factor = pow(1.0 - max(dot(world_normal, view_dir), 0.0), 4.0)
+    let rim = light_color * rim_factor * 0.15
+    
+    // Final composition
+    let combined = diffuse + sss_contrib + transmitted + ambient + rim
+    
+    // Subtle desaturation
+    let luminance = dot(combined, vec3(0.299, 0.587, 0.114))
+    let final_color = vec3(luminance) * 0.1 + combined * 0.9
+    
+    return vec4(final_color, 1.0)
