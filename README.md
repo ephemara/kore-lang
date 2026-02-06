@@ -764,15 +764,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 * Standard library expansion
 * Documentation improvements
 
-- - -
 
-## Support & Funding
-
-Funding for a future 3D DCC along with future development of KAIN-Lang. At the moment, I am completely broke and have no funds for the infrastructure of my in progress DCC and KAIN-lang.
-
-**Support via Ko-fi**: [ko-fi.com/kgreeble](https://ko-fi.com/kgreeble)
-
-- - -
 
 ## License
 
