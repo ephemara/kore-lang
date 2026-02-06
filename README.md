@@ -8,11 +8,11 @@
          ▀▀█████▄      ██████████   ███▌  ███   ███
            ███▐███▄    ███    ███   ███   ███   ███
            ███ ▀███▄   ███    ███   █▀    ███   ███
-           ███   ▀█▀   ███    ███         ▀█   █▀
-           ▀           ▀      ▀ 
+           ██    ▀█▀   ██     ██           ▀█   █▀
+                             
 
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-         T H E   D R A G O O N ' S   B L A D E   ─   V 0 . 1 . 0
+     THE UNIFIED COMPUTING LANGUAGE - Write once. Deploy to CPU, GPU, and Web.
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
           Rust's Safety  ·  Python's Syntax  ·  Lisp's Power
@@ -34,7 +34,7 @@ This repository contains **two compiler implementations**:
 | **V2 Self-Hosting** | `/` (root) | Experimental | Next-gen compiler development, LLVM native |
 | **V1 Production** | `/KAIN-v1-stable/` | Production-Ready | WASM, SPIR-V shaders, Actor runtime, UE5 integration |
 
-**New users**: Start with **V1** (`/KAIN-v1-stable/`) for production work, especially for shaders and WASM. (Now on crates.io! cargo install KAIN-lang@0.1.1)
+**New users**: Start with **V1** (`/KAIN-v1-stable/`) for production work, especially for shaders and WASM.
 
 **Contributors**: V2 (root) is where the self-hosting magic happens - help us make it production-ready!
 
@@ -47,24 +47,13 @@ This repository contains **two compiler implementations**:
 You might ask: *Why another language?*
 
 1.  **Unified Graphics Pipeline**: Authoring shaders in GLSL/HLSL and binding them to C++ logic is friction-heavy. KAIN treats shaders as first-class citizens.
-2.  **Solving Architectural Glue**: I am currently building a massive, professional-grade 3D DCC suite. Think **Blender meets Houdini, ZBrush, Substance, and C4D**. It handles everything from PBR painting and GPU sculpting to real-time particle simulations with 64+ million particles. The prototype was glued together using Rust, React, Tauri, TypeScript, Python, and C++ via a complex IPC system. It became a maintenance nightmare.
+2.  **Solving Architectural Glue**: In progress is a professional-grade 3D DCC suite. It handles everything from PBR painting and GPU sculpting to real-time particle simulations with 64+ million particles. The prototype was glued together using Rust, React, Tauri, TypeScript, Python, and C++ via a complex IPC system. It became a maintenance nightmare.
 3.  **The "Dogfooding" Strategy**: It turned out to be more efficient to design a language that unifies these domains (UI, Logic, GPU) than to maintain the "cobweb" of legacy stacks.
-
-**KAIN is being built to power this DCC.** The ultimate way to stress-test a language is to build complex 3D architecture with it. I am currently porting the DCC to KAIN to ensure the language handles real-world production edge cases.
-
->> **Funding & Roadmap**: To support this development, I am releasing modules of the DCC as **Unreal Engine 5 Plugins** (powered by KAIN's V1 compiler).
->
->> **Status Update:** Active work on the KAIN compiler core will be minimal until these plugins are released. I am currently developing on a legacy mobile workstation (i7 9th Gen, RTX 2060, 32GB RAM) which has become a hard bottleneck; compiler memory spikes during self-hosting frequently crash the machine. **Revenue from these plugins will directly fund the hardware upgrade needed to finish Project Ouroboros.**
-
-- - -
 
 ## The Origin
 
-KAIN has been under active private development for years. You might ask: *Where did these ~337 files suddenly spawn from?*
-
-The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate. FURTHERMORE, I prefer using the classic version of git (zipping folders and using that for backup instead of github). Only recently have I started using github for version control. In the scripts folder, you can find a robust Python GUI script that handled backups for me along with dozens of other features KAIN-main\scripts\ilovebuttons.pyw.
-
-Curious what this language is designed to power? Head over to **[Greeble.co](https://www.greeble.co/)**. There you can find a sample of the in-progress 3D DCC (1/14 modules) and previews of Unreal Engine 5 plugins—featuring C4D-style effectors, cloners, and MoGraph tools. Next plugin is going to be GPU based image to PBR generation. It is currently ~95% done. More info soon! 
+KAIN has been under active private development for years.
+The legacy repository contained sensitive personal information in the git history. For this public release, the only option was to start fresh with a clean slate. .
 
 ## What is KAIN?
 
@@ -161,7 +150,7 @@ clang hello.ll build\KAIN_runtime.o -o hello.exe
 
 ### Unreal Engine 5 Integration
 
-KAIN features a specialized `ue5-shader` pipeline that compiles KAIN source directly into validated SPIR-V and transpiled HLSL/USF files, ready for seamless use in UE5 plugins.
+KAIN features a specialized UE5 pipeline that compiles KAIN source directly into HLSL/USF files, ready for seamless use in UE5.
 
 KAIN was born from a love for Unreal Engine - it's the foundation that made this language possible. The production-ready V1 compiler with full UE5 shader support is available in `/KAIN-v1-stable/`.
 
@@ -775,15 +764,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 * Standard library expansion
 * Documentation improvements
 
-- - -
 
-## Support & Funding
-
-Funding for a future 3D DCC along with future development of KAIN-Lang. At the moment, I am completely broke and have no funds for the infrastructure of my in progress DCC and KAIN-lang.
-
-**Support via Ko-fi**: [ko-fi.com/kgreeble](https://ko-fi.com/kgreeble)
-
-- - -
 
 ## License
 
