@@ -150,7 +150,7 @@ clang hello.ll build\KAIN_runtime.o -o hello.exe
 
 ### Unreal Engine 5 Integration
 
-KAIN features a specialized `ue5-shader` pipeline that compiles KAIN source directly into validated SPIR-V and transpiled HLSL/USF files, ready for seamless use in UE5 plugins.
+KAIN features a specialized UE5 pipeline that compiles KAIN source directly into HLSL/USF files, ready for seamless use in UE5.
 
 KAIN was born from a love for Unreal Engine - it's the foundation that made this language possible. The production-ready V1 compiler with full UE5 shader support is available in `/KAIN-v1-stable/`.
 
