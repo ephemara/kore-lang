@@ -58,16 +58,11 @@ FPSOutput SubsurfaceScatteringPS(FPSInput Input)
     float4 T = normalize(Input.tangent);
     float4 B = cross(N, T);
     float4 world_normal = normalize((((T * normal_tex.x) + (B * normal_tex.y)) + (N * normal_tex.z)));
-    var;
-    sss_result_r = 0.000000;
-    var;
-    sss_result_g = 0.000000;
-    var;
-    sss_result_b = 0.000000;
-    var;
-    total_weight = 0.000000;
-    var;
-    si = (-5.000000);
+    float sss_result_r = 0.000000;
+    float sss_result_g = 0.000000;
+    float sss_result_b = 0.000000;
+    float total_weight = 0.000000;
+    float si = (-5.000000);
     while ((si <= 5.000000))
     {
         float4 pixel_offset = ((si * sss_width) * 0.001000);

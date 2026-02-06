@@ -900,6 +900,7 @@ impl<'a> Parser<'a> {
     fn parse_stmt(&mut self) -> KoreResult<Stmt> {
         match self.peek_kind() {
             TokenKind::Let => self.parse_let(),
+            TokenKind::Var => self.parse_var(),
             TokenKind::Return => self.parse_return(),
             TokenKind::For => self.parse_for(),
             TokenKind::While => self.parse_while(),
@@ -917,6 +918,18 @@ impl<'a> Parser<'a> {
         let ty = if self.check(TokenKind::Colon) { self.advance(); Some(self.parse_type()?) } else { None };
         self.expect(TokenKind::Eq)?;
         let value = Some(self.parse_expr()?);
+        Ok(Stmt::Let { pattern, ty, value, span: start.merge(self.current_span()) })
+    }
+
+    fn parse_var(&mut self) -> KoreResult<Stmt> {
+        let start = self.current_span();
+        self.expect(TokenKind::Var)?;
+        let name = self.parse_ident()?;
+        let ty = if self.check(TokenKind::Colon) { self.advance(); Some(self.parse_type()?) } else { None };
+        self.expect(TokenKind::Eq)?;
+        let value = Some(self.parse_expr()?);
+        // var x = val is effectively let mut x = val
+        let pattern = Pattern::Binding { name, mutable: true, span: start };
         Ok(Stmt::Let { pattern, ty, value, span: start.merge(self.current_span()) })
     }
 

@@ -20,6 +20,8 @@ pub enum TokenKind {
     Let,
     #[token("mut")]
     Mut,
+    #[token("var")]
+    Var,
     #[token("const")]
     Const,
     #[token("if")]

@@ -46,16 +46,11 @@ FPSOutput FractalTerrainPS(FPSInput Input)
     float wy2 = ((sin((warp_p.y * 2.900000)) * cos((warp_p.x * 3.100000))) * 0.500000);
     float2 warp_offset = (float2((wx1 + wx2), (wy1 + wy2)) * warp_strength);
     float4 warped_uv = (Input.uv + warp_offset);
-    var;
-    height = 0.000000;
-    var;
-    amplitude = 1.000000;
-    var;
-    frequency = 1.000000;
-    var;
-    max_value = 0.000000;
-    var;
-    oi = 0.000000;
+    float height = 0.000000;
+    float amplitude = 1.000000;
+    float frequency = 1.000000;
+    float max_value = 0.000000;
+    float oi = 0.000000;
     while ((oi < octaves))
     {
         float4 sample_p = (warped_uv * frequency);
@@ -82,8 +77,7 @@ FPSOutput FractalTerrainPS(FPSInput Input)
     height = (height - (erosion * 0.100000));
     float3 terrain_normal = normalize(float3(((-dx) * 0.500000), 1.000000, ((-dy) * 0.500000)));
     float slope_factor = (1.000000 - dot(terrain_normal, float3(0.000000, 1.000000, 0.000000)));
-    var;
-    terrain_color = float3(0.000000, 0.000000, 0.000000);
+    float3 terrain_color = float3(0.000000, 0.000000, 0.000000);
     float water_blend = (1.000000 - clamp(((((height - water_level) + 0.050000)) / 0.050000), 0.000000, 1.000000));
     terrain_color = ((water_color * water_blend) + (terrain_color * ((1.000000 - water_blend))));
     float4 above_water = clamp((((height - water_level)) / 0.050000), 0.000000, 1.000000);
