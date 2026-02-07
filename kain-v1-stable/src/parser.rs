@@ -27,6 +27,7 @@ impl<'a> Parser<'a> {
             
             match self.peek_kind() {
                 TokenKind::Pub | 
+                TokenKind::At |  
                 TokenKind::Fn | 
                 TokenKind::AsyncKw |
                 TokenKind::Component | 
@@ -57,6 +58,7 @@ impl<'a> Parser<'a> {
                 effects: vec![],
                 body: Block { stmts: top_level_stmts, span: start.merge(self.current_span()) },
                 visibility: Visibility::Public,
+                attributes: vec![],
                 span: start.merge(self.current_span()),
             });
             items.push(main_fn);
@@ -67,12 +69,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_item(&mut self) -> KainResult<Item> {
+        // Collect any @attr decorators first
+        let attributes = self.parse_attributes()?;
         let vis = self.parse_visibility();
         
         match self.peek_kind() {
-            TokenKind::Fn => self.parse_function(vis),
+            TokenKind::Fn => self.parse_function_with_attrs(vis, attributes),
             TokenKind::AsyncKw => self.parse_async_function(vis),
-            TokenKind::Component => self.parse_component(vis),
+            TokenKind::Component => self.parse_component_with_attrs(vis, attributes),
             TokenKind::Shader => self.parse_shader(),
             TokenKind::Struct => self.parse_struct(vis),
             TokenKind::Enum => self.parse_enum(vis),
@@ -85,6 +89,36 @@ impl<'a> Parser<'a> {
             TokenKind::Impl => self.parse_impl(),
             _ => Err(KainError::parser("Expected item", self.current_span())),
         }
+    }
+
+    // Parse @wasm, @js, @inline etc decorators
+    fn parse_attributes(&mut self) -> KainResult<Vec<Attribute>> {
+        let mut attrs = Vec::new();
+        while self.check(TokenKind::At) {
+            let start = self.current_span();
+            self.advance(); // consume @
+            let name = self.parse_ident()?;
+            
+            // Optional args: @attr(arg1, arg2)
+            let args = if self.check(TokenKind::LParen) {
+                self.advance();
+                let mut arg_list = Vec::new();
+                while !self.check(TokenKind::RParen) && !self.at_end() {
+                    arg_list.push(self.parse_expr()?);
+                    if !self.check(TokenKind::RParen) {
+                        self.expect(TokenKind::Comma)?;
+                    }
+                }
+                self.expect(TokenKind::RParen)?;
+                arg_list
+            } else {
+                vec![]
+            };
+            
+            attrs.push(Attribute { name, args, span: start.merge(self.current_span()) });
+            self.skip_newlines();
+        }
+        Ok(attrs)
     }
 
     fn parse_impl(&mut self) -> KainResult<Item> {
@@ -252,6 +286,31 @@ impl<'a> Parser<'a> {
         
         Ok(Item::Function(Function {
             name, generics, params, return_type, effects, body, visibility: vis,
+            attributes: vec![],
+            span: start.merge(body_span),
+        }))
+    }
+
+    // Wrapper to parse function with pre-collected attributes
+    fn parse_function_with_attrs(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect(TokenKind::Fn)?;
+        let name = self.parse_ident()?;
+        let generics = self.parse_generics()?;
+        self.expect(TokenKind::LParen)?;
+        let params = self.parse_params()?;
+        self.expect(TokenKind::RParen)?;
+        let return_type = if self.check(TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else { None };
+        let effects = self.parse_effects()?;
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        let body_span = body.span;
+        Ok(Item::Function(Function {
+            name, generics, params, return_type, effects, body, visibility: vis,
+            attributes: attrs,
             span: start.merge(body_span),
         }))
     }
@@ -284,6 +343,7 @@ impl<'a> Parser<'a> {
         
         Ok(Item::Function(Function {
             name, generics, params, return_type, effects, body, visibility: vis,
+            attributes: vec![],
             span: start.merge(body_span),
         }))
     }
@@ -378,6 +438,75 @@ impl<'a> Parser<'a> {
         
         Ok(Item::Component(Component {
             name, props, state, methods, effects, body, visibility: vis,
+            attributes: vec![],
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    // Wrapper to parse component with pre-collected attributes  
+    fn parse_component_with_attrs(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect(TokenKind::Component)?;
+        let name = self.parse_ident()?;
+        self.expect(TokenKind::LParen)?;
+        let props = self.parse_params()?;
+        self.expect(TokenKind::RParen)?;
+        let effects = self.parse_effects()?;
+        self.expect(TokenKind::Colon)?;
+        self.skip_newlines();
+        self.expect(TokenKind::Indent)?;
+        
+        let mut state = Vec::new();
+        let mut methods = Vec::new();
+        let mut body = None;
+        
+        while !self.check(TokenKind::Dedent) && !self.at_end() {
+            self.skip_newlines();
+            if self.check(TokenKind::Dedent) { break; }
+            
+            if self.check(TokenKind::Fn) {
+                if let Item::Function(f) = self.parse_function(Visibility::Private)? {
+                    methods.push(f);
+                }
+            } else if let TokenKind::Ident(ref s) = self.peek_kind() {
+                if s == "state" {
+                    self.advance();
+                    let name = self.parse_ident()?;
+                    self.expect(TokenKind::Colon)?;
+                    let ty = self.parse_type()?;
+                    self.expect(TokenKind::Eq)?;
+                    let initial = self.parse_expr()?;
+                    state.push(StateDecl { name, ty, initial, weak: false, span: self.current_span() });
+                } else if s == "render" {
+                    self.advance();
+                    if self.check(TokenKind::Colon) {
+                        self.advance();
+                        self.skip_newlines();
+                        self.expect(TokenKind::Indent)?;
+                        self.skip_newlines();
+                        body = Some(self.parse_jsx_element()?);
+                        self.skip_newlines();
+                        self.expect(TokenKind::Dedent)?;
+                    } else {
+                        body = Some(self.parse_jsx_element()?);
+                    }
+                } else {
+                    return Err(KainError::parser(format!("Unexpected identifier in component: {}", s), self.current_span()));
+                }
+            } else if self.check(TokenKind::Lt) {
+                body = Some(self.parse_jsx_element()?);
+            } else {
+                return Err(KainError::parser(format!("Unexpected token in component: {:?}", self.peek_kind()), self.current_span()));
+            }
+            self.skip_newlines();
+        }
+        
+        if self.check(TokenKind::Dedent) { self.advance(); }
+        let body = body.ok_or_else(|| KainError::parser("Component must have a render body", self.current_span()))?;
+        
+        Ok(Item::Component(Component {
+            name, props, state, methods, effects, body, visibility: vis,
+            attributes: attrs,
             span: start.merge(self.current_span()),
         }))
     }

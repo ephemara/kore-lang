@@ -58,7 +58,7 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<Vec<u8>, KainError
     let mut typed_ast = types::check(&ast)?;
     
     // 3.5 Monomorphization (for native targets and interpreter if we want to test lowering)
-    if matches!(target, CompileTarget::Llvm | CompileTarget::Wasm | CompileTarget::SpirV | CompileTarget::Interpret) {
+    if matches!(target, CompileTarget::Llvm | CompileTarget::Wasm | CompileTarget::SpirV | CompileTarget::Interpret | CompileTarget::Hybrid) {
         let mono_prog = monomorphize::monomorphize(&typed_ast)?;
         // Replace items with monomorphized items
         // Since codegen expects TypedProgram, we can just update it.
@@ -99,6 +99,13 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<Vec<u8>, KainError
             runtime::run_tests(&typed_ast)?;
             Ok(vec![])
         }
+        CompileTarget::Hybrid => {
+            // Hybrid outputs both WASM and JS. For simplicity, we return JS with WASM inline (base64)
+            // or as a separate file. For now, return just the JS with WASM loader code.
+            let hybrid = codegen::hybrid::generate(&typed_ast)?;
+            // Return JS code; WASM is embedded/fetched separately
+            Ok(hybrid.js.into_bytes())
+        }
     }
 }
 
@@ -113,6 +120,7 @@ pub enum CompileTarget {
     Rust,
     Interpret,
     Test,
+    Hybrid,  // WASM + JS with auto bindings
 }
 
 /// Version of the KAIN language

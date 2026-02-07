@@ -123,6 +123,7 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                     CompileTarget::Usf => "usf",
                     CompileTarget::Js => "js",
                     CompileTarget::Rust => "rs",
+                    CompileTarget::Hybrid => "js",  // Hybrid outputs .js (with WASM loader)
                     CompileTarget::Interpret | CompileTarget::Test => unreachable!(),
                 };
                 
@@ -357,8 +358,9 @@ fn main() {
                             "rust" | "rs" => CompileTarget::Rust,
                             "run" | "r" | "interpret" | "i" => CompileTarget::Interpret,
                             "test" | "t" => CompileTarget::Test,
+                            "hybrid" | "web" => CompileTarget::Hybrid,
                             _ => {
-                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, hlsl, usf, js, rust, run, test, or ue5-shader", args.target);
+                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, hlsl, usf, js, rust, hybrid, run, test, or ue5-shader", args.target);
                                 std::process::exit(1);
                             }
                         };

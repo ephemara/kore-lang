@@ -664,6 +664,7 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
             effects: vec![],
             body: poll_body,
             visibility: Visibility::Public,
+            attributes: vec![],
             span: func.ast.span,
         },
         resolved_type: ResolvedType::Function {

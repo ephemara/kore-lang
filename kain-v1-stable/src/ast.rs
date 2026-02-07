@@ -76,6 +76,14 @@ pub struct TestDef {
 
 // === FUNCTIONS ===
 
+/// Function attribute/decorator (e.g., @wasm, @js, @inline)
+#[derive(Debug, Clone)]
+pub struct Attribute {
+    pub name: String,
+    pub args: Vec<Expr>,
+    pub span: Span,
+}
+
 #[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
@@ -85,6 +93,7 @@ pub struct Function {
     pub effects: Vec<Effect>,
     pub body: Block,
     pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
     pub span: Span,
 }
 
@@ -121,6 +130,7 @@ pub struct Component {
     pub effects: Vec<Effect>,
     pub body: JSXNode,
     pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
     pub span: Span,
 }
 
