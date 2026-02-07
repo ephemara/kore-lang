@@ -1,0 +1,72 @@
+// KAIN Hybrid WASM/JS Example: Game Physics
+// Real-time physics calculations in WASM for game development
+
+@wasm
+fn vec2_magnitude_sq(x: Float, y: Float) -> Float:
+    // Squared magnitude (avoids sqrt for performance)
+    return x * x + y * y
+
+@wasm
+fn dot_product(x1: Float, y1: Float, x2: Float, y2: Float) -> Float:
+    return x1 * x2 + y1 * y2
+
+@wasm
+fn apply_gravity(vy: Float, dt: Float) -> Float:
+    // Apply gravitational acceleration
+    let gravity = -9.81
+    return vy + gravity * dt
+
+@wasm
+fn update_position(pos: Float, vel: Float, dt: Float) -> Float:
+    return pos + vel * dt
+
+@wasm
+fn check_circle_collision(x1: Float, y1: Float, x2: Float, y2: Float, r1: Float, r2: Float) -> Bool:
+    let dx = x2 - x1
+    let dy = y2 - y1
+    let dist_sq = dx * dx + dy * dy
+    let min_dist = r1 + r2
+    return dist_sq < min_dist * min_dist
+
+@wasm
+fn elastic_collision_velocity(v1: Float, v2: Float, m1: Float, m2: Float) -> Float:
+    // 1D elastic collision formula
+    return ((m1 - m2) * v1 + 2.0 * m2 * v2) / (m1 + m2)
+
+@wasm
+fn lerp(a: Float, b: Float, t: Float) -> Float:
+    // Linear interpolation
+    return a + (b - a) * t
+
+@wasm
+fn clamp(value: Float, min_val: Float, max_val: Float) -> Float:
+    if value < min_val:
+        return min_val
+    if value > max_val:
+        return max_val
+    return value
+
+fn main():
+    // Simulate a falling object
+    let pos_y = 100.0
+    let vel_y = 0.0
+    let dt = 0.016667  // 60 FPS
+    
+    print("Initial position: 100.0")
+    
+    // Simulate 60 frames (1 second)
+    let i = 0
+    while i < 60:
+        vel_y = apply_gravity(vel_y, dt)
+        pos_y = update_position(pos_y, vel_y, dt)
+        i = i + 1
+    
+    print("Position after 1 second:", pos_y)
+    print("Velocity after 1 second:", vel_y)
+    
+    // Test collision
+    let collision = check_circle_collision(0.0, 0.0, 1.5, 0.0, 1.0, 1.0)
+    print("Circles colliding:", collision)
+    
+    // Test lerp
+    print("Lerp 0 to 100 at 0.25:", lerp(0.0, 100.0, 0.25))

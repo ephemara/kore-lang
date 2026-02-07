@@ -1,0 +1,18 @@
+// Test file for hybrid WASM/JS compilation
+
+@wasm
+fn fibonacci(n: Int) -> Int:
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+@wasm
+fn add(a: Int, b: Int) -> Int:
+    return a + b
+
+fn main():
+    let result = fibonacci(10)
+    print(result)
+    
+    let sum = add(5, 3)
+    print(sum)

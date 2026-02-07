@@ -1,0 +1,53 @@
+// KAIN Hybrid WASM/JS Example: Sorting Algorithms
+// Performance-critical sorting compiled to WASM
+
+@wasm
+fn bubble_sort_step(a: Int, b: Int) -> Bool:
+    // Returns true if swap needed
+    return a > b
+
+@wasm
+fn merge_values(a: Int, b: Int, ascending: Bool) -> Int:
+    // Return the smaller or larger value based on order
+    if ascending:
+        if a < b:
+            return a
+        return b
+    else:
+        if a > b:
+            return a
+        return b
+
+@wasm
+fn binary_search_recursive(target: Int, mid_val: Int, low: Int, high: Int) -> Int:
+    // Core comparison logic for binary search
+    if low > high:
+        return -1
+    if mid_val == target:
+        return 1  // Found
+    if mid_val > target:
+        return -2  // Search left
+    return 2  // Search right
+
+@wasm
+fn insertion_position(value: Int, sorted_val: Int, current_pos: Int) -> Int:
+    // Find where to insert value in sorted sequence
+    if value < sorted_val:
+        return current_pos
+    return current_pos + 1
+
+@wasm
+fn compare_and_swap(a: Int, b: Int) -> Int:
+    // Returns 1 if swap needed, 0 otherwise
+    if a > b:
+        return 1
+    return 0
+
+fn main():
+    let a = 64
+    let b = 34
+    
+    print("Compare 64 and 34:")
+    print("Swap needed:", compare_and_swap(a, b))
+    print("Merge (ascending):", merge_values(a, b, true))
+    print("Merge (descending):", merge_values(a, b, false))

@@ -1,0 +1,61 @@
+// KAIN Hybrid WASM/JS Example: Financial Calculator
+// Demonstrates hybrid approach: computation in WASM, UI in JS
+
+@wasm
+fn compound_interest(principal: Float, rate: Float, years: Int) -> Float:
+    // Calculate compound interest
+    let result = principal
+    let i = 0
+    while i < years:
+        result = result * (1.0 + rate)
+        i = i + 1
+    return result
+
+@wasm
+fn monthly_payment(principal: Float, annual_rate: Float, months: Int) -> Float:
+    // Calculate monthly loan payment
+    if annual_rate == 0.0:
+        return principal / months
+    let r = annual_rate / 12.0
+    let factor = 1.0
+    let i = 0
+    while i < months:
+        factor = factor * (1.0 + r)
+        i = i + 1
+    return principal * (r * factor) / (factor - 1.0)
+
+@wasm
+fn future_value(payment: Float, rate: Float, periods: Int) -> Float:
+    // Future value of regular payments
+    let total = 0.0
+    let i = 0
+    while i < periods:
+        total = (total + payment) * (1.0 + rate)
+        i = i + 1
+    return total
+
+component ResultDisplay(label: String, value: Float):
+    render:
+        <div class="result-row">
+            <span class="label">{label}</span>
+            <span class="value">{value}</span>
+        </div>
+
+component Calculator():
+    state principal: Float = 10000.0
+    state rate: Float = 0.05
+    state years: Int = 10
+    
+    render:
+        <div class="calculator">
+            <h2>Investment Calculator</h2>
+            <ResultDisplay label="Future Value" value={compound_interest(principal, rate, years)} />
+        </div>
+
+component App():
+    render:
+        <main class="app">
+            <h1>KAIN Hybrid Demo</h1>
+            <p>Computation runs in WebAssembly. UI renders in JavaScript.</p>
+            <Calculator />
+        </main>
