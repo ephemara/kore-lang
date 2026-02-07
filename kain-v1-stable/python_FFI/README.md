@@ -13,3 +13,4 @@ Run using the interpreter subcommand with watch mode enabled
 kain run tests\visual_demo.kn --watch
 
 Instant feedback loop. Save file → See result.
+![Kain 3D Python FFI](kain3d_pythonFFI.png)
