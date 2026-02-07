@@ -10,6 +10,7 @@
 *.so
 *.dylib
 *.dll
+*.ini
 
 # Rust/Cargo (handled per-crate, but catch stragglers)
 /target/

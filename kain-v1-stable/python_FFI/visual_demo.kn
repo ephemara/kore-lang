@@ -1,0 +1,368 @@
+// KAIN Visual Demo - Professional Interactive Showcase
+// Modern UI with advanced 3D graphics engine
+
+fn main():
+    println("Starting KAIN Visual Demo...")
+    println("Initializing graphics engine...")
+    
+    let code = "
+import tkinter as tk
+from tkinter import ttk
+import math
+import random
+
+root = tk.Tk()
+root.title('KAIN Graphics Engine')
+root.geometry('1600x900')
+root.configure(bg='#0d1117')
+
+# Modern color scheme
+BG_DARK = '#0d1117'
+BG_CARD = '#161b22'
+BG_HOVER = '#1c2128'
+BORDER = '#30363d'
+TEXT_PRIMARY = '#c9d1d9'
+TEXT_SECONDARY = '#8b949e'
+ACCENT_BLUE = '#58a6ff'
+ACCENT_GREEN = '#3fb950'
+ACCENT_PURPLE = '#bc8cff'
+ACCENT_ORANGE = '#f0883e'
+
+# Main canvas with subtle border
+canvas_frame = tk.Frame(root, bg=BORDER, padx=1, pady=1)
+canvas_frame.place(x=20, y=20, width=1044, height=704)
+
+canvas = tk.Canvas(canvas_frame, width=1042, height=702, bg='#000000', 
+                   highlightthickness=0, cursor='crosshair')
+canvas.pack()
+
+# Right sidebar
+sidebar = tk.Frame(root, bg=BG_CARD)
+sidebar.place(x=1084, y=20, width=496, height=860)
+
+# Sidebar header
+header = tk.Frame(sidebar, bg=BG_CARD, height=60)
+header.pack(fill='x', padx=20, pady=(20, 10))
+
+tk.Label(header, text='KAIN', font=('Segoe UI', 24, 'bold'), 
+         fg=ACCENT_BLUE, bg=BG_CARD).pack(anchor='w')
+tk.Label(header, text='Graphics & Shader Engine', font=('Segoe UI', 11), 
+         fg=TEXT_SECONDARY, bg=BG_CARD).pack(anchor='w')
+
+# Separator
+tk.Frame(sidebar, bg=BORDER, height=1).pack(fill='x', padx=20, pady=10)
+
+# Stats section
+stats_section = tk.Frame(sidebar, bg=BG_CARD)
+stats_section.pack(fill='x', padx=20, pady=10)
+
+tk.Label(stats_section, text='PERFORMANCE', font=('Segoe UI', 10, 'bold'), 
+         fg=TEXT_SECONDARY, bg=BG_CARD).pack(anchor='w', pady=(0, 10))
+
+stats_grid = tk.Frame(stats_section, bg=BG_CARD)
+stats_grid.pack(fill='x')
+
+def create_stat(parent, label, value, color):
+    frame = tk.Frame(parent, bg=BG_HOVER, height=50)
+    frame.pack(fill='x', pady=3)
+    frame.pack_propagate(False)
+    
+    tk.Label(frame, text=label, font=('Segoe UI', 9), 
+             fg=TEXT_SECONDARY, bg=BG_HOVER).pack(anchor='w', padx=15, pady=(8, 0))
+    val_label = tk.Label(frame, text=value, font=('Segoe UI', 14, 'bold'), 
+                         fg=color, bg=BG_HOVER)
+    val_label.pack(anchor='w', padx=15)
+    return val_label
+
+fps_label = create_stat(stats_grid, 'Frame Rate', '60 FPS', ACCENT_GREEN)
+obj_label = create_stat(stats_grid, 'Objects', '8 Cubes', ACCENT_BLUE)
+particle_label = create_stat(stats_grid, 'Particles', '0', ACCENT_PURPLE)
+
+# Separator
+tk.Frame(sidebar, bg=BORDER, height=1).pack(fill='x', padx=20, pady=15)
+
+# Controls section
+controls_section = tk.Frame(sidebar, bg=BG_CARD)
+controls_section.pack(fill='x', padx=20, pady=10)
+
+tk.Label(controls_section, text='CONTROLS', font=('Segoe UI', 10, 'bold'), 
+         fg=TEXT_SECONDARY, bg=BG_CARD).pack(anchor='w', pady=(0, 10))
+
+mode_var = tk.StringVar(value='Normal')
+mode_label = tk.Label(controls_section, text='Mode: Normal', font=('Segoe UI', 11), 
+                      fg=TEXT_PRIMARY, bg=BG_CARD)
+mode_label.pack(anchor='w', pady=5)
+
+def create_button(parent, text, command, color):
+    btn = tk.Button(parent, text=text, command=command, 
+                   bg=color, fg='white', font=('Segoe UI', 10, 'bold'),
+                   relief='flat', cursor='hand2', padx=20, pady=10,
+                   activebackground=color, activeforeground='white')
+    btn.pack(fill='x', pady=3)
+    return btn
+
+# Separator
+tk.Frame(sidebar, bg=BORDER, height=1).pack(fill='x', padx=20, pady=15)
+
+# Shader code section
+shader_section = tk.Frame(sidebar, bg=BG_CARD)
+shader_section.pack(fill='both', expand=True, padx=20, pady=10)
+
+tk.Label(shader_section, text='SHADER EXAMPLE', font=('Segoe UI', 10, 'bold'), 
+         fg=TEXT_SECONDARY, bg=BG_CARD).pack(anchor='w', pady=(0, 10))
+
+shader_frame = tk.Frame(shader_section, bg=BG_HOVER)
+shader_frame.pack(fill='both', expand=True)
+
+shader_text = tk.Text(shader_frame, bg='#0d1117', fg='#7ee787', 
+                      font=('Consolas', 9), wrap='word', relief='flat',
+                      padx=15, pady=15, spacing1=2, spacing3=2)
+shader_text.pack(fill='both', expand=True)
+
+shader_code = '''shader fragment PBR:
+  uniform albedo: Vec3
+  uniform roughness: Float
+  
+  // Compile-time permutation
+  uniform CFG_USE_LIGHTING
+  
+  if CFG_USE_LIGHTING:
+    let ndotl = dot(normal, light)
+    color = albedo * ndotl
+  else:
+    color = albedo
+  
+  return vec4(color, 1.0)
+
+Targets:
+• WASM → Web Applications
+• LLVM → Native Code
+• SPIR-V → GPU Compute
+• USF → Unreal Engine 5
+• HLSL → DirectX Shaders
+'''
+shader_text.insert('1.0', shader_code)
+shader_text.config(state='disabled')
+
+# Bottom info bar
+info_bar = tk.Frame(root, bg=BG_CARD, height=40)
+info_bar.place(x=20, y=744, width=1044, height=40)
+
+tk.Label(info_bar, text='Middle Mouse: Rotate Camera  |  Left Click: Explode  |  Scroll: Zoom', 
+         font=('Segoe UI', 9), fg=TEXT_SECONDARY, bg=BG_CARD).pack(side='left', padx=20, pady=10)
+
+# 3D Engine
+frame = [0]
+rot = [0.0, 0.0]
+rot_speed = [0.01, 0.015]
+particles = []
+mode = ['normal']
+mouse_dragging = [False]
+last_mouse = [0, 0]
+explosion_particles = []
+zoom = [1.0]
+
+class Cube:
+    def __init__(self, x, y, z, size, color):
+        self.x, self.y, self.z = x, y, z
+        self.size = size
+        self.color = color
+        self.vx = random.uniform(-0.5, 0.5)
+        self.vy = random.uniform(-0.5, 0.5)
+        self.vz = random.uniform(-0.5, 0.5)
+        self.pulse = random.uniform(0, math.pi*2)
+
+class Particle:
+    def __init__(self, x=0, y=0, z=0):
+        self.x, self.y, self.z = x, y, z
+        self.vx = random.uniform(-3, 3)
+        self.vy = random.uniform(-3, 3)
+        self.vz = random.uniform(-3, 3)
+        self.life = 1.0
+        self.color = random.choice(['#ff6b6b', '#4ecdc4', '#45b7d1', '#f7b731', '#5f27cd', '#00d2d3'])
+
+cubes = []
+colors = ['#ff6b6b', '#f7b731', '#feca57', '#48dbfb', '#0abde3', '#5f27cd', '#a29bfe', '#fd79a8']
+for i in range(8):
+    angle = i * math.pi / 4
+    cubes.append(Cube(math.cos(angle)*180, math.sin(angle)*180, random.uniform(-80,80), 35, colors[i]))
+
+def project(x, y, z, rx, ry):
+    cy, sy = math.cos(ry), math.sin(ry)
+    tx, tz = x*cy - z*sy, x*sy + z*cy
+    cx, sx = math.cos(rx), math.sin(rx)
+    ty, tz = y*cx - tz*sx, y*sx + tz*cx
+    scale = (400 * zoom[0]) / (400 + tz)
+    return 521 + tx*scale, 351 + ty*scale, scale, tz
+
+def draw_cube(c, rx, ry):
+    verts = [(-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1),(-1,-1,1),(1,-1,1),(1,1,1),(-1,1,1)]
+    edges = [(0,1),(1,2),(2,3),(3,0),(4,5),(5,6),(6,7),(7,4),(0,4),(1,5),(2,6),(3,7)]
+    
+    pulse = math.sin(c.pulse + frame[0]*0.05) * 0.15 + 1.0
+    proj = [project(c.x+v[0]*c.size*pulse, c.y+v[1]*c.size*pulse, c.z+v[2]*c.size*pulse, rx, ry) for v in verts]
+    
+    for e in edges:
+        p1, p2 = proj[e[0]], proj[e[1]]
+        w = max(1, int(2.5*(p1[2]+p2[2])/2))
+        canvas.create_line(p1[0], p1[1], p2[0], p2[1], fill=c.color, width=w, capstyle='round')
+    
+    for px, py, s, depth in proj:
+        sz = max(2, int(4*s))
+        canvas.create_oval(px-sz, py-sz, px+sz, py+sz, fill='white', outline=c.color, width=2)
+
+def explode():
+    for i in range(50):
+        angle = random.uniform(0, math.pi*2)
+        elevation = random.uniform(-math.pi/2, math.pi/2)
+        speed = random.uniform(5, 15)
+        vx = math.cos(angle) * math.cos(elevation) * speed
+        vy = math.sin(elevation) * speed
+        vz = math.sin(angle) * math.cos(elevation) * speed
+        p = Particle(0, 0, 0)
+        p.vx, p.vy, p.vz = vx, vy, vz
+        p.life = 1.5
+        explosion_particles.append(p)
+
+def toggle_mode():
+    modes = ['normal', 'chaos', 'rainbow', 'pulse']
+    idx = modes.index(mode[0])
+    mode[0] = modes[(idx + 1) % len(modes)]
+    mode_label.config(text=f'Mode: {mode[0].capitalize()}')
+
+def speed_up():
+    rot_speed[0] *= 1.5
+    rot_speed[1] *= 1.5
+
+def slow_down():
+    rot_speed[0] *= 0.7
+    rot_speed[1] *= 0.7
+
+def on_mouse_down(event):
+    if event.num == 2:  # Middle mouse button
+        mouse_dragging[0] = True
+        last_mouse[0] = event.x
+        last_mouse[1] = event.y
+
+def on_mouse_up(event):
+    if event.num == 2:
+        mouse_dragging[0] = False
+
+def on_mouse_move(event):
+    if mouse_dragging[0]:
+        dx = event.x - last_mouse[0]
+        dy = event.y - last_mouse[1]
+        rot[1] += dx * 0.005
+        rot[0] += dy * 0.005
+        last_mouse[0] = event.x
+        last_mouse[1] = event.y
+
+def on_click(event):
+    if event.num == 1:  # Left click
+        explode()
+
+def on_scroll(event):
+    if event.delta > 0:
+        zoom[0] *= 1.1
+    else:
+        zoom[0] *= 0.9
+    zoom[0] = max(0.5, min(2.0, zoom[0]))
+
+canvas.bind('<ButtonPress>', on_mouse_down)
+canvas.bind('<ButtonRelease>', on_mouse_up)
+canvas.bind('<Motion>', on_mouse_move)
+canvas.bind('<Button-1>', on_click)
+canvas.bind('<MouseWheel>', on_scroll)
+
+# Control buttons
+create_button(controls_section, 'EXPLODE', explode, '#e74c3c')
+create_button(controls_section, 'CHANGE MODE', toggle_mode, '#3498db')
+create_button(controls_section, 'SPEED UP', speed_up, '#2ecc71')
+create_button(controls_section, 'SLOW DOWN', slow_down, '#f39c12')
+
+def animate():
+    canvas.delete('all')
+    
+    if mode[0] != 'pulse':
+        rot[0] += rot_speed[0]
+        rot[1] += rot_speed[1]
+    
+    for c in cubes:
+        if mode[0] == 'chaos':
+            c.vx += random.uniform(-0.1, 0.1)
+            c.vy += random.uniform(-0.1, 0.1)
+            c.vz += random.uniform(-0.1, 0.1)
+        
+        c.x += c.vx
+        c.y += c.vy
+        c.z += c.vz
+        
+        if abs(c.x) > 250: c.vx *= -1
+        if abs(c.y) > 250: c.vy *= -1
+        if abs(c.z) > 150: c.vz *= -1
+        
+        if mode[0] == 'rainbow':
+            hue = (frame[0] + cubes.index(c) * 30) % 360
+            r = int((math.sin(hue * 0.01745) * 127 + 128))
+            g = int((math.sin((hue + 120) * 0.01745) * 127 + 128))
+            b = int((math.sin((hue + 240) * 0.01745) * 127 + 128))
+            c.color = '#' + format(r, '02x') + format(g, '02x') + format(b, '02x')
+    
+    if frame[0] % 3 == 0 and len(particles) < 80:
+        particles.append(Particle())
+    
+    for p in particles[:]:
+        p.x += p.vx
+        p.y += p.vy
+        p.z += p.vz
+        p.life -= 0.01
+        if p.life <= 0:
+            particles.remove(p)
+        else:
+            px, py, s, depth = project(p.x, p.y, p.z, rot[0], rot[1])
+            sz = max(1, int(3*s*p.life))
+            canvas.create_oval(px-sz, py-sz, px+sz, py+sz, fill=p.color, outline='')
+    
+    for p in explosion_particles[:]:
+        p.x += p.vx
+        p.y += p.vy
+        p.z += p.vz
+        p.vy += 0.2
+        p.life -= 0.02
+        if p.life <= 0:
+            explosion_particles.remove(p)
+        else:
+            px, py, s, depth = project(p.x, p.y, p.z, rot[0], rot[1])
+            sz = max(2, int(5*s*p.life))
+            canvas.create_oval(px-sz, py-sz, px+sz, py+sz, fill='#ff8800', outline='#ffaa00', width=1)
+    
+    for c in cubes:
+        draw_cube(c, rot[0], rot[1])
+    
+    if mode[0] != 'chaos':
+        for i in range(-8, 9):
+            x1, y1, s1, d1 = project(i*50, -250, 0, rot[0], rot[1])
+            x2, y2, s2, d2 = project(i*50, 250, 0, rot[0], rot[1])
+            canvas.create_line(x1, y1, x2, y2, fill='#1a1a1a', width=1)
+            
+            x1, y1, s1, d1 = project(-250, i*50, 0, rot[0], rot[1])
+            x2, y2, s2, d2 = project(250, i*50, 0, rot[0], rot[1])
+            canvas.create_line(x1, y1, x2, y2, fill='#1a1a1a', width=1)
+    
+    canvas.create_text(521, 30, text='KAIN 3D ENGINE', 
+                      font=('Segoe UI', 32, 'bold'), fill='#58a6ff')
+    
+    fps_label.config(text='60 FPS')
+    obj_label.config(text=f'{len(cubes)} Cubes')
+    particle_label.config(text=str(len(particles) + len(explosion_particles)))
+    
+    frame[0] += 1
+    root.after(16, animate)
+
+animate()
+root.mainloop()
+"
+    
+    println("Launching visual demo...")
+    py_exec(code)
+    println("Demo terminated.")

@@ -294,8 +294,12 @@ impl Env {
 
         // Initialize Python scope
         Python::with_gil(|py| {
-            let locals = PyDict::new(py);
-            env.python_scope = Some(locals.into());
+            // Use the same dict for both globals and locals to maintain scope
+            let scope = PyDict::new(py);
+            // Import builtins into the scope
+            let builtins = py.import("builtins").unwrap();
+            scope.set_item("__builtins__", builtins).unwrap();
+            env.python_scope = Some(scope.into());
         });
 
         env.register_stdlib();
@@ -1564,9 +1568,10 @@ impl Env {
             let scope = env.python_scope.as_ref().unwrap();
 
             Python::with_gil(|py| {
-                let locals = scope.as_ref(py).downcast::<PyDict>().unwrap();
+                let scope_dict = scope.as_ref(py).downcast::<PyDict>().unwrap();
+                // Use scope as both globals and locals for proper persistence
                 let result = py
-                    .eval(code, None, Some(locals))
+                    .eval(code, Some(scope_dict), Some(scope_dict))
                     .map_err(|e| KainError::runtime(format!("Python Error: {}", e)))?;
                 py_to_value(result)
                     .map_err(|e| KainError::runtime(format!("Conversion Error: {}", e)))
@@ -1585,8 +1590,9 @@ impl Env {
             let scope = env.python_scope.as_ref().unwrap();
 
             Python::with_gil(|py| {
-                let locals = scope.as_ref(py).downcast::<PyDict>().unwrap();
-                py.run(code, None, Some(locals))
+                let scope_dict = scope.as_ref(py).downcast::<PyDict>().unwrap();
+                // Use scope as both globals and locals for proper persistence
+                py.run(code, Some(scope_dict), Some(scope_dict))
                     .map_err(|e| KainError::runtime(format!("Python Error: {}", e)))?;
                 Ok(Value::Unit)
             })
@@ -2701,8 +2707,12 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
 
                 // Initialize Python scope
                 Python::with_gil(|py| {
-                    let locals = PyDict::new(py);
-                    actor_env.python_scope = Some(locals.into());
+                    // Use the same dict for both globals and locals to maintain scope
+                    let scope = PyDict::new(py);
+                    // Import builtins into the scope
+                    let builtins = py.import("builtins").unwrap();
+                    scope.set_item("__builtins__", builtins).unwrap();
+                    actor_env.python_scope = Some(scope.into());
                 });
 
                 actor_env.register_stdlib();
