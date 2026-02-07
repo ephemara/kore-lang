@@ -5,7 +5,9 @@ This demo runs a full 3D particle engine without compiling a single binary. Kain
 It proves you can use Kain for high-performance logic while leveraging Python libraries for immediate visualization.
 
 Make sure KAIN is installed - cargo install kain-lang
+
 Then run it with this simple command! 
+
 kain tests\visual_demo.kn -t run
 
 You can also use the --watch flag which puts the compiler in "monitor mode." It tracks your source file and automatically re-runs your code the moment you save changes.
