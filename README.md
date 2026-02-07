@@ -15,8 +15,8 @@
      THE UNIFIED COMPUTING LANGUAGE - Write once. Deploy to CPU, GPU, and Web.
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-          Rust's Safety  ·  Python's Syntax  ·  Lisp's Power
-              WASM  ·  LLVM  ·  SPIR-V  ·  HLSL  ·  USF
+          
+      Python  ·  Rust  ·  JS  · WASM  ·  LLVM  ·  SPIR-V  ·  HLSL  ·  USF  
 ```
 
 </div>
