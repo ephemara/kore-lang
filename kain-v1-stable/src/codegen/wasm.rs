@@ -815,11 +815,17 @@ impl WasmCompiler {
     fn preallocate_locals(&mut self, block: &Block, locals: &mut HashMap<String, LocalId>) {
         for stmt in &block.stmts {
             match stmt {
-                Stmt::Let { pattern, .. } => {
-                     // Recursively find bindings
+                Stmt::Let { pattern, value, .. } => {
+                     // Recursively find bindings and infer type from value
                      if let crate::ast::Pattern::Binding { name, .. } = pattern {
                         if !locals.contains_key(name) {
-                            let local = self.module.locals.add(ValType::I64); // Assume I64 for now
+                            // Infer type from the assigned value expression
+                            let val_type = if let Some(expr) = value {
+                                self.infer_wasm_type(expr)
+                            } else {
+                                ValType::I64 // Default for uninitialized
+                            };
+                            let local = self.module.locals.add(val_type);
                             locals.insert(name.clone(), local);
                         }
                      }
@@ -852,6 +858,50 @@ impl WasmCompiler {
             ResolvedType::Bool => ValType::I32,
             ResolvedType::String => ValType::I32, // Strings are pointers (i32 offset)
             _ => ValType::I64, 
+        }
+    }
+
+    // Infer WASM ValType from an expression (for local allocation)
+    fn infer_wasm_type(&self, expr: &Expr) -> ValType {
+        match expr {
+            Expr::Int(_, _) => ValType::I64,
+            Expr::Float(_, _) => ValType::F64,
+            Expr::Bool(_, _) => ValType::I32,
+            Expr::String(_, _) => ValType::I32,
+            Expr::JSX(_, _) => ValType::I32, // JSX nodes are DOM element IDs (i32)
+            Expr::Call { callee, .. } => {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    // Component calls return i32 (DOM node IDs)
+                    if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                        return ValType::I32;
+                    }
+                    // String functions return i32 (pointers)
+                    if name == "to_string" || name == "str_concat" {
+                        return ValType::I32;
+                    }
+                    // DOM functions return i32
+                    if name.starts_with("dom_") {
+                        return ValType::I32;
+                    }
+                }
+                ValType::I64 // Default for other functions
+            }
+            Expr::Binary { op, .. } => {
+                // Most binary ops return same type as operands
+                // Comparisons return bool (i32)
+                match op {
+                    BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Gt |
+                    BinaryOp::Le | BinaryOp::Ge | BinaryOp::And | BinaryOp::Or => ValType::I32,
+                    _ => ValType::I64,
+                }
+            }
+            Expr::Unary { op, .. } => {
+                match op {
+                    crate::ast::UnaryOp::Not => ValType::I32,
+                    _ => ValType::I64,
+                }
+            }
+            _ => ValType::I64, // Default fallback
         }
     }
     
@@ -1077,6 +1127,38 @@ impl WasmCompiler {
         }
     }
 
+    // Check if expression produces an i32 (JSX node IDs, bools, etc)
+    fn is_i32_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::JSX(_, _) => true,
+            Expr::Bool(_, _) => true,
+            Expr::String(_, _) => true, // Strings are i32 pointers
+            Expr::Call { callee, .. } => {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    // Component calls and DOM functions return i32
+                    name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+                        || name.starts_with("dom_")
+                        || name == "to_string" || name == "str_concat"
+                } else {
+                    false
+                }
+            }
+            // For identifiers, we can't know without context - return false and handle separately
+            Expr::Ident(_, _) => false, // Will be checked via is_i32_ident with context
+            _ => false
+        }
+    }
+
+    // Check if an identifier refers to an i32 local (needs module access)
+    fn is_i32_local(&self, name: &str, locals: &HashMap<String, LocalId>) -> bool {
+        if let Some(local_id) = locals.get(name) {
+            // Check the local's type in the module
+            let local = self.module.locals.get(*local_id);
+            return local.ty() == ValType::I32;
+        }
+        false
+    }
+
     fn compile_expr(&self, ctx: &CompilationContext, builder: &mut InstrSeqBuilder, expr: &Expr) -> KainResult<()> {
         match expr {
             Expr::Int(n, _) => {
@@ -1221,7 +1303,15 @@ impl WasmCompiler {
                                 }
                                 _ => {
                                     let is_string = self.is_string_expr(&arg.value);
+                                    
+                                    // Check if this is an i32 variable (JSX, bool, string ptr)
+                                    let is_i32_var = match &arg.value {
+                                        Expr::Ident(name, _) => self.is_i32_local(name, &ctx.locals),
+                                        _ => self.is_i32_expr(&arg.value),
+                                    };
+                                    
                                     self.compile_expr(ctx, builder, &arg.value)?;
+                                    
                                     if is_string {
                                         // ptr is on stack. Len is at ptr - 4.
                                         builder.local_set(ctx.tmp_i32);
@@ -1235,6 +1325,10 @@ impl WasmCompiler {
                                         if let Some(func_id) = ctx.functions.get("print_str") {
                                             builder.call(*func_id);
                                         }
+                                    } else if is_i32_var {
+                                        // JSX nodes, bools, components return i32
+                                        // For JSX the rendering already happened, just drop the node ID
+                                        builder.drop();
                                     } else {
                                         if let Some(func_id) = ctx.functions.get("print_i64") {
                                             builder.call(*func_id);

@@ -1,6 +1,6 @@
 [package]
 name = "kain-lang"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Kipp <kipp@k-os.dev>"]
 description = "A self-hosting programming language with Rust's safety, Python's syntax, and Lisp's metaprogramming"

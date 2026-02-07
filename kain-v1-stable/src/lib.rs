@@ -83,6 +83,14 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<Vec<u8>, KainError
             let usf_code = codegen::usf::generate(&typed_ast)?;
             Ok(usf_code.into_bytes())
         },
+        CompileTarget::Js => {
+            let js_code = codegen::js::generate(&typed_ast)?;
+            Ok(js_code.into_bytes())
+        },
+        CompileTarget::Rust => {
+            let rust_code = codegen::rust::generate(&typed_ast)?;
+            Ok(rust_code.into_bytes())
+        },
         CompileTarget::Interpret => {
             runtime::interpret(&typed_ast)?;
             Ok(vec![])
@@ -101,6 +109,8 @@ pub enum CompileTarget {
     SpirV,
     Hlsl,
     Usf,
+    Js,
+    Rust,
     Interpret,
     Test,
 }

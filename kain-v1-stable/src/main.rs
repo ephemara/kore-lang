@@ -121,6 +121,8 @@ fn run_compile(input: &PathBuf, target: CompileTarget, output: Option<&PathBuf>,
                     CompileTarget::SpirV => "spv",
                     CompileTarget::Hlsl => "hlsl",
                     CompileTarget::Usf => "usf",
+                    CompileTarget::Js => "js",
+                    CompileTarget::Rust => "rs",
                     CompileTarget::Interpret | CompileTarget::Test => unreachable!(),
                 };
                 
@@ -351,10 +353,12 @@ fn main() {
                             "spirv" | "gpu" | "shader" | "s" => CompileTarget::SpirV,
                             "hlsl" | "h" => CompileTarget::Hlsl,
                             "usf" | "ue5" => CompileTarget::Usf,
+                            "js" | "javascript" => CompileTarget::Js,
+                            "rust" | "rs" => CompileTarget::Rust,
                             "run" | "r" | "interpret" | "i" => CompileTarget::Interpret,
                             "test" | "t" => CompileTarget::Test,
                             _ => {
-                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, hlsl, usf, run, test, or ue5-shader", args.target);
+                                eprintln!(" Unknown target: {}. Use: wasm, llvm, spirv, hlsl, usf, js, rust, run, test, or ue5-shader", args.target);
                                 std::process::exit(1);
                             }
                         };
