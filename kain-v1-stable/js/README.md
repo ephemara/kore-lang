@@ -1,5 +1,7 @@
 # KAIN JavaScript/WebAssembly Target
 
+**Live Example:** [kain.ink](https://kain.ink) - A complete website written entirely in KAIN.
+
 This directory contains examples and build artifacts demonstrating KAIN's hybrid WASM/JS compilation.
 
 ## Overview
