@@ -83,9 +83,14 @@ enum Commands {
     /// Start the Language Server
     Lsp,
 
-    /// Compile a file (explicit command)
+    /// Build project or file. Without input, reads KAIN.toml for multi-target build.
     Build {
-        input: PathBuf,
+        /// Optional input file. If omitted, builds all targets from KAIN.toml
+        input: Option<PathBuf>,
+        
+        /// Override targets (comma-separated: wasm,js,rust)
+        #[arg(long, value_delimiter = ',')]
+        targets: Option<Vec<String>>,
     },
     
     /// Run a file (explicit command)
@@ -331,8 +336,20 @@ fn main() {
                     lsp::run_server().await;
                 });
             }
-            Some(Commands::Build { input }) => {
-                run_compile(&input, CompileTarget::Wasm, None, args.emit_ast, args.emit_typed, args.verbose);
+            Some(Commands::Build { input, targets }) => {
+                match input {
+                    Some(file) => {
+                        // Single file build (legacy behavior)
+                        run_compile(&file, CompileTarget::Wasm, None, args.emit_ast, args.emit_typed, args.verbose);
+                    }
+                    None => {
+                        // Project build from KAIN.toml
+                        if let Err(e) = packager::build_project(targets) {
+                            eprintln!(" Build failed: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
             }
             Some(Commands::Run { input }) => {
                 run_compile(&input, CompileTarget::Interpret, None, args.emit_ast, args.emit_typed, args.verbose);

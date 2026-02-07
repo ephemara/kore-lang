@@ -12,7 +12,32 @@ const REGISTRY_URL: &str = "https://greeble.co/KAIN/index.json";
 pub struct PackageManifest {
     pub package: PackageInfo,
     #[serde(default)]
+    pub build: BuildConfig,
+    #[serde(default)]
     pub dependencies: HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BuildConfig {
+    #[serde(default = "default_entry")]
+    pub entry: PathBuf,
+    #[serde(default = "default_output")]
+    pub output: PathBuf,
+    #[serde(default)]
+    pub targets: Vec<String>,
+}
+
+fn default_entry() -> PathBuf { PathBuf::from("src/main.kn") }
+fn default_output() -> PathBuf { PathBuf::from("dist") }
+
+impl Default for BuildConfig {
+    fn default() -> Self {
+        Self {
+            entry: default_entry(),
+            output: default_output(),
+            targets: vec!["wasm".to_string()],
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,6 +76,7 @@ impl PackageManifest {
                 authors: vec![],
                 description: None,
             },
+            build: BuildConfig::default(),
             dependencies: HashMap::new(),
         }
     }
@@ -233,3 +259,97 @@ fn install_package(name: &str, version: &str, url: &str) -> KainResult<()> {
     println!(" Installed {} v{}", name, version);
     Ok(())
 }
+
+/// Build all targets specified in KAIN.toml
+pub fn build_project(target_overrides: Option<Vec<String>>) -> KainResult<()> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let manifest = load_manifest(&cwd)?;
+    
+    // Use overrides or manifest targets
+    let targets = target_overrides.unwrap_or_else(|| manifest.build.targets.clone());
+    
+    if targets.is_empty() {
+        println!(" No targets specified in KAIN.toml [build.targets]");
+        println!(" Defaulting to wasm");
+        return build_targets(&manifest, &cwd, &["wasm".to_string()]);
+    }
+    
+    build_targets(&manifest, &cwd, &targets)
+}
+
+fn build_targets(manifest: &PackageManifest, cwd: &PathBuf, targets: &[String]) -> KainResult<()> {
+    use crate::{compile, CompileTarget};
+    
+    // Ensure output directory exists
+    let output_dir = cwd.join(&manifest.build.output);
+    fs::create_dir_all(&output_dir).map_err(|e| KainError::Io(e))?;
+    
+    // Read source file
+    let entry_path = cwd.join(&manifest.build.entry);
+    if !entry_path.exists() {
+        return Err(KainError::runtime(format!(
+            "Entry file not found: {}", entry_path.display()
+        )));
+    }
+    
+    let source = fs::read_to_string(&entry_path).map_err(|e| KainError::Io(e))?;
+    let file_stem = entry_path.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    
+    println!(" Building {} v{}", manifest.package.name, manifest.package.version);
+    println!(" Entry: {}", manifest.build.entry.display());
+    println!(" Output: {}/", manifest.build.output.display());
+    println!();
+    
+    for target_str in targets {
+        let target = parse_target(target_str)?;
+        let ext = target_extension(target);
+        let out_path = output_dir.join(file_stem).with_extension(ext);
+        
+        match compile(&source, target) {
+            Ok(output) => {
+                fs::write(&out_path, &output).map_err(|e| KainError::Io(e))?;
+                println!(" [{}] -> {} ({} bytes)", target_str, out_path.display(), output.len());
+            }
+            Err(e) => {
+                eprintln!(" [{}] FAILED: {}", target_str, e);
+            }
+        }
+    }
+    
+    println!();
+    println!(" Build complete!");
+    Ok(())
+}
+
+fn parse_target(s: &str) -> KainResult<crate::CompileTarget> {
+    use crate::CompileTarget;
+    match s.to_lowercase().as_str() {
+        "wasm" | "w" => Ok(CompileTarget::Wasm),
+        "llvm" | "native" | "n" => Ok(CompileTarget::Llvm),
+        "spirv" | "gpu" | "s" => Ok(CompileTarget::SpirV),
+        "hlsl" | "h" => Ok(CompileTarget::Hlsl),
+        "usf" | "ue5" => Ok(CompileTarget::Usf),
+        "js" | "javascript" => Ok(CompileTarget::Js),
+        "rust" | "rs" => Ok(CompileTarget::Rust),
+        "hybrid" => Ok(CompileTarget::Hybrid),
+        _ => Err(KainError::runtime(format!("Unknown target: {}", s)))
+    }
+}
+
+fn target_extension(target: crate::CompileTarget) -> &'static str {
+    use crate::CompileTarget;
+    match target {
+        CompileTarget::Wasm => "wasm",
+        CompileTarget::Llvm => "ll",
+        CompileTarget::SpirV => "spv",
+        CompileTarget::Hlsl => "hlsl",
+        CompileTarget::Usf => "usf",
+        CompileTarget::Js => "js",
+        CompileTarget::Rust => "rs",
+        CompileTarget::Hybrid => "js",
+        CompileTarget::Interpret | CompileTarget::Test => "txt",
+    }
+}
+
