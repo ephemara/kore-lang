@@ -15,7 +15,7 @@
           Write once. Deploy everywhere.
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            Python  ·  Rust  ·  JS  · WASM  ·  LLVM  ·  SPIR-V  ·  HLSL  ·  USF     
+            Python  ·  Rust  ·  JS  ·  WASM  ·  LLVM  ·  SPIR-V  ·  HLSL  ·  USF     
        
 ```
 
