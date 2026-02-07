@@ -32,9 +32,9 @@ This repository contains **two compiler implementations**:
 | Version | Location | Status | Best For |
 |---------|----------|--------|----------|
 | **V2 Self-Hosting** | `/` (root) | Experimental | Next-gen compiler development, LLVM native |
-| **V1 Production** | `/KAIN-v1-stable/` | Production-Ready | WASM, SPIR-V shaders, Actor runtime, UE5 integration |
+| **V1 Production** | `/KAIN-v1-stable/` | Production-Ready | Hybrid JS + WASM codegen, SPIR-V + USF + HLSL shaders, Actor runtime, UE5 integration, Python FFI, Application development, 3D Game engines
 
-**New users**: Start with **V1** (`/KAIN-v1-stable/`) for production work, especially for shaders and WASM.
+**FOR MOST USERS**: Start with **V1** (`/KAIN-v1-stable/`) This is the production ready version of Kain. Go ahead and get started with `cargo install kain-lang`
 
 **Contributors**: V2 (root) is where the self-hosting magic happens - help us make it production-ready!
 
