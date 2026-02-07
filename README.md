@@ -12,10 +12,10 @@
                              
 
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    THE UNIFIED COMPUTING LANGUAGE - Write once. Deploy to CPU, GPU, and Web.
+          Write once. Deploy everywhere.
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            Python  ·  Rust  ·  JS  · WASM  ·  LLVM  ·  SPIR-V  ·  HLSL  ·  USF     
+            Python  ·  Rust  ·  JS  ·  WASM  ·  LLVM  ·  SPIR-V  ·  HLSL  ·  USF     
        
 ```
 
