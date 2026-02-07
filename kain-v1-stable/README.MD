@@ -1,6 +1,8 @@
 MAKE SURE TO CHECK THIS GITHUB REPO FREQUENTLY TO STAY UP TO DATE WITH DEVELOPMENT. WHILE KAIN-V1 IS STABLE, IT IS ACTIVELY BEING DEVELOPED EVERY DAY WITH NEW FEATURES AND OPTIMIZATIONS/BUG FIXES ETC.
 
-HUGE UPDATE: 2/6/25 - Direct USF (Unreal Shader Format) backend is now live! Compile kain shaders directly to production UE5 code with `-t usf`. HLSL backend also fully functional.
+HUGE UPDATE:
+2/6/25 - Direct USF (Unreal Shader Format) backend is now live! Compile kain shaders directly to production UE5 code with `-t usf`. HLSL backend also fully functional. 
+2/7/25 - PYTHON FFI is fully live. See the /python_FFI folder for an example. FIXED some edge cases in the USF pipeline, it is now production ready.
 
 # KAIN V1 - Production Compiler
 
